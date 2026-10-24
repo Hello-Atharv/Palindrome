@@ -1,9 +1,15 @@
 // A small page to watch the real engines (WebAssembly) run the demo programs, one engine or both side by side.
 // Not the product UI (that is web/viz); a working reference for createWasmVm + assemble() in a Vite page.
 import { assemble, type ListingRow } from '../../../asm/src/index.js';
+import { compile } from '../../../lang/src/compile.js';
+import { analyze, formatReport } from '../../../lang/src/report.js';
 import cipher from '../../../programs/cipher.s?raw';
 import sort from '../../../programs/sort.s?raw';
 import pong from '../../../programs/pong.s?raw';
+import pongRev from '../../../programs/pong.rev?raw';
+import fibRev from '../../../lang/examples/fib.rev?raw';
+import sort3Rev from '../../../lang/examples/sort3.rev?raw';
+import sort8Rev from '../../../lang/examples/sort8.rev?raw';
 import call from '../../../asm/examples/call.s?raw';
 import ifelse from '../../../asm/examples/ifelse_macro.s?raw';
 import memory from '../../../asm/examples/memory.s?raw';
@@ -11,7 +17,7 @@ import nested from '../../../asm/examples/nested.s?raw';
 import { createWasmVm, type WasmVm } from '../src/index.js';
 
 type Kind = 'logging' | 'reversible';
-interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string; frames?: boolean }
+interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string; frames?: boolean; rev?: boolean }
 
 const PROGRAMS: Program[] = [
   { name: 'cipher.s: Speck64/128 (decrypt = direction −1)', src: cipher, crop: 'top', mem: '0x20000',
@@ -24,6 +30,14 @@ const PROGRAMS: Program[] = [
     note: 'A loop (r2 counts 1 to 5) with an if inside. Result: r2 = 5, r5 = 1, r6 = 4.' },
   { name: 'ifelse_macro.s', src: ifelse, crop: 'full', mem: '0', note: 'If / else with the macros. Result: r3 = 7.' },
   { name: 'call.s', src: call, crop: 'full', mem: '0x10000', note: 'Calls a procedure twice. The memory panel is on the stack: the return address appears and clears.' },
+  { name: 'pong.rev: Pong written in the rev language', src: pongRev, crop: 'full', mem: '0x1000', speed: '100', frames: true, rev: true,
+    note: '<b>The same game as pong.s, written in <code>rev</code>.</b> Edit the source below and press <b>Compile &amp; load</b>: the report shows what every source line costs in machine steps, what the program had to keep (garbage), and that the whole run was undone and replayed exactly. The Code panel shows the assembly the compiler wrote. Controls are as for pong.s.' },
+  { name: 'sort8.rev: the sorting network in rev', src: sort8Rev, crop: 'top', mem: '0', rev: true,
+    note: '<b>36 lines of rev instead of 340 of assembly.</b> The report counts the garbage: 14 of the 19 comparator flags are set. The array lives in data memory (<b>memory panel at 0</b>); try changing the numbers and compiling again.' },
+  { name: 'sort3.rev: three numbers, with flags', src: sort3Rev, crop: 'full', mem: '0', rev: true,
+    note: 'Small enough to read the whole report: each compare-exchange files a flag (f1, f2, f3), and the flags are the garbage.' },
+  { name: 'fib.rev: Fibonacci', src: fibRev, crop: 'full', mem: '0', rev: true,
+    note: 'Fibonacci, reversibly. The loop counter <code>i</code> ends at 10 and is reported as garbage: it could not be cleared. Direction −1 turns (55, 89) back into (0, 1).' },
   { name: 'memory.s: data, screen, neg', src: memory, crop: 'top', mem: '0x20000', note: 'Writes two words into the screen with xor, then erases one by xoring again.' },
 ];
 
@@ -54,7 +68,32 @@ async function load(): Promise<void> {
   machines.forEach((m) => m.vm.destroy());
   machines = [];
   const prog = PROGRAMS[$<HTMLSelectElement>('program').selectedIndex];
-  const result = assemble(prog.src);
+  $('revpane').hidden = !prog.rev;
+  let result;
+  if (prog.rev) {
+    const source = $<HTMLTextAreaElement>('src').value;
+    const c = compile(source);
+    const rs = $('revstatus');
+    rs.className = c.ok ? 'good' : 'bad';
+    if (!c.ok || !c.assembled) {
+      rs.textContent = 'did not compile';
+      const lines = c.diagnostics.map((d) => `line ${d.line}: ${d.message}`).join('\n');
+      $('diag').textContent = lines;
+      $('report').textContent = lines;
+      status = 'compile error';
+      render();
+      return;
+    }
+    rs.textContent = `compiled: ${c.assembled.code.length} instructions`;
+    result = c.assembled;
+    $('report').textContent = 'running the cost report...';
+    analyze(c, source, 400000).then(
+      (r) => { if ($<HTMLTextAreaElement>('src').value === source) $('report').textContent = formatReport(r, 'program.rev'); },
+      (e: Error) => { $('report').textContent = `report failed: ${e.message}`; },
+    );
+  } else {
+    result = assemble(prog.src);
+  }
   $('diag').textContent = result.diagnostics.map((d) => `line ${d.line}: ${d.severity}: ${d.message}`).join('\n');
   listing = result.listing;
   $('codeinfo').textContent = `${result.code.length} instructions, ${result.data.length} data words`;
@@ -319,6 +358,7 @@ compare = q.get('cmp') === '1';
 if (q.get('e') === 'logging') $<HTMLSelectElement>('engine').value = 'logging';
 const applyProgramDefaults = (): void => {
   const p = PROGRAMS[PROGRAM_SELECT.selectedIndex];
+  if (p.rev) $<HTMLTextAreaElement>('src').value = p.src;
   $<HTMLSelectElement>('crop').value = p.crop;
   $<HTMLInputElement>('memstart').value = q.get('mem') ?? p.mem;
   $<HTMLSelectElement>('speed').value = q.get('speed') ?? p.speed ?? '20';
@@ -328,6 +368,7 @@ applyProgramDefaults();
 PROGRAM_SELECT.onchange = () => { q.delete('mem'); applyProgramDefaults(); void load(); };
 $<HTMLSelectElement>('engine').onchange = () => void load();
 $('compare-btn').onclick = () => { compare = !compare; void load(); };
+$('compile').onclick = () => void load();
 $('step').onclick = () => { running = null; stepOnce('fwd'); render(); };
 $('back').onclick = () => { running = null; stepOnce('back'); render(); };
 $('run').onclick = () => { running = 'fwd'; requestAnimationFrame(loop); };

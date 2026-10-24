@@ -43,3 +43,5 @@ differential test between them, and a long rewind).
   Measured with `?selftest=300&p=2&debug=1`: the fewest paddle pixels visible in any redraw is 0 without it and 4 with it.
   Examples: `?p=0&t=800` the cipher part-way through; `?p=1&cmp=1&t=200` the sort on both engines; `?p=0&t=1203&dir=-1&after=600`
   the cipher decrypting.
+
+**rev programs in the playground.** The programs ending in `.rev` (indexes 6 to 9: pong.rev, sort8.rev, sort3.rev, fib.rev) show a source editor and a cost report above the machine. Edit the source and press *Compile & load*: it compiles in the browser (`lang/`), loads the result into the engine, and prints the per-line cost report (steps per source line, garbage, history bytes, exact round trip). The Code panel shows the assembly the compiler wrote. Program indexes for `?p=`: 0 cipher, 1 sort, 2 pong, 3 nested, 4 ifelse_macro, 5 call, 6 pong.rev, 7 sort8.rev, 8 sort3.rev, 9 fib.rev, 10 memory.
