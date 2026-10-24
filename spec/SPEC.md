@@ -297,7 +297,10 @@ nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SP
 2. **Frame counter (optional).** Data address `0xFFFF` (last word of the data region) is reserved as `FRAME`.
    A program that has frames adds 1 to it once per frame (`ADDI` + `XST` through a register, or `XLD`/`ADDI`/`XST`).
    The VM treats it as ordinary memory. The debugger's "step by frame" runs single steps until `memory(0xFFFF, 1)`
-   changes, and gives up with a message after 1,000,000 steps (so programs that never touch it are not hung).
+   equals its starting value plus 1, and gives up with a message after 1,000,000 steps (so programs that never touch it
+   are not hung). It waits for "plus 1", not for "changed", because a program that updates the word by moving it through a
+   register (`xld`, `xst`, add, `xst`, as `programs/pong.s` and the `rev` compiler do) passes through zero halfway through
+   its own update.
    Programs must not use `0xFFFF` for anything else.
 3. **Assembler.** Written in TypeScript (`asm/`): a Node command line tool that also runs in the browser, so the
    Code view can assemble live. It emits the same `.rvm` files either way.
@@ -312,7 +315,7 @@ on `halted`, `at_start` or `fault`, and after a cap of 1,000,000 steps (then sho
 - **Step out** (forward, inside a procedure): record `sp = r14`, then step until `r14 < sp` (the `RET` has run).
 - **Step over** (backward): if the instruction at `PC - 1` is `CALL` (we are just after a call), record `sp = r14`,
   then `stepBack()` until `PC == (the CALL's address)` and `r14 == sp`. Otherwise a single `stepBack()`.
-- **Step by frame**: single steps until `memory(0xFFFF, 1)` changes (section 11.7).
+- **Step by frame**: single steps until `memory(0xFFFF, 1)` equals its starting value plus 1 (section 11.7).
 - Under direction -1 the same rules apply to whichever way the program is running; use the stack depth (`r14`),
   not the direction, to decide when a call has finished.
 

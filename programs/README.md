@@ -51,3 +51,6 @@ programs draw nothing. This is the trick for visuals with no boilerplate: put th
   temporaries with `.with` and `.compute`/`.uncompute`; XOR drawing with `.plot`; self-inverse procedures.
 - Watch (and play) them: `cd web/wasm && npm run playground` (see `web/wasm/README.md`), including the **Compare engines** view.
 - To run any program headless: `node asm/dist/cli.js programs/x.s -o x.rvm`, then `build/default/rvm_run x.rvm --engine reversible --rewind`.
+
+## pong.rev
+`pong.rev` is the same game as `pong.s` written in the `rev` language (`lang/`), compiled with `npm run rvmc -- programs/pong.rev -o pong.rvm`. It draws the identical picture frame for frame (tested against `pong.s`) and costs about 22 percent more steps per frame. Read it next to `pong.s` to see what the language buys: the reversible tricks (unfolded phases, XOR drawing, self-inverse procedures, recording input) stay, the register juggling goes.

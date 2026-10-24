@@ -72,7 +72,13 @@ compared against on both engines, forwards and backwards.
 ## What the language costs
 Measured against hand-written assembly doing the same job (`lang/examples/sort8.rev`, 36 lines, against `programs/sort.s`,
 about 340 lines): 438 instructions and 335 steps against 341 and 311, with the same 14 bits of garbage. So the compiler costs
-about 28 percent more code and 8 percent more steps than careful hand assembly on this program. One program; do not extrapolate.
+about 28 percent more code and 8 percent more steps than careful hand assembly on this program.
+
+`programs/pong.rev` (about 100 lines) against `programs/pong.s` (about 240 lines of assembly): 465 instructions against 275, and
+488 steps a frame against 399 (+69 percent code, +22 percent steps). It draws the identical picture on every frame over 250 frames of
+play, score blocks included (`lang/test/pong.test.ts`), and runs forwards and backwards on both engines. Two programs; do not
+extrapolate. The overhead comes from the compiler building every expression into temporaries and un-building it, and from
+moving memory cells through registers to add to them.
 
 ## Not done yet
 Recursion, multiply and shifts, a `logged` escape hatch with a cost report, a language server. See `status/core.md`.
