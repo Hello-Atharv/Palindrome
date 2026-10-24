@@ -18,6 +18,8 @@
     "rvm": "node cli/node_modules/vite-node/vite-node.mjs cli/src/rvm.ts --",
     "test:cli": "npm --prefix cli test",
     "test:vscode": "npm --prefix vscode test",
-    "build:vscode": "npm --prefix vscode run build"
+    "build:vscode": "npm --prefix vscode run build",
+    "setup": "npm --prefix asm install && npm --prefix web/wasm install && npm --prefix lang install && npm --prefix cli install && npm --prefix bench/twins install && npm --prefix vscode install && npm run build:asm",
+    "test:all": "npm test && npm run test:asm && npm run test:wasm && npm run test:lang && npm run test:cli && npm run test:twins && npm run test:vscode"
   }
 }
