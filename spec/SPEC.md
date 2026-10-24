@@ -76,7 +76,8 @@ Memory is changed only by xor (`XST`) or swap-through-register; reading is `XLD`
 | `0x20000-0x207FF` | framebuffer 64x32, row-major, pixel `0x00RRGGBB` | RW |
 | `0x30000-0x3FFFF` | input window (`input_tape.md`) | RO |
 
-Everything else faults. Effective address = `(rb + sext(imm18)) mod 2^32`. The VM never draws;
+Everything else faults. Effective address = `(rb + sext(imm18)) mod 2^32`. Data address `0xFFFF` is reserved by convention as the `FRAME` counter (section 11.7).
+The VM never draws;
 the UI reads the framebuffer via `get_memory`. Note `imm18` is signed (max 131071) but
 `XORI` is zero-extended (max 262143): load a high address with `xori r1, 0x20000`.
 
