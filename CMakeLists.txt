@@ -15,9 +15,12 @@ endif()
 
 # The VM library. Add new sources to this list (owner: vm).
 add_library(rvm STATIC
-    vm/src/version.cpp
+    vm/src/api.cpp
+    vm/src/logging_vm.cpp
+    vm/src/program.cpp
 )
 target_include_directories(rvm PUBLIC spec vm/include)
+target_include_directories(rvm PRIVATE vm/src)
 target_link_libraries(rvm PRIVATE rvm_warnings)
 
 enable_testing()

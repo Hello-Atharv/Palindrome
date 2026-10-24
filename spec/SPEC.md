@@ -94,7 +94,7 @@ forward(S):                          # one step, d=+1; t -> t+1
   RET:           R14 -= 1; v = MEM[R14]; MEM[R14] ^= v; PC = v
 
 backward(S):                         # exact inverse of forward; t -> t-1. q = PC
-  if t == 0: return AT_START
+  if q == entry: return HALTED         # d=-1 only: nothing left to undo (step_back at t == 0 is AT_START)
   I = code[q]
   if I is LND and cond(I):  PC = I.target; return        # undo jump from S
   if I is PROC:             ret = MEM[R14-1]; MEM[R14-1] ^= ret; R14 -= 1
@@ -114,7 +114,10 @@ Control-flow rules (the assembler checks them; the **logging VM also asserts the
 2. `LND cc,ra,rb,S`: asserts "cc holds here iff we arrived by the jump from the `BR` at S". The reversible
    VM cannot check this (it has no history) and trusts it; the logging VM checks it every time.
 3. Each procedure has one `PROC E` entry and one `RET` at `E`. `entry` is not a jump target.
-4. Instructions that cannot fall through (`RET`, `HLT`, `BR al`) must be followed by an `LND`, `PROC`,
+4. Stricter checks the logging VM enforces (a fault otherwise): a taken `BR` must land on an `LND` whose
+   source operand is that `BR`; `CALL` must target a `PROC`; `RET` must be the `PROC`'s declared exit and
+   return to the instruction after a `CALL` of it; the stack slot above `r14` must be zero at `CALL`.
+5. Instructions that cannot fall through (`RET`, `HLT`, `BR al`) must be followed by an `LND`, `PROC`,
    or end of code.
 
 ### Worked example: if / else
