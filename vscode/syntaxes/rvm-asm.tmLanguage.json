@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "RVM assembly",
+  "scopeName": "source.rvm-asm",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#label" },
+    { "include": "#macro" },
+    { "include": "#directive" },
+    { "include": "#instruction" },
+    { "include": "#register" },
+    { "include": "#number" }
+  ],
+  "repository": {
+    "comment": { "match": ";.*$", "name": "comment.line.semicolon.rvm-asm" },
+    "label": {
+      "match": "^\\s*([A-Za-z_$][\\w$]*)\\s*:",
+      "captures": { "1": { "name": "entity.name.label.rvm-asm" } }
+    },
+    "macro": {
+      "match": "\\.(if|else|fi|loop|again|with|endwith|compute|use|uncompute|plot)\\b",
+      "name": "keyword.control.macro.rvm-asm"
+    },
+    "directive": {
+      "match": "\\.(equ|data|code|text|word|space|entry)\\b",
+      "name": "keyword.other.directive.rvm-asm"
+    },
+    "instruction": {
+      "patterns": [
+        { "match": "(?i)\\b(br|lnd|call|proc|ret|hlt)\\b", "name": "keyword.control.rvm-asm" },
+        { "match": "(?i)\\b(toff|cswap)\\b", "name": "support.function.gate.rvm-asm" },
+        { "match": "(?i)\\b(nop|add|sub|addi|subi|xor|xori|not|neg|swap|roli|xld|xst)\\b", "name": "keyword.operator.instruction.rvm-asm" },
+        { "match": "(?i)\\b(al|eq|ne|lt)\\b", "name": "constant.language.condition.rvm-asm" }
+      ]
+    },
+    "register": { "match": "(?i)\\b(r(?:1[0-5]|[0-9])|sp)\\b", "name": "variable.language.register.rvm-asm" },
+    "number": {
+      "patterns": [
+        { "match": "\\b0[xX][0-9a-fA-F]+\\b", "name": "constant.numeric.hex.rvm-asm" },
+        { "match": "\\b0[bB][01]+\\b", "name": "constant.numeric.binary.rvm-asm" },
+        { "match": "-?\\b[0-9]+\\b", "name": "constant.numeric.decimal.rvm-asm" },
+        { "match": "'[^']'", "name": "constant.character.rvm-asm" }
+      ]
+    }
+  }
+}

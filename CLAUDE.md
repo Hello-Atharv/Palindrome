@@ -28,6 +28,7 @@ writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `sp
 | asm/ | assembler + macros | core |
 | lang/ | `rev` language compiler (to asm), cost report | core |
 | cli/ | `rvm` command: build, run, report, verify, debug (step back) | core |
+| vscode/ | VS Code extension: grammars, diagnostics, per-line cost | core |
 | bench/, demo/ | benchmarks, demo script, writeup | core |
 | web/viz/ and web/mock_vm/ | visualiser: CPU, memory, framebuffer, app shell; mock VM | viz |
 | web/debugger/ | debugger: scrubber timeline, step back, breakpoints | debugger |

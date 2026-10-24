@@ -16,6 +16,8 @@
     "test:lang": "npm --prefix lang test",
     "rvmc": "node lang/node_modules/vite-node/vite-node.mjs lang/src/cli.ts --",
     "rvm": "node cli/node_modules/vite-node/vite-node.mjs cli/src/rvm.ts --",
-    "test:cli": "npm --prefix cli test"
+    "test:cli": "npm --prefix cli test",
+    "test:vscode": "npm --prefix vscode test",
+    "build:vscode": "npm --prefix vscode run build"
   }
 }
