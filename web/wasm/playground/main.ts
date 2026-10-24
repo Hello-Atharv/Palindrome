@@ -3,6 +3,7 @@
 import { assemble, type ListingRow } from '../../../asm/src/index.js';
 import { compile } from '../../../lang/src/compile.js';
 import { analyze, formatReport } from '../../../lang/src/report.js';
+import { highlightRev } from './highlight.js';
 import cipher from '../../../programs/cipher.s?raw';
 import sort from '../../../programs/sort.s?raw';
 import pong from '../../../programs/pong.s?raw';
@@ -244,6 +245,10 @@ function render(): void {
     $('hist').className = m0.vm.historyBytes === 0 ? 'good' : '';
     $('regs').innerHTML = regsHtml(m0, regs, pc);
     drawScreen($<HTMLCanvasElement>('fb'), m0.vm);
+    const scoreBox = $('score');
+    const isGame = !!PROGRAMS[PROGRAM_SELECT.selectedIndex]?.frames;
+    scoreBox.hidden = !isGame;
+    if (isGame) $('scoren').textContent = String(m0.vm.framebuffer().reduce((n, w) => n + (w === 0xffff00 ? 1 : 0), 0) / 4);
     if (q.get('debug') === '1') {
       const fb = m0.vm.framebuffer();
       let cyan = 0;
@@ -351,6 +356,40 @@ function loopBody(schedule = true): void {
   if (running && schedule) requestAnimationFrame(loop);
 }
 
+// ---- the rev editor: colouring and live error marks, as the VS Code extension does ----
+const srcBox = $<HTMLTextAreaElement>('src');
+let lintTimer: number | undefined;
+function paintEditor(withLint: boolean): void {
+  const source = srcBox.value;
+  const errors = new Map<number, string>();
+  let summary = '';
+  if (withLint) {
+    const ds = compile(source).diagnostics;
+    for (const d of ds) if (!errors.has(d.line)) errors.set(d.line, d.message);
+    summary = ds.map((d) => `line ${d.line}: ${d.message}`).join('\n');
+    const lint = $('lint');
+    lint.className = ds.length ? 'bad' : 'good';
+    lint.textContent = ds.length ? summary : 'no errors';
+  }
+  $('hl').innerHTML = highlightRev(source, errors);
+  $('hl').scrollTop = srcBox.scrollTop;
+  $('hl').scrollLeft = srcBox.scrollLeft;
+}
+srcBox.addEventListener('input', () => {
+  paintEditor(false); // colour at once
+  clearTimeout(lintTimer);
+  lintTimer = window.setTimeout(() => paintEditor(true), 200); // check shortly after typing stops
+});
+srcBox.addEventListener('scroll', () => { $('hl').scrollTop = srcBox.scrollTop; $('hl').scrollLeft = srcBox.scrollLeft; });
+srcBox.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') { // indent instead of leaving the box
+    e.preventDefault();
+    const { selectionStart: a, selectionEnd: b } = srcBox;
+    srcBox.setRangeText('  ', a, b, 'end');
+    srcBox.dispatchEvent(new Event('input'));
+  }
+});
+
 const PROGRAM_SELECT = $<HTMLSelectElement>('program');
 PROGRAMS.forEach((p) => PROGRAM_SELECT.append(new Option(p.name)));
 PROGRAM_SELECT.selectedIndex = Math.min(Number(q.get('p') ?? 0), PROGRAMS.length - 1);
@@ -358,15 +397,15 @@ compare = q.get('cmp') === '1';
 if (q.get('e') === 'logging') $<HTMLSelectElement>('engine').value = 'logging';
 const applyProgramDefaults = (): void => {
   const p = PROGRAMS[PROGRAM_SELECT.selectedIndex];
-  if (p.rev) $<HTMLTextAreaElement>('src').value = p.src;
+  if (p.rev) { srcBox.value = q.get('src') ?? p.src; paintEditor(true); }
   $<HTMLSelectElement>('crop').value = p.crop;
   $<HTMLInputElement>('memstart').value = q.get('mem') ?? p.mem;
   $<HTMLSelectElement>('speed').value = q.get('speed') ?? p.speed ?? '20';
 };
 applyProgramDefaults();
 
-PROGRAM_SELECT.onchange = () => { q.delete('mem'); applyProgramDefaults(); void load(); };
-$<HTMLSelectElement>('engine').onchange = () => void load();
+PROGRAM_SELECT.onchange = () => { q.delete('mem'); applyProgramDefaults(); void load(); PROGRAM_SELECT.blur(); };
+$<HTMLSelectElement>('engine').onchange = () => { void load(); $<HTMLSelectElement>('engine').blur(); };
 $('compare-btn').onclick = () => { compare = !compare; void load(); };
 $('compile').onclick = () => void load();
 $('step').onclick = () => { running = null; stepOnce('fwd'); render(); };
@@ -421,11 +460,12 @@ function keyCode(key: string): number | null {
 }
 function onKey(ev: KeyboardEvent, up: boolean): void {
   const target = ev.target as HTMLElement | null;
-  if (ev.repeat || ev.ctrlKey || ev.metaKey || ev.altKey || machines.length === 0) return;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey || machines.length === 0) return;
   if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
   const code = keyCode(ev.key);
   if (code === null) return;
-  ev.preventDefault();
+  ev.preventDefault(); // always, including auto-repeats: a held arrow key must not scroll the page
+  if (ev.repeat) return;
   const value = code | (up ? 0x100 : 0);
   machines.forEach((m) => m.vm.pushInput(value));
   if (primary().vm.instructionCount < maxT) { // pressing a key after scrubbing back starts a new timeline
