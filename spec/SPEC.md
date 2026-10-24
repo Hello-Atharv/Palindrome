@@ -351,6 +351,19 @@ line). The browser assembler (`assemble()` in `asm/`) returns the same data as `
 **Reading faults.** After a `fault`, state is unchanged and `lastError` explains why. PC points at the
 instruction that faulted. Stepping back still works.
 
+### 11.9 Console (optional convention)
+A program that prints text writes entries into a buffer in data memory; the UI draws the lines from that memory **at the current
+time**, so stepping back un-prints exactly and no separate output log exists. This is the one convention for text output.
+- `OUT_BASE = 0xE000`: the buffer, `0x1FFE` words (4,095 entries). `OUT_LEN = 0xFFFE`: the number of words used so far, always even.
+  Data word `0xFFFF` stays the FRAME counter (11.7). Programs must not use `0xE000..0xFFFE` for anything else.
+- An entry is **two words**, stored at `OUT_BASE + OUT_LEN`: `[tag, value]`. Tags: `0` a character (`value` is its code, `10` ends the
+  line), `1` an unsigned decimal number, `2` a signed decimal number, `3` hexadecimal (shown as `0x` and the digits). The UI formats
+  numbers, so a program never has to print digits.
+- A program prints by XORing the tag and the value into the two zero words and adding 2 to `OUT_LEN`. Nothing is overwritten, so this
+  is reversible; the buffer is the program's **garbage** (it is information the program cannot erase) and the cost report counts it.
+- A program that does not use the buffer shows nothing here; the UI may fall back to listing labelled data.
+- The `rev` language gets a `print` statement for this (see `lang/README.md` once added).
+
 ## 12. Cost model (what "the cost of undoing" means, and how it is counted)
 One definition shared by the benchmarks, the compiler's cost report, the debugger readouts and the writeup. If a
 number is shown anywhere, it is one of the quantities below, measured the way described here.
