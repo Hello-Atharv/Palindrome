@@ -19,6 +19,8 @@ export interface Transport {
   el: HTMLElement;
   setRun(mode: RunMode | null): void;
   setDirection(d: Direction): void;
+  /** Move the speed slider (the caller sets the runner's speed itself). */
+  setSpeedIndex(i: number): void;
 }
 
 const speedLabel = (r: number): string => (r === Infinity ? 'max' : r >= 1000 ? `${r / 1000}k/s` : `${r}/s`);
@@ -84,6 +86,10 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
     setDirection(next) {
       d = next;
       dir.setAttribute('aria-pressed', String(next === -1));
+    },
+    setSpeedIndex(i) {
+      speed.value = String(i);
+      speedOut.textContent = speedLabel(SPEEDS[i]);
     },
   };
 }

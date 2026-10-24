@@ -47,9 +47,9 @@ await dev(() => window.__dev.viz.stepBack());
 await shot('03-step-back-flash', 100);
 
 // 04/05 running: slow (flashes) and fast (heat map)
-await dev(() => { const s = document.querySelector('.speed'); s.value = '2'; s.dispatchEvent(new Event('input')); window.__dev.viz.run('forward'); });
+await dev(() => { const s = document.querySelector('.speed'); s.value = '4'; s.dispatchEvent(new Event('input')); window.__dev.viz.run('forward'); });
 await shot('04-run-forward-100ps');
-await dev(() => { const s = document.querySelector('.speed'); s.value = '4'; s.dispatchEvent(new Event('input')); });
+await dev(() => { const s = document.querySelector('.speed'); s.value = '6'; s.dispatchEvent(new Event('input')); });
 await shot('05-run-forward-heat');
 await dev(() => { window.__dev.viz.pause(); window.__dev.viz.run('back'); });
 await shot('06-run-back');
@@ -113,14 +113,54 @@ await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 300; i++) v.st
 await shot('17-compare');
 
 // 18 code view with a diagnostic, 19 with the real editor assembled
-await page.click('.viz-header .tabs .tab:nth-child(2)');
+await page.click('.viz-header .tabs .tab:nth-child(3)');
 await dev(() => { const e = document.querySelector('.code-editor'); e.value = 'start: xori r1, 5\n add r1, r1\n hlt\n'; });
 await page.click('.code-bar .btn');
 await shot('18-code-diagnostics');
 await load('nested loop');
-await page.click('.viz-header .tabs .tab:nth-child(2)');
+await page.click('.viz-header .tabs .tab:nth-child(3)');
 await page.click('.code-bar .btn');
 await shot('19-code-assembled');
+
+// 21-27 Learn view: the datapath, for simple programs only
+const learnTab = '.viz-header .tabs .tab:nth-child(2)';
+await load('if / else');
+await page.click(learnTab);
+await shot('21-learn-idle');
+await noScroll('learn');
+// step forward and catch the animation partway: fetch (PC -> program memory), then the ALU
+await dev(() => window.__dev.viz.step());
+await shot('22-learn-fetch', 250);
+await page.waitForTimeout(1000);
+await shot('23-learn-decode-execute', 700);
+await page.waitForTimeout(2500);
+// a memory write: the 'memory' example stores to the data window and the screen
+await load('memory');
+await page.click(learnTab);
+await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 4; i++) v.vm.stepForward(); v.refresh(); });
+await dev(() => window.__dev.viz.step());
+await page.waitForTimeout(1500);
+await shot('24-learn-memory-access', 1800);
+await page.waitForTimeout(3500);
+// the same instruction undone: the packets run the other way, in cyan
+await dev(() => window.__dev.viz.stepBack());
+await shot('25-learn-step-back-cyan', 900);
+await page.waitForTimeout(3500);
+// direction -1: the program runs as its own inverse
+await load('loop');
+await page.click(learnTab);
+await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 6; i++) v.vm.stepForward(); v.refresh(); v.setDirection(-1); v.step(); });
+await shot('26-learn-direction-minus-1', 900);
+await page.waitForTimeout(3500);
+// call / return on the stack
+await load('call / return');
+await page.click(learnTab);
+await dev(() => { const v = window.__dev.viz; v.vm.stepForward(); v.refresh(); v.step(); });
+await shot('27-learn-call', 2200);
+await page.waitForTimeout(4000);
+// a big program has no animation: the tab is disabled
+await load('sort');
+await shot('28-learn-disabled-for-sort');
 
 // 20 debugger mounted: left pane present, built-in transport hidden
 await load('if / else');

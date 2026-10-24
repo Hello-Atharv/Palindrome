@@ -13,13 +13,14 @@ import { listingPanel } from './panels/listing';
 import type { ListingApi } from './panels/listing';
 import { memoryPanel } from './panels/memory';
 import type { Ctx, Panel } from './panels/panel';
+import { learnPanel } from './panels/learn';
 import { registersPanel } from './panels/registers';
 import { screenPanel } from './panels/screen';
 import { timelinePanel } from './panels/timeline';
 import { trackerPanel } from './panels/tracker';
-import { inspectImage } from './program';
+import { inspectImage, learnVerdict } from './program';
 import type { ProgramEntry, ProgramInfo } from './program';
-import { Runner, SPEEDS } from './runner';
+import { LEARN_SPEED, Runner, SPEEDS } from './runner';
 import type { RunMode } from './runner';
 import { attachShortcuts } from './shortcuts';
 import { takeSnapshot } from './snapshot';
@@ -207,7 +208,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   );
   const timeline = timelinePanel(transport, (t) => seek(t));
   const code = opts.assemble ? codePanel(programs, (src, name) => api.assembleAndLoad(src, name), (i) => loadSample(i)) : null;
-  const panels: Panel[] = [registers, listing, memory, screen, tracker, banners, timeline, compare, ...(code ? [code] : [])];
+  const learn = learnPanel();
+  const panels: Panel[] = [registers, listing, memory, screen, tracker, banners, timeline, compare, learn, ...(code ? [code] : [])];
 
   const programBar = buildProgramBar(
     programs,
@@ -262,10 +264,20 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
 
   const views = new Tabs([
     { id: 'debug', label: 'Debug', el: debugView },
+    { id: 'learn', label: 'Learn', el: learn.el, disabled: true, title: 'Load a simple program to watch the datapath' },
     { id: 'code', label: 'Code', el: codeView },
   ]);
   header.append(views.bar);
   views.body.classList.add('viz-body');
+  views.onChange((id) => {
+    // watching data move needs a slow run: bring a fast speed down when the Learn view opens
+    if (id === 'learn' && runner.speedIndex > LEARN_SPEED) {
+      runner.speedIndex = LEARN_SPEED;
+      transport.setSpeedIndex(LEARN_SPEED);
+      updateMode();
+    }
+    refresh(status);
+  });
 
   root.classList.add('viz');
   root.replaceChildren(header, banners.el, slots.timeline, views.body, timeline.el);
@@ -318,7 +330,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     engineSwitch.setKind(vmNow.kind);
     transport.setDirection(cur.direction);
     const frame = vmNow.memory(FRAME_ADDR, 1)[0];
-    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice };
+    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: views.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat' };
     for (const p of panels) p.update(ctx);
     emit('update', { t: cur.t, maxT, branch, direction: cur.direction, snap: cur, prev, status: s });
   }
@@ -461,6 +473,11 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       if (s === 'ok') {
         all((v) => v.setInputTape(EMPTY_TAPE)); // every run starts with no inputs
         program = inspectImage(name, image, source);
+        if (source !== undefined && opts.assemble) {
+          program.listing = opts.assemble(source, name).listing.map((r) => ({ addr: r.addr, text: r.text }));
+        }
+        const verdict = learnVerdict(program);
+        views.setDisabled('learn', !verdict.ok, verdict.ok ? 'Watch the datapath: registers, ALU, memory and the bus' : verdict.why);
         programBar.setIndex(programs.findIndex((p) => p.name === name)); // -1 (blank) for a file or edited source
         notice = null;
         hostLog = [];

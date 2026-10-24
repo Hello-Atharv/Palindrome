@@ -20,6 +20,8 @@ export interface ProgramInfo {
    * Found by convention: a data label whose name starts with `garbage` runs to the next data label (or the end of data).
    */
   garbage: [number, number][];
+  /** Source text per code address, when the program came from the assembler (for the Learn view). */
+  listing?: { addr: number; text: string }[];
   /** Assembly source, when the program came from the assembler. */
   source?: string;
 }
@@ -70,4 +72,20 @@ export function inspectImage(name: string, image: Uint8Array, source?: string): 
 
 export function inGarbage(info: ProgramInfo | null, addr: number): boolean {
   return info !== null && info.garbage.some(([a, b]) => addr >= a && addr < b);
+}
+
+/** Programs up to this size get the animated datapath (the Learn view); bigger ones (sort, cipher, Pong) do not. */
+export const LEARN_MAX_CODE = 30;
+export const LEARN_MAX_DATA = 32;
+
+/** Can the Learn view animate this program? `why` explains a refusal. */
+export function learnVerdict(info: ProgramInfo | null): { ok: boolean; why: string } {
+  if (!info || info.codeLen === 0) return { ok: false, why: 'Load a program first.' };
+  if (info.codeLen > LEARN_MAX_CODE || info.dataLen > LEARN_MAX_DATA) {
+    return {
+      ok: false,
+      why: `This program is too large to animate (${info.codeLen} instructions, ${info.dataLen} data words; the limit is ${LEARN_MAX_CODE} and ${LEARN_MAX_DATA}). The datapath view is for simple examples: use the Debug view.`,
+    };
+  }
+  return { ok: true, why: '' };
 }

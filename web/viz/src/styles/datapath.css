@@ -1,0 +1,59 @@
+/* The Learn view: program | datapath | memory window. Modelled on a classroom CPU simulator. */
+.learn { height: 100%; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr) 344px; gap: var(--s-12); }
+.learn > * { min-height: 0; min-width: 0; }
+.learn-off { grid-column: 1 / -1; align-self: start; }
+
+/* program listing */
+.learn-code { overflow: hidden; }
+.lc-list { flex: 1; min-height: 0; overflow: auto; padding: var(--s-4) 0; font: 14px/22px var(--mono); }
+.lc-row { display: grid; grid-template-columns: 4ch minmax(0, 1fr); gap: var(--s-8); padding: 0 var(--s-8); border-left: 3px solid transparent; white-space: pre; }
+.lc-addr { color: var(--muted); }
+.lc-text { overflow: hidden; text-overflow: ellipsis; }
+.lc-row.now { background: color-mix(in srgb, var(--flash) 14%, var(--panel)); border-left-color: var(--flash); }
+.lc-row.fetch { background: color-mix(in srgb, var(--flash) 30%, var(--panel)); border-left-color: var(--flash); }
+
+/* middle: info box + diagram */
+.learn-mid { display: flex; flex-direction: column; gap: var(--s-8); }
+.learn-note {
+  flex: none; min-height: 48px; padding: var(--s-8) var(--s-12); background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); line-height: 1.4;
+}
+.learn-dp { position: relative; flex: 1; min-height: 0; }
+.learn-dp .dp { width: 100%; height: 100%; display: block; }
+.dp-badge { position: absolute; right: 0; top: 44%; height: auto; padding: 2px var(--s-8); white-space: normal; max-width: 27%; line-height: 1.3; font-size: 14px; }
+
+/* the diagram (SVG) */
+.dp { font-family: var(--sans); font-size: 14px; }
+.dp-bus { stroke: var(--border); stroke-width: 14; stroke-linecap: round; }
+.dp-wire { fill: none; stroke: var(--border); stroke-width: 4; }
+.dp-head { fill: var(--border); }
+.dp-box { fill: var(--panel); stroke: var(--border); stroke-width: 1.5; }
+.dp-unit { fill: var(--panel-2); }
+.dp-cu { fill: color-mix(in srgb, var(--fault) 14%, var(--panel-2)); }
+.dp-alu { fill: color-mix(in srgb, var(--back) 12%, var(--panel-2)); }
+.dp-tile { fill: var(--panel-2); stroke: transparent; stroke-width: 1.5; }
+.dp-title { fill: var(--muted); font-weight: 600; }
+.dp-name { fill: var(--muted); }
+.dp-val { fill: var(--text); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 14px; }
+.dp-ext { fill: var(--muted); font-size: 14px; }
+.dp-lit { stroke: var(--flash); stroke-width: 3; filter: drop-shadow(0 0 5px var(--flash)); }
+.dp-tile.dp-lit { fill: color-mix(in srgb, var(--flash) 22%, var(--panel-2)); }
+.dp-packet rect { fill: var(--flash); stroke: var(--bg); stroke-width: 1.5; }
+.dp-packet text { fill: #0d1117; font: 700 14px var(--mono); }
+.dp[data-dir='fwd'] { --flash: var(--fwd); }
+.dp[data-dir='back'] { --flash: var(--back); }
+
+/* memory windows */
+.learn-mem { overflow: auto; }
+.learn-mem-body { padding: var(--s-8) var(--s-12); display: flex; flex-direction: column; gap: var(--s-4); }
+.lm-title { display: flex; align-items: center; justify-content: space-between; gap: var(--s-8); color: var(--muted); font-weight: 600; }
+.lw { display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)); gap: 0 var(--s-8); font: 14px/18px var(--mono); font-variant-numeric: tabular-nums; margin-bottom: var(--s-4); }
+.lw-addr { color: var(--muted); opacity: 0.8; }
+.lw-cell { text-align: right; padding: 0 var(--s-4); border-radius: var(--radius); }
+.lw-cell.zero { color: var(--muted); opacity: 0.65; }
+.lw-cell.changed { background: color-mix(in srgb, var(--flash) 25%, transparent); box-shadow: inset 0 0 0 1px var(--flash); opacity: 1; }
+.lw-cell.mark { outline: 1px solid var(--branch); }
+.lw-cell.read, .lw-cell.write { opacity: 1; color: var(--bg); background: var(--flash); font-weight: 700; }
+.learn-mem .caption { margin: 0; }
+
+@media (max-width: 1180px) { .learn { grid-template-columns: 200px minmax(0, 1fr) 300px; } }

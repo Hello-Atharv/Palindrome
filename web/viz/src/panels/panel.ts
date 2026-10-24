@@ -25,6 +25,11 @@ export interface Ctx {
   frame: number;
   /** Every machine under the shell (one, or two in Compare); `vm` above is the first. */
   machines: readonly Machine[];
+  /** The top-level view that is showing (debug, learn, code). */
+  view: string;
+  /** Nominal run speed in steps per second, and whether the page is in heat-map mode (too fast to animate). */
+  stepHz: number;
+  heat: boolean;
   /** A message about the last load/assemble attempt that failed (null when fine). */
   notice: string | null;
 }

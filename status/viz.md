@@ -112,3 +112,14 @@ Updated: 2026-10-24
   the debugger must not cache; (3) host actions made outside `viz.pushInput/setDirection` cannot be replayed on a switch;
   (4) loadProgram keeps the VM's tape, so the shell clears it with an empty tape on every load (each run starts with no inputs);
   (5) the program picker did not follow programs loaded through the API: fixed.
+
+## Learn view (2026-10-24)
+- Done: the datapath view modelled on a classroom CPU simulator (user request): program | animated datapath | fixed 64 data +
+  16 stack word memory window (signed/unsigned/hex). Inferred, labelled illustrative. Forward = amber packets, back / direction -1 =
+  the same script reversed in cyan. Simple programs only (<= 30 instructions, <= 32 data words); sort, cipher and Pong disable the
+  tab with a reason. Replaces the old M3 (CPU diagram). New files: src/datapath/{script,layout,diagram}.ts, src/panels/learn.ts,
+  src/styles/datapath.css. SPEEDS now 1, 2, 5, 10, 100 ... Screenshots 21-28. viz 49/49 tests (16 new), tsc clean, vite build ok.
+- Differences from the model's UI that I could not match: no status flags N Z C V (the ISA has none, so a "Condition" box); no
+  byte mode (word-addressed memory); separate program memory, so fetch does not use MAR/MBR; input is a read-only window.
+- Known gaps: the bus is drawn as one shared path, not separate buses; registers and memory values change when the packet arrives
+  only for registers (memory words update when the whole instruction finishes); no editable source in Learn (use Code view).

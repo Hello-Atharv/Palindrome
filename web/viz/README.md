@@ -117,3 +117,21 @@ object after `setEngine`, so do not cache it; re-read it on `'engine'`.**
 **Garbage convention** (SPEC section 9, "Sort garbage"): a data label whose name starts with `garbage` runs to the next data
 label or the end of data; those words are hatched in the Memory view (sort.s: addresses 8-26). The Memory view also has an
 ASCII column (4 bytes per word, little-endian) and a jump-to-data-label menu (cipher.s: `msg` at 0x1b).
+
+## Learn view (the datapath, for simple programs)
+A third view, modelled on a classroom CPU simulator: the program (source lines) on the left; in the middle the datapath
+(registers and PC, incrementer, MAR, MBR, CIR, control unit, ALU, a condition box, input window, output screen, a bus) with
+packets of data that travel along the wires while an instruction executes; on the right a **fixed** window of 64 data words
+(0-63) and 16 stack words, in signed / unsigned / hex. All of the machine's memory, registers and stack still exist and run;
+only 80 of the 133,120 writable words are drawn.
+- **Illustrative.** The VM exposes no datapath events, so `src/datapath/script.ts` infers the transfers from the decoded
+  instruction and the registers before and after the step. The page says so. The machine has no status flags (SPEC section 2),
+  so the usual N Z C V box is a "Condition" box (true / false for BR). Program memory is separate from data memory, so fetch goes
+  PC -> program listing -> CIR, and the MAR/MBR are used only for data and stack accesses.
+- **Time.** A step forward plays the script phase by phase (amber). A step back, or a step while the direction is -1, plays the
+  same script of the instruction being undone with the phases in reverse and every packet travelling the other way (cyan).
+- **Only simple programs.** `learnVerdict` in `src/program.ts`: at most 30 instructions and 32 data words (`LEARN_MAX_CODE`,
+  `LEARN_MAX_DATA`). Bigger programs (sort, cipher, Pong) disable the Learn tab with a tooltip that says why; use Debug for those.
+- **Speed.** Animation only runs at 20 steps/s or slower (otherwise the heat map). Opening Learn drops a fast speed to 2/s. The
+  speed slider now has 1, 2, 5, 10, 100 ... steps/s. A manual Step takes about 450 ms per phase.
+- `Ctx` (what panels get) gained `view`, `stepHz` and `heat`; `Transport` gained `setSpeedIndex`.
