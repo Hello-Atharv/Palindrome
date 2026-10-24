@@ -74,11 +74,15 @@ Measured against hand-written assembly doing the same job (`lang/examples/sort8.
 about 340 lines): 438 instructions and 335 steps against 341 and 311, with the same 14 bits of garbage. So the compiler costs
 about 28 percent more code and 8 percent more steps than careful hand assembly on this program.
 
-`programs/pong.rev` (about 100 lines) against `programs/pong.s` (about 240 lines of assembly): 465 instructions against 275, and
-488 steps a frame against 399 (+69 percent code, +22 percent steps). It draws the identical picture on every frame over 250 frames of
-play, score blocks included (`lang/test/pong.test.ts`), and runs forwards and backwards on both engines. Two programs; do not
-extrapolate. The overhead comes from the compiler building every expression into temporaries and un-building it, and from
-moving memory cells through registers to add to them.
+`programs/pong.rev` against `programs/pong.s` (about 240 lines of assembly). Measured when both played the same game with nothing
+extra (the last commit before the wall and the score digits were added): 465 instructions against 275 and 488 steps a frame against
+399, so +69 percent code and +22 percent steps. `pong.rev` has since gained a permanent wall and a score drawn as digits, which
+`pong.s` does not have (it lights yellow blocks), so the two are no longer like for like: it is now 601 instructions and about 530
+steps a frame, and that includes the extra drawing. What the test (`lang/test/pong.test.ts`) still checks on every frame of 250
+frames of play is that the **court** (columns 0 to 31) is identical pixel for pixel to the hand-written game, that the wall never
+changes, and that the digits equal the number of hits; and it runs forwards and backwards on both engines. Two programs; do not
+extrapolate. The overhead comes from the compiler building every expression into temporaries and un-building it, and from moving
+memory cells through registers to add to them.
 
 ## Not done yet
 Recursion, multiply and shifts, a `logged` escape hatch with a cost report, a language server. See `status/core.md`.

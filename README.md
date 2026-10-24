@@ -43,8 +43,9 @@ npm run test:all                            # all 219 tests (about a minute)
   the reversible program about 8 (its input log). Against checkpoint-and-replay (a snapshot every 10,000 steps, about 15 bytes a frame
   here) the memory is comparable, and checkpointing seeks to a far-away time faster; the reversible machine steps back one instruction in
   one step and loses nothing between snapshots. Pong has a tiny state; a program with a large one would favour reversible. Not measured.
-- **The language costs about 8 to 22 percent more steps than hand-written assembly** (the same sort, and Pong written both ways
-  producing the identical picture on every frame), at about 30 to 70 percent more instructions of code.
+- **The language costs about 8 to 22 percent more steps than hand-written assembly** (the same sort, and an earlier Pong written both ways
+  producing the identical picture on every frame; the rev Pong has since gained a wall and score digits, see `lang/README.md`), at about
+  30 to 70 percent more instructions of code.
 - **Garbage is visible.** The sort keeps at most 19 bits (14 this time) against a floor of 15.3 for sorting 8 distinct numbers.
 
 ## What this is not

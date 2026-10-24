@@ -188,6 +188,35 @@ describe('rev language', () => {
 });
 
 
+describe('procedure calls inside blocks that use constants in their conditions', () => {
+  // A procedure assumes every temporary register is zero when it is entered. Constants used by an enclosing if/loop condition
+  // must therefore not be sitting in temporaries while the body runs. (This was a real bug, found by the Pong score digits.)
+  it('call inside an if whose test and assertion use the same constant', async () => {
+    for (const q of [63, 5]) {
+      const v = await check(`
+        var q = ${q}, r = 0, out1 = 0, s = 0;
+        proc scribble { s ^= 0x12345 + 77; s ^= 0x12345 + 77; r += 1000000; r -= 1000000; r += 7; }
+        main {
+          if (q == 63) { call scribble; out1 += 1; } else { skip; } fi (q == 63);
+          if (q == 63) { call scribble; } else { call scribble; } fi (q == 63);
+        }`);
+      expect(v.get('r')).toBe(q === 63 ? 14 : 7); // both ifs call it when q is 63; only the second (its else) when not
+    }
+  });
+
+  it('call inside a loop whose until and from conditions use constants', async () => {
+    const v = await check(`
+      var i = 5, n = 0, r = 0;
+      proc bump { r += 3; n ^= 0x9ABCDE; n ^= 0x9ABCDE; }
+      main {
+        from (i == 5) loop { call bump; i += 1; } until (i == 9);
+        from (i == 9) do { call bump; } loop { i += 1; } until (i == 12);
+      }`);
+    expect(v.get('r')).toBe(3 * 4 + 3 * 4); // 4 passes through the first loop, 4 through the second
+    expect(v.get('i')).toBe(12);
+  });
+});
+
 describe('arrays, memory variables, placement and input', () => {
   it('reads and updates array elements with variable and constant indexes', async () => {
     const v = await check(`

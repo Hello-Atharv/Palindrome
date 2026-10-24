@@ -133,12 +133,19 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
   function cellOf(name: string, index: Expr | null, ops: I[], temps: number[]): Cell {
     const v = info(name) as Extract<VarInfo, { kind: 'mem' }>;
     if (index === null) return constCell(v.addr, ops, temps);
-    const ix = build(index, ops, temps);
-    if ('imm' in ix) return constCell(v.addr + ix.imm, ops, temps);
-    if (fitsImm(v.addr)) return { reg: ix.reg, off: v.addr };
+    // a[e + c] is the cell at (base + c) indexed by e: the constant costs no instruction and no temporary
+    let ie = index;
+    let base = v.addr;
+    if (ie.k === 'bin' && (ie.op === '+' || ie.op === '-') && ie.b.k === 'num') {
+      base += ie.op === '+' ? ie.b.value | 0 : -ie.b.value | 0;
+      ie = ie.a;
+    }
+    const ix = build(ie, ops, temps);
+    if ('imm' in ix) return constCell(base + ix.imm, ops, temps);
+    if (fitsImm(base)) return { reg: ix.reg, off: base };
     const t = alloc();
     temps.push(t);
-    ops.push(...loadConst(t, v.addr), { op: 'add', a: t, b: ix.reg });
+    ops.push(...loadConst(t, base), { op: 'add', a: t, b: ix.reg });
     return { reg: t, off: 0 };
   }
 
@@ -266,7 +273,6 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
     };
     return [get(c.a), get(c.b)];
   }
-  const unhold = (h: Held): void => { emitOps(inverse(h.ops)); release(h.temps); };
   const pair = (c: CC, [a, b]: [number, number]): string => (c.swap ? `r${b}, r${a}` : `r${a}, r${b}`);
 
   // ---- statements ----
@@ -379,14 +385,13 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
   }
 
   function ifStmt(s: Extract<Stmt, { k: 'if' }>): void {
-    // The test's operands are loaded before the branch and cleared at the start of each body (the bodies may change what they
-    // were loaded from). The assertion's operands are variables and constants only, so they can wait until the join.
-    // Constants cannot go stale, so they are shared between the test and the assertion and cleared at the end.
+    // The test's operands (constants and memory cells) are loaded before the branch and cleared at the start of each body: the
+    // bodies may change what they were loaded from, and a procedure called from a body assumes every temporary is zero. The
+    // assertion's constants are loaded at the END of each body, just before the join, for the same reason.
     const test: Held = { ops: [], temps: [] };
     const fiHeld: Held = { ops: [], temps: [] };
-    const ro = operands(s.test, test, fiHeld);
+    const ro = operands(s.test, test);
     const rf = operands(s.fi, fiHeld);
-    emitOps(fiHeld.ops);
     emitOps(test.ops);
     const clearTest = (): void => emitOps(inverse(test.ops));
     // The entry `br` jumps into one body (X) and falls through into the other (Y). At the join, `lnd cc` asserts that cc holds
@@ -413,6 +418,7 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
     clearTest();
     stmts(Y);
     curLine = s.line;
+    emitOps(fiHeld.ops);
     label(S1);
     if (!plan.swapped) {
       ins(`br al, ${LE}`);
@@ -421,6 +427,7 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
       clearTest();
       stmts(X);
       curLine = s.line;
+      emitOps(fiHeld.ops);
       label(LE);
       ins(`lnd ${exit.cc}, ${pair(exit, rf)}, ${S1}`);
     } else {
@@ -432,6 +439,7 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
       clearTest();
       stmts(X);
       curLine = s.line;
+      emitOps(fiHeld.ops);
       label(S2);
       ins(`br al, ${LE}`);
       label(LA);
@@ -444,33 +452,41 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
   }
 
   function fromStmt(s: Extract<Stmt, { k: 'from' }>): void {
-    const held: Held = { ops: [], temps: [] };
-    const rh = operands(s.entry, held);
-    const rx = operands(s.until, held);
+    // Constants in the conditions are loaded just before they are read and cleared right after, never held across a body (a
+    // procedure called from a body assumes every temporary is zero).
+    const headHeld: Held = { ops: [], temps: [] }; // the 'from' condition's constants: read by the lnd at the loop head
+    const exitHeld: Held = { ops: [], temps: [] }; // the 'until' condition's constants: read by the exit br
+    const rh = operands(s.entry, headHeld);
+    const rx = operands(s.until, exitHeld);
     const head = ccOf(s.entry, false); // holds iff we arrived by the back edge
     const exit = ccOf(s.until, true);
     if (!head || !exit) {
       throw new CompileError(s.line,
         "the loop's 'from' condition must be testable as false and its 'until' condition as true: use ==, != or <, > for 'until' and ==, !=, <=, >= for 'from'");
     }
-    emitOps(held.ops);
     const H = newLabel('H');
     const SX = newLabel('S');
     const SB = newLabel('S');
     const X = newLabel('X');
+    emitOps(headHeld.ops); // first entry
     label(H);
     ins(`lnd ${head.cc}, ${pair(head, rh)}, ${SB}`);
+    emitOps(inverse(headHeld.ops));
     stmts(s.body1);
     curLine = s.line;
+    emitOps(exitHeld.ops);
     label(SX);
     ins(`br ${exit.cc}, ${pair(exit, rx)}, ${X}`);
+    emitOps(inverse(exitHeld.ops)); // not leaving: clear before the second body
     stmts(s.body2);
     curLine = s.line;
+    emitOps(headHeld.ops); // the back edge arrives at the lnd above, which reads them
     label(SB);
     ins(`br al, ${H}`);
     label(X);
     ins(`lnd al, r0, r0, ${SX}`);
-    unhold(held);
+    emitOps(inverse(exitHeld.ops)); // leaving: the exit br jumped here with them loaded
+    release([...headHeld.temps, ...exitHeld.temps]);
   }
 
   // ---- program ----

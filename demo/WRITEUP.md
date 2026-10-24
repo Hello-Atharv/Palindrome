@@ -19,7 +19,7 @@ touch it, so we did not invent anything; we built all of it and tested it hard.
   VS Code extension that shows the cost beside each line.
 - Three programs that stress it: a real cipher (Speck64/128, decrypting by running it backwards), a sort that shows the garbage it cannot
   erase, and Pong, which you can play and then rewind exactly, keypresses and all. Pong exists twice: by hand in assembly and in `rev`, and
-  the two draw the identical picture on every frame.
+  the two draw the identical court on every frame.
 
 ## The part where we tell you what it costs
 The first benchmark was flattering and wrong. Our logging engine's diary costs 48 bytes a step, so "0 bytes against 48 bytes a step"
@@ -47,7 +47,7 @@ result: reversibility is a trade, not a free lunch.
 ## The language, and what it costs
 `rev` programs are much shorter than the assembly (Pong is about 100 lines against 240; the sort is 36 lines against 340). The compiler builds every expression into temporary registers, uses
 it, and runs the build backwards so nothing is left behind (Bennett's trick, applied thousands of times). On the same sort the result is
-within 28 percent of our hand-written assembly in code size and 8 percent in steps; on Pong, 69 percent more code and 22 percent more steps.
+within 28 percent of our hand-written assembly in code size and 8 percent in steps; on Pong, 69 percent more code and 22 percent more steps (measured before we gave the rev Pong a wall and score digits the assembly version lacks; the game's court is still checked pixel for pixel against it on every frame).
 Two programs, so do not extrapolate. The report that comes with every compile says which source lines cost what, which variables end
 up as garbage, and that the whole run was undone and replayed to the identical state.
 

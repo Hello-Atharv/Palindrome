@@ -18,21 +18,21 @@ import nested from '../../../asm/examples/nested.s?raw';
 import { createWasmVm, type WasmVm } from '../src/index.js';
 
 type Kind = 'logging' | 'reversible';
-interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string; frames?: boolean; rev?: boolean }
+interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string; frames?: boolean; rev?: boolean; blocks?: boolean }
 
 const PROGRAMS: Program[] = [
   { name: 'cipher.s: Speck64/128 (decrypt = direction −1)', src: cipher, crop: 'top', mem: '0x20000',
     note: '<b>The screen is the message.</b> Row 0 first shows 8 dull grey-blue pixels (the plaintext), which turn into 8 random colours (the ciphertext) as it runs. Flip <b>Direction</b> and run: the same program decrypts. The memory panel is on the screen words.' },
   { name: 'sort.s: sort that exposes its garbage', src: sort, crop: 'top', mem: '0x20000',
     note: '<b>The screen is the list.</b> Row 0 is the list (small = green, large = red): watch the compared pair vanish into registers and return swapped, ending as a gradient. Row 1 is the <b>garbage</b>: one pixel per comparison (cyan = swapped). Flip <b>Direction</b> to unsort.' },
-  { name: 'pong.s: Pong (W/S or ↑/↓)', src: pong, crop: 'full', mem: '0x1000', speed: '100', frames: true,
+  { name: 'pong.s: Pong (W/S or ↑/↓)', src: pong, crop: 'full', mem: '0x1000', speed: '100', frames: true, blocks: true,
     note: '<b>Click this page, press Run, then use W / S or ↑ / ↓</b> to move the paddle (cyan, left edge). Each time the ball returns to the left edge, a paddle there is a hit and a <b>yellow block lights up on the right half: that is your score</b>; otherwise the program halts: game over. <b>◀ Back and the scrubber rewind the game exactly</b> (keys pressed are replayed). The memory panel shows the <b>input log</b>, the only garbage this program keeps (8 bytes a frame). The Direction toggle is exact only for programs that read no input, so use Back for Pong. Try <b>Compare engines</b>.' },
   { name: 'nested.s: loop with an if inside', src: nested, crop: 'full', mem: '0',
     note: 'A loop (r2 counts 1 to 5) with an if inside. Result: r2 = 5, r5 = 1, r6 = 4.' },
   { name: 'ifelse_macro.s', src: ifelse, crop: 'full', mem: '0', note: 'If / else with the macros. Result: r3 = 7.' },
   { name: 'call.s', src: call, crop: 'full', mem: '0x10000', note: 'Calls a procedure twice. The memory panel is on the stack: the return address appears and clears.' },
-  { name: 'pong.rev: Pong written in the rev language', src: pongRev, crop: 'full', mem: '0x1000', speed: '100', frames: true, rev: true,
-    note: '<b>The same game as pong.s, written in <code>rev</code>.</b> Edit the source below and press <b>Compile &amp; load</b>: the report shows what every source line costs in machine steps, what the program had to keep (garbage), and that the whole run was undone and replayed exactly. The Code panel shows the assembly the compiler wrote. Controls are as for pong.s.' },
+  { name: 'pong.rev: Pong written in the rev language (W/S or ↑/↓)', src: pongRev, crop: 'full', mem: '0x1000', speed: '100', frames: true, rev: true,
+    note: '<b>Click this page, press Run, then W / S or ↑ / ↓.</b> The same game, written in <code>rev</code>, with a <b>permanent grey wall</b> down the middle and your <b>score as a number</b> on the right: it goes up each time you return the ball. <b>◀ Back and the scrubber rewind the game exactly</b>, wall and score included. Edit the source and press <b>Compile &amp; load</b>: errors are underlined as you type, and the report shows what every line costs in machine steps and what the program had to keep (garbage).' },
   { name: 'sort8.rev: the sorting network in rev', src: sort8Rev, crop: 'top', mem: '0', rev: true,
     note: '<b>36 lines of rev instead of 340 of assembly.</b> The report counts the garbage: 14 of the 19 comparator flags are set. The array lives in data memory (<b>memory panel at 0</b>); try changing the numbers and compiling again.' },
   { name: 'sort3.rev: three numbers, with flags', src: sort3Rev, crop: 'full', mem: '0', rev: true,
@@ -246,7 +246,7 @@ function render(): void {
     $('regs').innerHTML = regsHtml(m0, regs, pc);
     drawScreen($<HTMLCanvasElement>('fb'), m0.vm);
     const scoreBox = $('score');
-    const isGame = !!PROGRAMS[PROGRAM_SELECT.selectedIndex]?.frames;
+    const isGame = !!PROGRAMS[PROGRAM_SELECT.selectedIndex]?.blocks; // only the block-scoring Pong; pong.rev draws its score as digits
     scoreBox.hidden = !isGame;
     if (isGame) $('scoren').textContent = String(m0.vm.framebuffer().reduce((n, w) => n + (w === 0xffff00 ? 1 : 0), 0) / 4);
     if (q.get('debug') === '1') {

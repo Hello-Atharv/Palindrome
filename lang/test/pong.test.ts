@@ -32,6 +32,29 @@ function stepFrame(v: WasmVm): string {
   return s;
 }
 
+// The two games differ on the right half by design: pong.s lights yellow blocks, pong.rev draws a wall and the score as digits.
+// The court (columns 0 to 31) must be identical pixel for pixel, which checks the whole game.
+const court = (fb: Uint32Array): number[] => Array.from(fb).filter((_, i) => i % 64 < 32);
+const WALL_X = 32;
+const WALL = 0x606060;
+const FONT: Record<number, string[]> = {
+  0: ['111', '101', '101', '101', '111'], 1: ['010', '110', '010', '010', '111'], 2: ['111', '001', '111', '100', '111'],
+  3: ['111', '001', '111', '001', '111'], 4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '111', '001', '111'],
+  6: ['111', '100', '111', '101', '111'], 7: ['111', '001', '001', '001', '001'], 8: ['111', '101', '111', '101', '111'],
+  9: ['111', '101', '111', '001', '111'],
+};
+/** Read the digit whose top-left pixel is at (x, y), or null if the pixels are not a digit. */
+function readDigit(fb: Uint32Array, x: number, y: number): number | null {
+  const rows = [0, 1, 2, 3, 4].map((r) => [0, 1, 2].map((c) => (fb[(y + r) * 64 + x + c] === 0xffff00 ? '1' : fb[(y + r) * 64 + x + c] === 0 ? '0' : '?')).join(''));
+  for (const [d, glyph] of Object.entries(FONT)) if (glyph.join() === rows.join()) return Number(d);
+  return null;
+}
+const scoreOf = (fb: Uint32Array): number | null => {
+  const tens = readDigit(fb, 36, 2);
+  const ones = readDigit(fb, 40, 2);
+  return tens === null || ones === null ? null : tens * 10 + ones;
+};
+
 const compiled = compile(read('pong.rev'));
 const hand = assemble(read('pong.s'));
 
@@ -79,14 +102,19 @@ async function play(frames: number, strategy: 'chase' | 'none'): Promise<{ rev: 
     void setupSteps;
     if (sa === 'halted') {
       // the hand version stops mid-frame at game over; the rev version finishes the frame and then leaves the loop
-      expect(Array.from(rev.framebuffer()), `screen at game over (frame ${f + 1})`).toEqual(Array.from(asm.framebuffer()));
+      expect(court(rev.framebuffer()), `court at game over (frame ${f + 1})`).toEqual(court(asm.framebuffer()));
       expect(sr === 'ok' || sr === 'halted').toBe(true);
       while (rev.stepForward() === 'ok') { /* the loop ends and the program halts */ }
       expect(rev.stepForward()).toBe('halted');
       return { rev, asm, done, stepsRev: rev.instructionCount, stepsAsm: asm.instructionCount, hits };
     }
     expect(sr, `rev frame ${f + 1}`).toBe('ok');
-    expect(Array.from(rev.framebuffer()), `screen after frame ${f + 1}`).toEqual(Array.from(asm.framebuffer()));
+    expect(court(rev.framebuffer()), `court after frame ${f + 1}`).toEqual(court(asm.framebuffer()));
+    // the wall is permanent: every pixel of column 32 is the same grey on every frame
+    const fbr = rev.framebuffer();
+    for (let y = 0; y < 32; y++) expect(fbr[y * 64 + WALL_X], `wall pixel row ${y}, frame ${f + 1}`).toBe(WALL);
+    // the score shown as digits equals the number of hits (the hand-written game counts them as yellow blocks)
+    expect(scoreOf(fbr), `score digits, frame ${f + 1}`).toBe(Array.from(asm.framebuffer()).filter((w) => w === 0xffff00).length / 4);
     done++;
     hits = Array.from(asm.framebuffer()).filter((w) => w === 0xffff00).length / 4;
   }
