@@ -24,10 +24,15 @@ Tests: `cd web/wasm && npm install && npm test` (runs the assembler's examples o
 differential test between them, and a long rewind).
 
 ## Playground (see the real engines run)
-`cd web/wasm && npm install && npm run playground` opens a small page at http://localhost:5173 with the demo programs
-(cipher, sort, examples), an engine switch (reversible / diary), step, step back, run, run back, a time scrubber, the
-direction toggle with a "running in reverse" banner, registers, a memory window with an ASCII column, the screen, and the
-code listing. It is not the product UI (that is `web/viz`); it is a working reference for using `createWasmVm` and
-`assemble()` in a Vite page, and a way to watch a program before the shell uses it. URL options:
-`?p=<program index>&e=reversible|logging&t=<steps to run>&mem=<memory start>&dir=-1&after=<steps in reverse>`.
-Example: `?p=0&t=1151&mem=27` shows the encrypted cipher; add `&dir=-1&after=600` to watch it decrypt.
+`cd web/wasm && npm install && npm run playground` opens a small page at http://localhost:5173. It is not the product UI
+(that is `web/viz`); it is a working reference for `createWasmVm` and `assemble()` in a Vite page, and a way to watch a program.
+- The demo programs (cipher, sort, examples), each with a one-line explanation of what to look at.
+- **Compare engines**: the diary engine and the reversible engine side by side on the same program, driven by the same actions.
+  Shows each engine's VM history as a big number, both screens and registers, a "states match" badge (registers, PC, memory and
+  screen compared after every action), and a chart of history against time: the diary climbs, the reversible line stays at zero.
+- Step, step back, run, run back, a time scrubber, the direction toggle with a "running in reverse" banner, changed values
+  flashing amber (forward) or cyan (backward), a code listing with the PC marked, a memory window (jump to data / stack / screen,
+  ASCII column), and a zoom for the small screen.
+- URL options: `?p=<program index>&e=reversible|logging&cmp=1&t=<steps to run>&mem=<memory start>&dir=-1&after=<steps in reverse>`.
+  Examples: `?p=0&t=800` the cipher part-way through; `?p=1&cmp=1&t=200` the sort on both engines; `?p=0&t=1203&dir=-1&after=600`
+  the cipher decrypting.

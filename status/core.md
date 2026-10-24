@@ -20,10 +20,10 @@ Updated: 2026-10-24
 - **WebAssembly build** (`vm/wasm`, `web/wasm`): both engines behind the `RVM` interface, single-file module committed (42 KB). 25 tests: examples through the assembler on both engines, rewind and replay, faults, and random-scrub differential tests between the engines in wasm. `npm run build:wasm` rebuilds (needs the Emscripten SDK; installed at ~/emsdk on core's machine).
 - **Benchmarks** (`bench/`): speed and history memory of both engines; results with spread and caveats in `bench/RESULTS.md`. Headline: 48 B/step diary vs 0 B; reversible rewind is slower (2 to 5x), forward is faster.
 
-- **programs/cipher.s**: Speck64/128 reversible cipher, matches the published test vector on both engines, no garbage, decrypts via direction -1; 13 tests in `web/wasm/test/programs.test.ts`.
+- **programs/cipher.s**: Speck64/128 reversible cipher on the screen (plaintext pixels turn to noise), matches the published test vector on both engines, no garbage, decrypts via direction -1.
 
-- **programs/sort.s**: reversible sort exposing its garbage (19 recorded bits), network proven on all 0/1 inputs, 25 random inputs + unsort tested on both engines. Macro doc corrected: only the `.fi` assertion registers matter.
-- **Playground** (`web/wasm/playground`, `npm run playground`): see the real engines run the demos in a browser (screenshot-checked in Chrome). Also proves Vite resolves the assembler's `.js` imports to `.ts`.
+- **programs/sort.s**: reversible sort on the screen (row 0 list, row 1 garbage), network proven on all 0/1 inputs, 25 random inputs + unsort tested on both engines. Macro doc corrected: only the `.fi` assertion registers matter.
+- **Playground** (`web/wasm/playground`, `npm run playground`): the real engines in a browser, with a **Compare engines** view (history 0 B vs a rising diary, states-match badge, history chart), screen zoom, memory jump buttons. Screenshot-checked in Chrome. Proves Vite resolves the assembler's `.js` imports to `.ts`. 54 wasm tests.
 
 ## In progress
 - Conventional twin of the sort for the honest overhead benchmark; Pong guidance.

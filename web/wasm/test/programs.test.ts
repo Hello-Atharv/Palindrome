@@ -1,5 +1,6 @@
 // Demo programs from programs/, assembled and run on both real engines, checked against independent
 // JavaScript reference implementations of the same algorithms (and, for Speck, the published test vector).
+// Both demos keep their data ON THE SCREEN (framebuffer words are pixels), so the screen is the visualisation.
 import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -24,6 +25,17 @@ function runToEnd(v: WasmVm): void {
   while ((s = v.stepForward()) === 'ok') {}
   expect(s).toBe('halted');
 }
+/** Run the program as its own inverse until it reaches its start. */
+function runReverse(v: WasmVm): void {
+  expect(v.setDirection(-1)).toBe('ok');
+  let s;
+  while ((s = v.stepForward()) === 'ok') {}
+  expect(s).toBe('halted');
+}
+const clean = (v: WasmVm): boolean => Array.from(v.registers().regs).every((r, i) => r === (i === 14 ? 0x10000 : 0));
+const words = (v: WasmVm, addr: number, n: number): number[] => Array.from(v.memory(addr, n));
+const screen = (v: WasmVm, from: number, n: number): number[] => Array.from(v.framebuffer().subarray(from, from + n));
+const ZEROS = (n: number): number[] => new Array<number>(n).fill(0);
 
 // ---- Speck64/128, written independently of the assembly ----------------------------------------------------------
 const rotl = (x: number, k: number): number => ((x << k) | (x >>> (32 - k))) >>> 0;
@@ -64,10 +76,10 @@ describe('the Speck reference itself', () => {
 });
 
 describe.each(['logging', 'reversible'] as const)('cipher.s on the %s engine', (kind) => {
-  it('starts with the round keys and plaintext in memory and a black screen', async () => {
+  it('starts with the round keys and plaintext in the data region and a black screen', async () => {
     const v = await start(kind, source('cipher.s'));
-    expect(Array.from(v.memory(0, 27))).toEqual(RK); // the program's key table is the real key schedule
-    expect(Array.from(v.memory(MSG, 8))).toEqual(PLAIN);
+    expect(words(v, 0, 27)).toEqual(RK); // the program's key table is the real key schedule
+    expect(words(v, MSG, 8)).toEqual(PLAIN);
     expect(v.framebuffer().every((w) => w === 0)).toBe(true);
   });
 
@@ -75,43 +87,50 @@ describe.each(['logging', 'reversible'] as const)('cipher.s on the %s engine', (
     const src = source('cipher.s').replace(/^msg:.*$/m, 'msg:    .word  0x3b726574, 0x7475432d, 0, 0, 0, 0, 0, 0');
     const v = await start(kind, src);
     runToEnd(v);
-    expect(Array.from(v.memory(MSG, 2))).toEqual([0x8c6fa548, 0x454e028b]);
+    expect(screen(v, 0, 2)).toEqual([0x8c6fa548, 0x454e028b]);
   });
 
-  it('encrypts the message exactly like the reference, with no garbage left behind', async () => {
+  it('encrypts on the screen exactly like the reference, with no garbage left behind', async () => {
     const v = await start(kind, source('cipher.s'));
     runToEnd(v);
-    expect(Array.from(v.memory(MSG, 8))).toEqual(CIPHER);
-    expect(Array.from(v.framebuffer().subarray(0, 8))).toEqual(CIPHER); // drawn as pixels
+    expect(screen(v, 0, 8)).toEqual(CIPHER); // the screen shows the ciphertext
     expect(v.framebuffer().subarray(8).every((w) => w === 0)).toBe(true);
-    expect(Array.from(v.memory(0, 27))).toEqual(RK); // the key table is untouched
-    const regs = Array.from(v.registers().regs);
-    expect(regs.every((r, i) => r === (i === 14 ? 0x10000 : 0))).toBe(true); // every temporary is back to zero
-    expect(new Set(CIPHER.map((w) => w & 0xffffff)).size).toBe(8); // all 8 pixels are different colours
+    expect(words(v, MSG, 8)).toEqual(ZEROS(8)); // the message left the data region (it was moved, not copied)
+    expect(words(v, 0, 27)).toEqual(RK); // the key table is untouched
+    expect(clean(v)).toBe(true); // every temporary register is back to zero
+    expect(new Set(CIPHER.map((w) => w & 0xffffff)).size).toBe(8); // 8 different colours
+  });
+
+  it('shows the plaintext on the screen before encrypting it (dull pixels, then noise)', async () => {
+    const v = await start(kind, source('cipher.s'));
+    let guard = 0;
+    while (v.framebuffer()[7] === 0 && guard++ < 1000) v.stepForward(); // until the last message word is on screen
+    expect(screen(v, 0, 8)).toEqual(PLAIN);
+    expect(words(v, MSG, 8)).toEqual(ZEROS(8));
+    const dull = PLAIN.every((w) => {
+      const [r, g, b] = [(w >>> 16) & 255, (w >>> 8) & 255, w & 255];
+      return Math.max(r, g, b) < 0x60 && Math.min(r, g, b) >= 0x20; // ASCII letters and spaces make a dull grey-blue
+    });
+    expect(dull).toBe(true);
   });
 
   it('decrypts by running the same program in reverse (direction -1)', async () => {
     const v = await start(kind, source('cipher.s'));
     runToEnd(v);
     const steps = v.instructionCount;
-    expect(v.setDirection(-1)).toBe('ok');
-    let s;
-    while ((s = v.stepForward()) === 'ok') {}
-    expect(s).toBe('halted'); // reached the start of the program, running backwards
+    runReverse(v);
     expect(v.instructionCount).toBe(2 * steps); // it is a real computation: time keeps moving forward
-    expect(Array.from(v.memory(MSG, 8))).toEqual(PLAIN);
+    expect(words(v, MSG, 8)).toEqual(PLAIN); // the plaintext is back in the data region
     expect(v.framebuffer().every((w) => w === 0)).toBe(true);
+    expect(clean(v)).toBe(true);
   });
 
-  it('can be scrubbed: rewinding to the start restores the plaintext; partway shows a half-encrypted message', async () => {
+  it('can be scrubbed back to the start, restoring the plaintext', async () => {
     const v = await start(kind, source('cipher.s'));
     runToEnd(v);
     expect(v.runTo(0)).toBe('ok');
-    expect(Array.from(v.memory(MSG, 8))).toEqual(PLAIN);
-    expect(v.runTo(Math.floor(1151 / 2))).toBe('ok');
-    const mid = Array.from(v.memory(MSG, 8));
-    expect(mid.slice(0, 4)).toEqual(CIPHER.slice(0, 4)); // first two blocks done...
-    expect(mid.slice(4)).toEqual(PLAIN.slice(4)); // ...last two not started
+    expect(words(v, MSG, 8)).toEqual(PLAIN);
+    expect(v.framebuffer().every((w) => w === 0)).toBe(true);
   });
 
   it('reports its size and cost', async () => {
@@ -119,58 +138,62 @@ describe.each(['logging', 'reversible'] as const)('cipher.s on the %s engine', (
     runToEnd(v);
     const r = assemble(source('cipher.s'));
     console.log(`cipher.s ${kind}: ${r.code.length} instructions, ${v.instructionCount} steps, history ${v.historyBytes} bytes`);
-    expect(r.code.length).toBeLessThan(60);
-    expect(v.instructionCount).toBe(1151);
+    expect(r.code.length).toBeLessThan(70);
+    expect(v.instructionCount).toBe(1203);
   });
 });
 
-// ---- sort.s: a reversible sort that exposes its garbage ------------------------------------------------------------
+// ---- sort.s: a reversible sort that exposes its garbage, on the screen -----------------------------------------------
 const NETWORK: [number, number][] = [
   [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7], [0, 1], [2, 3], [4, 5], [6, 7],
   [2, 4], [3, 5], [1, 4], [3, 6], [1, 2], [3, 4], [5, 6],
 ];
-const SORT_INPUT = [42, 7, 19, 3, 88, 7, 55, 1];
-const GARBAGE = 8; // data address of the 19 garbage words (after the 8-word array)
+const colour = (r: number): number => ((r << 16) | ((255 - r) << 8) | 0x40) >>> 0;
+const SORT_INPUT = [0xb0, 0x30, 0x70, 0x20, 0xf0, 0x30, 0xc0, 0x10].map(colour);
+const FLAG = 0xffff; // the colour the program writes for "swapped"
+const GARBAGE = 64; // screen row 1: one pixel per comparator
 
-function refSort(input: number[]): { sorted: number[]; bits: number[] } {
+function refSort(input: number[]): { sorted: number[]; flags: number[] } {
   const a = [...input];
-  const bits: number[] = [];
+  const flags: number[] = [];
   for (const [i, j] of NETWORK) {
     const swapped = a[j] < a[i];
     if (swapped) [a[i], a[j]] = [a[j], a[i]];
-    bits.push(swapped ? 1 : 0);
+    flags.push(swapped ? FLAG : 0);
   }
-  return { sorted: a, bits };
+  return { sorted: a, flags };
 }
-const sortWith = (vals: number[]): string => source('sort.s').replace(/^arr:.*$/m, `arr:    .word  ${vals.join(', ')}`);
+const sortWith = (vals: number[]): string =>
+  source('sort.s').replace(/^arr:.*$/m, `arr:    .word  ${vals.map((x) => '0x' + x.toString(16)).join(', ')}`);
 
 describe.each(['logging', 'reversible'] as const)('sort.s on the %s engine', (kind) => {
-  it('starts with the input and an empty garbage record', async () => {
+  it('starts with the list in the data region and a black screen', async () => {
     const v = await start(kind, source('sort.s'));
-    expect(Array.from(v.memory(0, 8))).toEqual(SORT_INPUT);
-    expect(Array.from(v.memory(GARBAGE, 19))).toEqual(new Array(19).fill(0));
+    expect(words(v, 0, 8)).toEqual(SORT_INPUT);
+    expect(v.framebuffer().every((w) => w === 0)).toBe(true);
   });
 
-  it('sorts, records one bit per comparator, and leaves no other garbage', async () => {
+  it('sorts on the screen, records one pixel per comparator, and leaves no other garbage', async () => {
     const v = await start(kind, source('sort.s'));
     runToEnd(v);
     const ref = refSort(SORT_INPUT);
     expect(ref.sorted).toEqual([...SORT_INPUT].sort((a, b) => a - b));
-    expect(Array.from(v.memory(0, 8))).toEqual(ref.sorted);
-    expect(Array.from(v.memory(GARBAGE, 19))).toEqual(ref.bits);
-    const regs = Array.from(v.registers().regs);
-    expect(regs.every((r, i) => r === (i === 14 ? 0x10000 : 0))).toBe(true);
+    expect(screen(v, 0, 8)).toEqual(ref.sorted); // row 0: the sorted list, a colour gradient
+    expect(screen(v, GARBAGE, 19)).toEqual(ref.flags); // row 1: the garbage
+    expect(words(v, 0, 8)).toEqual(ZEROS(8)); // the list was moved onto the screen
+    expect(clean(v)).toBe(true);
+    // nothing else is lit
+    const lit = Array.from(v.framebuffer()).filter((w) => w !== 0).length;
+    expect(lit).toBe(8 + ref.flags.filter((f) => f !== 0).length);
   });
 
   it('unsorts exactly by running backwards (direction -1), clearing the garbage', async () => {
     const v = await start(kind, source('sort.s'));
     runToEnd(v);
-    expect(v.setDirection(-1)).toBe('ok');
-    let s;
-    while ((s = v.stepForward()) === 'ok') {}
-    expect(s).toBe('halted');
-    expect(Array.from(v.memory(0, 8))).toEqual(SORT_INPUT);
-    expect(Array.from(v.memory(GARBAGE, 19))).toEqual(new Array(19).fill(0));
+    runReverse(v);
+    expect(words(v, 0, 8)).toEqual(SORT_INPUT);
+    expect(v.framebuffer().every((w) => w === 0)).toBe(true);
+    expect(clean(v)).toBe(true);
   });
 
   it('sorts and unsorts 25 random inputs, duplicates included, matching the reference', async () => {
@@ -180,15 +203,15 @@ describe.each(['logging', 'reversible'] as const)('sort.s on the %s engine', (ki
       return st.s >>> 8;
     };
     for (let k = 0; k < 25; k++) {
-      const input = Array.from({ length: 8 }, () => next() % (k % 2 ? 6 : 1000)); // odd runs: many duplicates
+      const input = Array.from({ length: 8 }, () => (k % 2 ? 1 + (next() % 5) : next() % 0x1000000) | 0x1000000 * 0).map((x) => x >>> 0);
       const v = await start(kind, sortWith(input));
       runToEnd(v);
       const ref = refSort(input);
-      expect(Array.from(v.memory(0, 8))).toEqual(ref.sorted);
-      expect(Array.from(v.memory(GARBAGE, 19))).toEqual(ref.bits);
-      v.setDirection(-1);
-      while (v.stepForward() === 'ok') {}
-      expect(Array.from(v.memory(0, 8))).toEqual(input);
+      expect(screen(v, 0, 8)).toEqual(ref.sorted);
+      expect(screen(v, GARBAGE, 19)).toEqual(ref.flags);
+      runReverse(v);
+      expect(words(v, 0, 8)).toEqual(input);
+      expect(v.framebuffer().every((w) => w === 0)).toBe(true);
       v.destroy();
     }
   });
@@ -198,20 +221,31 @@ describe.each(['logging', 'reversible'] as const)('sort.s on the %s engine', (ki
     const b = await start(kind, sortWith([1, 2, 3, 4, 5, 6, 7, 8]));
     runToEnd(a);
     runToEnd(b);
-    expect(Array.from(a.memory(0, 8))).toEqual(Array.from(b.memory(0, 8))); // identical sorted arrays
-    expect(Array.from(a.memory(GARBAGE, 19))).not.toEqual(Array.from(b.memory(GARBAGE, 19))); // the garbage tells them apart
-    expect(Array.from(b.memory(GARBAGE, 19))).toEqual(new Array(19).fill(0)); // already sorted: nothing to record
+    expect(screen(a, 0, 8)).toEqual(screen(b, 0, 8)); // identical sorted lists
+    expect(screen(a, GARBAGE, 19)).not.toEqual(screen(b, GARBAGE, 19)); // the garbage tells them apart
+    expect(screen(b, GARBAGE, 19)).toEqual(ZEROS(19)); // already sorted: nothing to record
+  });
+
+  it('shows the list changing while it runs: the compared pair leaves the screen and returns swapped', async () => {
+    const v = await start(kind, source('sort.s'));
+    let g = 0;
+    while (v.framebuffer()[0] === 0 && g++ < 500) v.stepForward(); // entry 0 has been moved onto the screen
+    expect(v.framebuffer()[0]).toBe(SORT_INPUT[0]);
+    g = 0;
+    while (v.framebuffer()[0] !== 0 && g++ < 500) v.stepForward(); // the first comparison picks it up
+    expect(v.framebuffer()[0]).toBe(0); // its pixel goes dark...
+    expect(Array.from(v.registers().regs)).toContain(SORT_INPUT[0]); // ...because it is in a register
   });
 
   it('reports its size and cost', async () => {
     const v = await start(kind, source('sort.s'));
     runToEnd(v);
     const r = assemble(source('sort.s'));
-    const swaps = refSort(SORT_INPUT).bits.reduce((a, b) => a + b, 0);
+    const swaps = refSort(SORT_INPUT).flags.filter((f) => f !== 0).length;
     console.log(
       `sort.s ${kind}: ${r.code.length} instructions, ${v.instructionCount} steps, ${swaps} swaps, ` +
-        `19 garbage words (information needed: log2(8!) = ${Math.log2(40320).toFixed(1)} bits), history ${v.historyBytes} bytes`,
+        `19 garbage pixels (information needed: log2(8!) = ${Math.log2(40320).toFixed(1)} bits), history ${v.historyBytes} bytes`,
     );
-    expect(v.instructionCount).toBe(159);
+    expect(v.instructionCount).toBe(311);
   });
 });
