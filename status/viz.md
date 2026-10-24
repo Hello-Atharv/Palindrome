@@ -76,3 +76,25 @@ Updated: 2026-10-24
 - Not measured: colour contrast ratios (palette chosen to be high contrast); native `title` tooltips on disabled controls do not
   show in screenshots.
 - Fallback seek on the tape strip is a plain throttled runTo; the debugger should register `viz.timeline.onSeek`.
+
+## Merge 2026-10-24 (WASM build, assembler, cipher)
+- Merged origin/scaffold at 14ec2c2 (b070aaa WebAssembly build + benchmarks; 14ec2c2 Speck64/128 cipher). No conflicts.
+  `web/wasm`: npm install + npm test = 38/38 pass. I did not edit web/wasm (core's).
+- Now available: `createWasmVm('logging' | 'reversible')` from web/wasm/src/index.ts (same RVM interface), the assembler
+  (`asm/src/index.ts`: assemble() with .if/.else/.fi and .loop/.again), programs/cipher.s, bench/RESULTS.md.
+
+## Next (waiting for the user's go)
+1. Factory swap: main.ts uses createWasmVm (keep the mock as fallback); add ../wasm/src and its lib typings to web/viz tsconfig.
+2. Fix before swapping: registers.ts calls vm.code(pc, 1) unguarded; the wasm `code()` throws RangeError past the program
+   (the mock returns 0). Guard on program.codeLen everywhere code() is called. Check the gradient/memory panel reads stay mapped.
+3. Engine toggle (M6): enable the Reversible button; machines list holds one VM per engine; on switch, create the other VM,
+   load the same image, replay the UI's own copy of the tape (API has no tape getter), and `runTo(t)`. Reversible shows
+   "0 B" history in green (already styled).
+4. Compare view: third right-hand tab, two machines in the list, every action applied to both, state-match badge on
+   registers/PC/framebuffer, 256 MiB warning for the logging side (48 B/step).
+5. Code view (M5): import assemble() from asm/src/index.ts; source in, diagnostics {severity, line, message} shown, listing
+   rows {addr, word, line, text} and sourceMap for the listing; Assemble button calls viz.loadImage. Editor itself is the
+   debugger's (slots.code); I supply the assemble hook and the diagnostics view.
+6. Long runTo() blocks the page (web/wasm README): the fallback seek on the tape strip must chunk or the debugger must handle it.
+7. Add programs/cipher.s to the picker once assembled in the browser (needs the assembler hook first).
+- Unverified: whether Vite resolves asm/src's `./x.js` imports to `.ts` files in the browser build.
