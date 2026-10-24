@@ -359,8 +359,9 @@ time**, so stepping back un-prints exactly and no separate output log exists. Th
 - An entry is **two words**, stored at `OUT_BASE + OUT_LEN`: `[tag, value]`. Tags: `0` a character (`value` is its code, `10` ends the
   line), `1` an unsigned decimal number, `2` a signed decimal number, `3` hexadecimal (shown as `0x` and the digits). The UI formats
   numbers, so a program never has to print digits.
-- A program prints by XORing the tag and the value into the two zero words and adding 2 to `OUT_LEN`. Nothing is overwritten, so this
-  is reversible; the buffer is the program's **garbage** (it is information the program cannot erase) and the cost report counts it.
+- A program prints by XORing the tag and the value into the two zero words and then adding 2 to `OUT_LEN`. **`OUT_LEN` must change
+  in a single step** (XOR in `old xor new`), never by moving it through zero, so an entry appears all at once and the UI never sees a
+  half-written console. Nothing is overwritten, so this is reversible; the buffer is the program's **garbage** (it is information the program cannot erase) and the cost report counts it.
 - A program that does not use the buffer shows nothing here; the UI may fall back to listing labelled data.
 - The `rev` language gets a `print` statement for this (see `lang/README.md` once added).
 

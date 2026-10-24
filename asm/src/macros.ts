@@ -19,15 +19,43 @@
 // Drawing:
 //   .plot colour, x, y, tmp                       XOR the pixel (x, y) of the 64-wide screen; tmp is a zero scratch register
 //
+// Console (SPEC 11.9): text and numbers appended to a buffer in memory that the UI draws at the current time
+//   .print "text", t1, t2                         each character (escapes: \n \t \ \")
+//   .print 'H', t1, t2                            one character, or any constant (printed as a character)
+//   .print r1, signed, t1, t2                     a register or constant, formatted: char | unsigned | signed | hex
+// t1 and t2 are zero scratch registers, different from each other, from r0 and from the value; both are zero again afterwards.
+//
 // Generated labels start with "$" (user labels may not) and are hidden from the symbol table.
 
 import type { Diagnostic } from './diag.js';
 import { evalExpr } from './expr.js';
 import type { Stmt } from './parser.js';
 
-const MACROS = new Set(['.if', '.else', '.fi', '.loop', '.again', '.with', '.endwith', '.compute', '.use', '.uncompute', '.plot']);
+const MACROS = new Set(['.if', '.else', '.fi', '.loop', '.again', '.with', '.endwith', '.compute', '.use', '.uncompute', '.plot', '.print']);
 const REG = /^(?:r(\d|1[0-5])|sp)$/i;
 const SCREEN = '0x20000';
+const OUT_BASE = 0xe000; // SPEC 11.9: the console buffer ...
+const OUT_LEN = 0xfffe; // ... and the word counting how much of it is used
+const PRINT_FORMATS: Record<string, number> = { char: 0, unsigned: 1, signed: 2, hex: 3 };
+
+/** The character codes of a "..." literal (escapes \n \t \\ \"), or an error message. */
+function unquote(lit: string): number[] | string {
+  if (lit.length < 2 || !lit.startsWith('"') || !lit.endsWith('"')) return 'a string must be written "like this"';
+  const out: number[] = [];
+  const body = lit.slice(1, -1);
+  for (let i = 0; i < body.length; i++) {
+    let c = body[i];
+    if (c === '\\') {
+      const e = body[++i];
+      if (e === 'n') c = '\n';
+      else if (e === 't') c = '\t';
+      else if (e === '\\' || e === '"') c = e;
+      else return `unknown escape \\${e ?? ''} in a string`;
+    }
+    out.push(c.charCodeAt(0));
+  }
+  return out;
+}
 
 type Kind = 'if' | 'loop' | 'with' | 'compute';
 interface Frame {
@@ -338,6 +366,87 @@ export function expandMacros(stmts: Stmt[], diagnostics: Diagnostic[]): Stmt[] {
         if (out) sink().push(...out);
         break;
       }
+      // ---- print -------------------------------------------------------------------------------------------
+      case '.print': {
+        const ops = s.operands.map((o) => o.trim());
+        if (ops.length !== 3 && ops.length !== 4) {
+          err(s.line, `.print takes "text, t1, t2", "constant, t1, t2" or "value, format, t1, t2" (format: char, unsigned, signed or hex)`);
+          break;
+        }
+        const t1 = regName(ops[ops.length - 2]);
+        const t2 = regName(ops[ops.length - 1]);
+        if (t1 === null || t2 === null) {
+          err(s.line, '.print: the last two operands must be zero scratch registers');
+          break;
+        }
+        if (t1 === t2 || t1 === 'r0' || t2 === 'r0') {
+          err(s.line, '.print needs two different scratch registers other than r0');
+          break;
+        }
+        // what to print: a list of (tag, value) entries
+        type Val = { reg: string } | { imm: number };
+        const entries: { tag: number; value: Val }[] = [];
+        const first = ops[0];
+        if (ops.length === 3) {
+          if (first.startsWith('"')) {
+            const chars = unquote(first);
+            if (typeof chars === 'string') { err(s.line, `.print: ${chars}`); break; }
+            for (const c of chars) entries.push({ tag: 0, value: { imm: c } });
+          } else if (regName(first) !== null) {
+            err(s.line, '.print: a register needs a format: char, unsigned, signed or hex');
+            break;
+          } else {
+            const v = evalExpr(first, lookup);
+            if (!v.ok) { err(s.line, `.print: ${v.error}`); break; }
+            entries.push({ tag: 0, value: { imm: v.value } });
+          }
+        } else {
+          const tag = PRINT_FORMATS[ops[1].toLowerCase()];
+          if (tag === undefined) { err(s.line, `.print: unknown format "${ops[1]}" (char, unsigned, signed or hex)`); break; }
+          const reg = regName(first);
+          if (reg !== null) {
+            if (reg === t1 || reg === t2) { err(s.line, '.print: the value register must differ from the scratch registers'); break; }
+            entries.push({ tag, value: { reg } });
+          } else {
+            const v = evalExpr(first, lookup);
+            if (!v.ok) { err(s.line, `.print: ${v.error}`); break; }
+            entries.push({ tag, value: { imm: v.value } });
+          }
+        }
+        const out: Stmt[] = [];
+        const g = (op: string, operands: string[], note = 'print'): void => { out.push(gen(s, [], op, operands, note)); };
+        const len = `[r0+${OUT_LEN}]`;
+        for (const { tag, value } of entries) {
+          g('xld', [t1, len], 'print: t1 = how much has been printed');
+          if (tag !== 0) { // the tag word (0 is a character: the word is already zero)
+            g('xori', [t2, String(tag)]);
+            g('xst', [t2, `[${t1}+${OUT_BASE}]`]);
+            g('xori', [t2, String(tag)]);
+          }
+          if ('reg' in value) g('xst', [value.reg, `[${t1}+${OUT_BASE + 1}]`]);
+          else if (value.imm >>> 0 !== 0) {
+            const build = constantOps(value.imm);
+            for (const [m, v] of build) g(m, [t2, String(v)]);
+            g('xst', [t2, `[${t1}+${OUT_BASE + 1}]`]);
+            for (const [m, v] of inverseOps(build)) g(m, [t2, String(v)]);
+          }
+          // length += 2 in ONE step (xor in old ^ new), never through zero, so an entry appears all at once and the
+          // console is never seen half written
+          g('xor', [t2, t1], 'print: t2 = old length');
+          g('addi', [t2, '2']);
+          g('xor', [t2, t1], 'print: t2 = old length xor new length');
+          g('xst', [t2, len], 'print: the length changes in one step');
+          g('xor', [t2, t1]);
+          g('addi', [t2, '-2']);
+          g('xor', [t2, t1], 'print: t2 is zero again');
+          g('addi', [t1, '2'], 'print: clear t1');
+          g('xld', [t1, len]);
+        }
+        if (out.length > 0) out[0] = { ...out[0], labels: s.labels };
+        sink().push(...out);
+        break;
+      }
+
     }
   }
 

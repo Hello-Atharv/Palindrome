@@ -131,3 +131,21 @@ that is zero again afterwards; the four registers must differ (use `r0` for colu
 ### Procedures
 `call` / `proc` / `ret` are ordinary and reversible (SPEC 4.2); `programs/pong.s` uses them. A procedure that only XORs its
 results into registers computed from unchanged inputs is **its own inverse**: calling it twice clears what the first call set.
+
+### Console: `.print`
+`.print` appends text or numbers to the console buffer (SPEC 11.9), which the UI draws from memory at the current time, so stepping back
+un-prints. It expands to ordinary instructions (about 13 per character), so nothing in the machine changes.
+```
+        .print "Hello, world", r10, r11      ; a string, one entry per character
+        .print 'H', r10, r11                 ; one character (or any constant: it is printed as a character)
+        .print 10, r10, r11                  ; a newline (character 10)
+        .print r1, unsigned, r10, r11        ; a register or constant with a format: char | unsigned | signed | hex
+        .print -7, signed, r10, r11
+```
+- The last two operands are **zero scratch registers**: different from each other, from `r0` and from the value register. Both are
+  zero again afterwards (like `.plot`'s scratch register).
+- Strings are written between double quotes and may contain commas and semicolons. Escapes: backslash-n (newline), backslash-t (tab),
+  backslash-backslash, and backslash-double-quote.
+- Each entry appears in a single step (the length word is updated in one XOR), so the console is never seen half written.
+- The console is **garbage** in the cost-model sense: the program cannot erase it, only step back. Capacity is 4,095 entries; nothing
+  checks for overflow.
