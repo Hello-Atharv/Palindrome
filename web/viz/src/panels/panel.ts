@@ -1,5 +1,6 @@
 import type { RVM } from '../../../../spec/vm_api';
 import { h } from '../dom';
+import type { Machine } from '../machines';
 import type { ProgramInfo } from '../program';
 import type { Snapshot } from '../snapshot';
 
@@ -22,6 +23,10 @@ export interface Ctx {
   rate: number | null;
   /** The optional FRAME word (data address 0xFFFF). */
   frame: number;
+  /** Every machine under the shell (one, or two in Compare); `vm` above is the first. */
+  machines: readonly Machine[];
+  /** A message about the last load/assemble attempt that failed (null when fine). */
+  notice: string | null;
 }
 
 export interface Panel {

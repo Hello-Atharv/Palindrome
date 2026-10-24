@@ -26,14 +26,18 @@ export function bannersPanel(): Panel {
 
   return {
     el,
-    update({ snap, run }: Ctx) {
+    update({ snap, run, notice }: Ctx) {
       reverse.hidden = snap.direction !== -1;
       const s = run === 'paused' || snap.status !== 'ok' ? snap.status : 'ok';
-      const known = s === 'fault' || s === 'halted' || s === 'at_start';
+      const known = s === 'fault' || s === 'halted' || s === 'at_start' || s === 'bad_program' || s === 'bad_arg';
       stopped.hidden = !known;
       if (!known) return;
-      stopped.className = `banner ${s === 'fault' ? 'fault' : 'halted'}`;
-      if (s === 'fault') {
+      stopped.className = `banner ${s === 'halted' || s === 'at_start' ? 'halted' : 'fault'}`;
+      if (s === 'bad_program' || s === 'bad_arg') {
+        sIcon.textContent = '✖';
+        sText.textContent = 'Could not load';
+        sSub.textContent = notice || snap.lastError || 'the program was rejected';
+      } else if (s === 'fault') {
         sIcon.textContent = '✖';
         sText.textContent = 'Fault';
         sSub.textContent = `${snap.lastError || 'the VM refused the step'}. State is unchanged, so stepping back still works.`;

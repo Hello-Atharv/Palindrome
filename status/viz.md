@@ -98,3 +98,17 @@ Updated: 2026-10-24
 6. Long runTo() blocks the page (web/wasm README): the fallback seek on the tape strip must chunk or the debugger must handle it.
 7. Add programs/cipher.s to the picker once assembled in the browser (needs the assembler hook first).
 - Unverified: whether Vite resolves asm/src's `./x.js` imports to `.ts` files in the browser build.
+
+## Real engines wired (2026-10-24, merged dbc8a2e)
+- Done: `createWasmVm` (real logging + reversible VMs) wired in `src/main.ts` with fallback to the mock; engine switch (replays
+  program, inputs, direction flips and t on a fresh VM); Compare view (two machines in a list, every action applied to both,
+  state-match badge, per-side history and non-zero-word counts, 256 MiB warning on the diary); Code view with the real
+  assembler (`asm/src/index.ts`, passed in as a hook): diagnostics by line, listing, Assemble & load; all demo programs
+  assembled in the browser (cipher, sort, asm examples); Memory view ASCII column, jump-to-label, hatched garbage words.
+  `code()` calls guarded. 20 screenshots on the real engines at 1280x720, no page scroll, no console errors.
+  Tests: viz 33/33 (incl. real wasm engine-switch replay and Compare), mock_vm 53/53, tsc clean, vite build ok (126 kB JS).
+- Not done: M3 CPU datapath diagram + arrows; Pong tab; chunked runTo for the fallback scrubber (nothing blocks on the demos).
+- Things I hit: (1) the mock's `memory()` and the wasm one agree (unmapped = 0); (2) `viz.vm` now changes on engine switch, which
+  the debugger must not cache; (3) host actions made outside `viz.pushInput/setDirection` cannot be replayed on a switch;
+  (4) loadProgram keeps the VM's tape, so the shell clears it with an empty tape on every load (each run starts with no inputs);
+  (5) the program picker did not follow programs loaded through the API: fixed.

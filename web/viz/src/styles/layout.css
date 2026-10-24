@@ -38,7 +38,7 @@
 .slot-left { display: flex; flex-direction: column; gap: var(--s-12); min-height: 0; overflow: auto; }
 .slot-side { display: flex; flex-direction: column; gap: var(--s-8); }
 .code-view { height: 100%; overflow: auto; }
-.slot-code:not(:empty) + .code-empty { display: none; }
+.slot-code:not(:empty) ~ .code-builtin, .slot-code:not(:empty) + .code-empty { display: none; }
 .empty { padding: var(--s-16); border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); text-align: center; }
 
 @media (max-width: 960px) {

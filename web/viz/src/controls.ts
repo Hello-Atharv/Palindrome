@@ -121,19 +121,34 @@ export function buildProgramBar(programs: ProgramEntry[], onSample: (i: number) 
   return { el, setIndex: (i) => { select.value = String(i); } };
 }
 
-/** Engine switch. The reversible engine exists in C++ but not in the browser until the WASM build. */
-export function buildEngineSwitch(kind: VmKind): HTMLElement {
+export interface EngineSwitch {
+  el: HTMLElement;
+  setKind(kind: VmKind): void;
+}
+
+/**
+ * Engine switch: Diary (the logging VM, keeps history) or Reversible (no history). An engine the page cannot create
+ * (no WASM module) stays disabled with a tooltip that says why.
+ */
+export function buildEngineSwitch(available: readonly VmKind[], kind: VmKind, onSelect: (k: VmKind) => void): EngineSwitch {
   const el = h('div', 'engine-switch');
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', 'engine');
-  const diary = h('button', 'btn small', 'Diary');
-  const rev = h('button', 'btn small', 'Reversible');
-  for (const b of [diary, rev]) b.type = 'button';
-  diary.setAttribute('aria-pressed', String(kind === 'logging'));
-  rev.setAttribute('aria-pressed', String(kind === 'reversible'));
-  diary.title = 'Logging engine: normal rewind, keeps a diary of every step';
-  rev.disabled = kind !== 'reversible';
-  rev.title = 'The reversible engine runs in C++ but is not in the browser until the WASM build lands';
-  el.append(diary, rev);
-  return el;
+  const defs: { kind: VmKind; label: string; tip: string }[] = [
+    { kind: 'logging', label: 'Diary', tip: 'Logging engine: normal rewind, keeps a diary of every step' },
+    { kind: 'reversible', label: 'Reversible', tip: 'Reversible engine: rewinds by computing inverses, keeps no history' },
+  ];
+  const buttons = defs.map((d) => {
+    const b = h('button', 'btn small', d.label);
+    b.type = 'button';
+    const ok = available.includes(d.kind);
+    b.disabled = !ok;
+    b.title = ok ? d.tip : 'This engine is not available here: it needs the WebAssembly build (web/wasm)';
+    b.addEventListener('click', () => onSelect(d.kind));
+    el.append(b);
+    return { kind: d.kind, b };
+  });
+  const setKind = (k: VmKind): void => buttons.forEach(({ kind: bk, b }) => b.setAttribute('aria-pressed', String(bk === k)));
+  setKind(kind);
+  return { el, setKind };
 }

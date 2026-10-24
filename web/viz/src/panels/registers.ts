@@ -73,8 +73,9 @@ export function registersPanel(): Panel {
       lastT = snap.t;
       paint();
       pcVal.textContent = String(snap.pc);
-      const words = vm.code(snap.pc, 1);
-      const ins = words.length && snap.pc < (program?.codeLen ?? 0) ? disassemble(words[0], program?.labels) : null;
+      // the real VM throws past the end of the program, so only ask for words that exist
+      const inCode = snap.pc < (program?.codeLen ?? 0);
+      const ins = inCode ? disassemble(vm.code(snap.pc, 1)[0], program?.labels) : null;
       pcIns.textContent = ins ? `${ins.mnemonic} ${ins.operands}`.trim() : '';
     },
   };

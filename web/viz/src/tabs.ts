@@ -53,6 +53,15 @@ export class Tabs {
     this.listeners.forEach((fn) => fn(id));
   }
 
+  /** Enable or disable a tab; `title` becomes its tooltip (say why it is disabled). */
+  setDisabled(id: string, disabled: boolean, title?: string): void {
+    const b = this.buttons.get(id);
+    if (!b) return;
+    b.disabled = disabled;
+    if (title !== undefined) b.title = title;
+    if (disabled && this.current === id) this.select([...this.buttons].find(([, x]) => !x.disabled)?.[0] ?? id);
+  }
+
   onChange(fn: (id: string) => void): () => void {
     this.listeners.add(fn);
     return () => void this.listeners.delete(fn);

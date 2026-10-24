@@ -8,8 +8,9 @@ const FRAME_BUDGET_MS = 10;
 const MAX_STEPS_PER_FRAME = 200_000;
 
 /**
- * Drives the VM from requestAnimationFrame. Many steps per frame, one UI update per frame,
- * so the screen cost is independent of the speed.
+ * Drives the machines from requestAnimationFrame. Many steps per frame, one UI update per frame,
+ * so the screen cost is independent of the speed. Every machine takes every step (Compare view);
+ * the first machine's status decides when the run stops.
  */
 export class Runner {
   speedIndex = 3;
@@ -19,7 +20,7 @@ export class Runner {
   private carry = 0;
 
   constructor(
-    private readonly vm: RVM,
+    private readonly machines: () => readonly { vm: RVM }[],
     /** Called after each frame's batch, and once when the run stops. */
     private readonly onFrame: (status: Status, running: boolean) => void,
   ) {}
@@ -45,6 +46,16 @@ export class Runner {
     this.mode = null;
   }
 
+  private step(mode: RunMode): Status {
+    const list = this.machines();
+    let first: Status = 'ok';
+    list.forEach((m, i) => {
+      const s = mode === 'forward' ? m.vm.stepForward() : m.vm.stepBack();
+      if (i === 0) first = s;
+    });
+    return first;
+  }
+
   private readonly tick = (now: number): void => {
     const mode = this.mode;
     if (mode === null) return;
@@ -62,7 +73,7 @@ export class Runner {
 
     let status: Status = 'ok';
     for (let i = 0; i < want && status === 'ok'; i++) {
-      status = mode === 'forward' ? this.vm.stepForward() : this.vm.stepBack();
+      status = this.step(mode);
       if ((i & 255) === 255 && performance.now() > deadline) break;
     }
     const finished = status !== 'ok';

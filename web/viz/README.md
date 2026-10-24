@@ -92,3 +92,28 @@ shows a full-width banner and a tinted frame; stepping back never does. Alt+`,` 
 Alt+0 stop (Alt combinations never reach the machine).
 `node scripts/screenshots.mjs` drives the real mock VM through every state at 1280x720 into `screenshots/` (git-ignored;
 open `screenshots/index.html`) and reports if the page scrolls.
+
+## Real engines, Compare, assembler (added after the WASM merge)
+`mountViz(root, vm, opts)` now also takes:
+```ts
+createVm?: CreateVm                 // makes a VM of a kind; enables the engine switch and Compare
+engines?: readonly VmKind[]         // kinds createVm can make (default: just vm.kind)
+assemble?: (source: string, fileName?: string) => AsmOutcome   // enables the Code view's built-in editor
+```
+`ProgramEntry` gained `source?: string` (shown/edited in the Code view) and its `load()` may throw: the message is shown.
+`src/main.ts` wires `createWasmVm` (falls back to the mock if WebAssembly is unavailable) and `asm/src/index.ts`.
+
+New on `VizHandle`: `engines`, `compare`, `setEngine(kind)`, `setCompare(on)`, `assembleAndLoad(source, name?)`, and
+`loadImage(name, image, source?)`; new event `'engine'` (`{ engine, compare }`). **`viz.vm` is a getter: it is a different
+object after `setEngine`, so do not cache it; re-read it on `'engine'`.**
+- `setEngine`: builds a fresh VM of the other kind, loads the same program, replays the recorded inputs and direction flips
+  at their original `t`, then `runTo(t)`. Only host actions made through `viz.pushInput` / `viz.setDirection` are known;
+  anything done on a vm directly is lost on a switch.
+- `setCompare(true)`: adds the other engine to `viz.machines`; every action goes to both. The Compare tab shows a state-match
+  badge (registers, PC, screen every refresh; the whole 0x20800-word writable memory 4 times a second), history bytes and
+  non-zero words per side, and a 256 MiB warning for the diary. On a difference the run pauses.
+- `loadImage` clears the VM's input tape (`setInputTape` with an empty tape) so each run starts with no inputs.
+
+**Garbage convention** (SPEC section 9, "Sort garbage"): a data label whose name starts with `garbage` runs to the next data
+label or the end of data; those words are hatched in the Memory view (sort.s: addresses 8-26). The Memory view also has an
+ASCII column (4 bytes per word, little-endian) and a jump-to-data-label menu (cipher.s: `msg` at 0x1b).

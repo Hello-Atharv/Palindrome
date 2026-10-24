@@ -1,6 +1,6 @@
-// Screenshots of every UI state at 1280x720, from the dev server and the mock VM.
-//   node scripts/screenshots.mjs            -> web/viz/screenshots/*.png
-import { mkdirSync } from 'node:fs';
+// Screenshots of every UI state at 1280x720, from the dev server and the real WebAssembly engines.
+//   node scripts/screenshots.mjs            -> web/viz/screenshots/*.png (+ index.html contact sheet)
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -8,6 +8,7 @@ import { createServer } from 'vite';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'screenshots');
+rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
 const server = await createServer({ root, server: { port: 5199, strictPort: true }, logLevel: 'error' });
@@ -16,15 +17,15 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
-page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+page.on('console', (m) => ['error', 'warning'].includes(m.type()) && errors.push(`${m.type()}: ${m.text()}`));
 
-const load = async (sample) => {
+const load = async (name) => {
   await page.goto('http://localhost:5199/');
   await page.waitForFunction(() => window.__dev);
-  if (sample) await page.evaluate((n) => { const d = window.__dev; const i = d.samples.findIndex((s) => s.name === n); d.viz.loadImage(n, d.samples[i].build().image); }, sample);
+  if (name) await page.evaluate((n) => { const { viz, programs } = window.__dev; const p = programs.find((q) => q.name === n); viz.loadImage(n, p.load(), p.source); }, name);
 };
-const shot = async (name) => {
-  await page.waitForTimeout(450); // let flash animations settle or be caught consistently
+const shot = async (name, wait = 450) => {
+  await page.waitForTimeout(wait);
   await page.screenshot({ path: join(out, `${name}.png`) });
   console.log('shot', name);
 };
@@ -34,75 +35,94 @@ const noScroll = async (name) => {
   if (over > 0) console.log(`!! page scrolls by ${over}px in state ${name}`);
 };
 
-// 1. paused at t = 0
+// 01 paused at t = 0 on the real diary engine
 await load('gradient');
 await shot('01-paused-t0');
 await noScroll('paused');
 
-// 2. a few forward steps: changed registers flash amber
+// 02/03 step forward (amber flash), step back (cyan flash)
 await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 9; i++) v.step(); });
-await page.waitForTimeout(100);
-await page.screenshot({ path: join(out, '02-step-forward-flash.png') });
-console.log('shot 02-step-forward-flash');
-
-// 3. step back: same registers flash cyan, arrow reversed, no banner
+await shot('02-step-forward-flash', 100);
 await dev(() => window.__dev.viz.stepBack());
-await page.waitForTimeout(100);
-await page.screenshot({ path: join(out, '03-step-back-flash.png') });
-console.log('shot 03-step-back-flash');
+await shot('03-step-back-flash', 100);
 
-// 4. running forward slowly (flash mode) then fast (heat map)
+// 04/05 running: slow (flashes) and fast (heat map)
 await dev(() => { const s = document.querySelector('.speed'); s.value = '2'; s.dispatchEvent(new Event('input')); window.__dev.viz.run('forward'); });
 await shot('04-run-forward-100ps');
 await dev(() => { const s = document.querySelector('.speed'); s.value = '4'; s.dispatchEvent(new Event('input')); });
 await shot('05-run-forward-heat');
-
-// 5. running back
 await dev(() => { window.__dev.viz.pause(); window.__dev.viz.run('back'); });
 await shot('06-run-back');
 await dev(() => window.__dev.viz.pause());
 
-// 6. halted
+// 07 halted, 08 at start, 09 fault
 await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh('halted'); });
 await shot('07-halted');
 await noScroll('halted');
-
-// 7. at start
-await load('counting loop');
+await load('loop');
 await dev(() => window.__dev.viz.stepBack());
 await shot('08-at-start');
-
-// 8. fault
 await load();
 await dev(() => {
-  const { viz, ProgramBuilder } = window.__dev;
-  viz.loadImage('fault demo', new ProgramBuilder().xori(1, 7).add(1, 1).hlt().build().image);
+  const { viz } = window.__dev;
+  viz.assembleAndLoad('start: xori r1, 0x30000\n xst r2, [r1]\n hlt\n', 'fault demo');
   viz.step(); viz.step();
 });
 await shot('09-fault');
 
-// 9. new branch: scrub back, then press a key
-await load('counting loop');
+// 10 new branch, 11 direction -1
+await load('loop');
 await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 40; i++) v.step(); for (let i = 0; i < 25; i++) v.stepBack(); v.pushInput(0x41); });
 await shot('10-new-branch');
-
-// 10. direction -1: the program runs as its own inverse
-await load('counting loop');
+await load('loop');
 await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 10; i++) v.step(); v.setDirection(-1); v.step(); v.step(); });
 await shot('11-direction-minus-1');
 
-// 11. memory tab, stack
+// 12 memory: stack
 await load('call / return');
 await dev(() => { const v = window.__dev.viz; v.step(); v.step(); v.step(); });
 await page.click('.viz-col > .tabs .tab:nth-child(2)');
 await page.click('.region-tabs .tab:nth-child(2)');
 await shot('12-memory-stack');
 
-// 12. code view
-await page.click('.viz-header .tabs .tab:nth-child(2)');
-await shot('13-code-view');
+// 13/14 sort: the garbage fills in as it runs (hatched words), then the reversible engine shows 0 B
+await load('sort');
+await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh(); });
+await page.click('.viz-col > .tabs .tab:nth-child(2)');
+await page.click('.region-tabs .tab:nth-child(1)');
+await shot('13-sort-garbage');
+await dev(async () => { await window.__dev.viz.setEngine('reversible'); });
+await shot('14-reversible-engine');
 
-// 13. debugger mounted: left pane present, built-in transport hidden
+// 15/16 cipher: the message as text, then decrypted by flipping the direction (banner)
+await page.click('.viz-col > .tabs .tab:nth-child(1)');
+await load('cipher');
+await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh(); });
+await page.click('.viz-col > .tabs .tab:nth-child(2)');
+await page.selectOption('.pager select', { label: 'msg  001b' });
+await shot('15-cipher-encrypted');
+await dev(() => { const v = window.__dev.viz; v.setDirection(-1); v.vm.runTo(v.vm.instructionCount + 5000); v.refresh(); });
+await shot('16-cipher-decrypted-direction-minus-1');
+
+// 17 compare view: both engines in lockstep
+await load('sort');
+await page.click('.viz-col > .tabs .tab:nth-child(3)');
+await page.click('.compare-bar .btn');
+await page.waitForTimeout(300);
+await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 300; i++) v.step(); });
+await shot('17-compare');
+
+// 18 code view with a diagnostic, 19 with the real editor assembled
+await page.click('.viz-header .tabs .tab:nth-child(2)');
+await dev(() => { const e = document.querySelector('.code-editor'); e.value = 'start: xori r1, 5\n add r1, r1\n hlt\n'; });
+await page.click('.code-bar .btn');
+await shot('18-code-diagnostics');
+await load('nested loop');
+await page.click('.viz-header .tabs .tab:nth-child(2)');
+await page.click('.code-bar .btn');
+await shot('19-code-assembled');
+
+// 20 debugger mounted: left pane present, built-in transport hidden
 await load('if / else');
 await dev(() => {
   const v = window.__dev.viz;
@@ -114,16 +134,13 @@ await dev(() => {
   v.listing.setCulprit(3);
   v.step(); v.step();
 });
-await shot('14-debugger-mounted');
+await shot('20-debugger-mounted');
 
 await browser.close();
 await server.close();
-if (errors.length) console.log('browser errors:\n' + errors.join('\n'));
 
-// a contact sheet so the states can be looked through in one page: screenshots/index.html
-import { readdirSync, writeFileSync } from 'node:fs';
 const files = readdirSync(out).filter((f) => f.endsWith('.png')).sort();
 writeFileSync(join(out, 'index.html'), `<!doctype html><meta charset="utf-8"><title>viz states</title>
 <style>body{background:#0d1117;color:#e6edf3;font:14px system-ui;margin:24px}figure{margin:0 0 24px}img{width:100%;max-width:1280px;border:1px solid #2a3139;border-radius:6px}</style>
 ${files.map((f) => `<figure><figcaption>${f.replace('.png', '')}</figcaption><img src="${f}"></figure>`).join('\n')}`);
-console.log('wrote screenshots/index.html');
+if (errors.length) console.log('browser messages:\n' + [...new Set(errors)].join('\n'));
