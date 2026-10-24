@@ -153,8 +153,14 @@ f_end:  ret
   flips and later input events are discarded.** Stepping back and forward with no host action is lossless.
 - Logging VM: stores per-step deltas, so `rvm_history_bytes` grows with t. Reversible VM:
   `rvm_history_bytes` = 8 bytes per direction flip, nothing per step.
-- **Oracle contract:** for the same program, tape and direction schedule, `(R[0..15], PC, RW memory)` and
-  the returned status are identical in both VMs at every t, and a fault leaves state unchanged.
+- **Oracle contract:** for the same program, tape and direction schedule, `(R[0..15], PC, RW memory)`, the
+  instruction count, the direction and the returned status are identical in both VMs after every action
+  (step, step back, run_to, set_direction, push_input), and a fault leaves state unchanged. This holds for
+  **well-formed programs** (those that satisfy the control-flow rules in section 6). The one check the
+  reversible VM cannot make is the `LND` assertion (it has no history to compare against), so a program that
+  violates it faults in the logging VM and is undefined in the reversible VM. Every other fault check (operand
+  rules, addresses, `BR` target, `CALL`/`RET` pairing, stack slot) depends only on state and code, so both
+  VMs fault identically. Tested by `tests/differential_test.cpp`.
 
 ## 8. API
 **Web code is written against `spec/vm_api.ts`** (TypeScript interface `RVM`, constants, opcodes). It is
@@ -263,6 +269,8 @@ status and the actual `instructionCount`. Breakpoints are checked by the UI afte
 directions. While dragging the scrubber, throttle `runTo` calls.
 
 ### 11.4 Should include
+- **Reverse watchpoint** ("what last changed this?"): pick a register or memory word and run backward until it changes,
+  landing on the instruction that wrote it (see 11.8). Works on both engines and needs no extra history.
 - Stack view (from `r14` down to the base), with return addresses labelled as such.
 - A live graph of `historyBytes` against `t` (this is the project's headline claim, drawn live).
 - Garbage highlighting: the sort demo writes a permutation record to a fixed region; the memory view marks it.
@@ -279,11 +287,13 @@ nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SP
 `vm_api.ts`; the viz owner writes them.
 
 ### 11.7 Conventions (adopted)
-1. **Key events.** The UI sends `pushInput(value)` with `value = (pressed << 8) | code`: `pressed` is 1 on key down,
-   0 on key up; `code` is 1 up, 2 down, 3 left, 4 right, 5 space, 6 enter, otherwise the uppercase ASCII code
-   of the character (`'W'` = 87). The UI sends one down event per physical press (ignore browser auto-repeat)
-   and one up event on release. Two players on one keyboard use W/S and the arrow keys. Example: up pressed =
-   257, up released = 1.
+1. **Key events** (adopted from the viz implementation, `web/viz/src/keys.ts`). The UI sends `pushInput(value)`
+   with `value = code | (released ? 0x100 : 0)`. A key **press** is just the plain code; bit 8 (`0x100`) is set on
+   **release**. Codes: printable keys are their uppercase ASCII (`'W'` = 0x57, `'0'` = 0x30), Space `0x20`,
+   Enter `0x0D`, Escape `0x1B`, Backspace `0x08`, Tab `0x09`, arrows Up `0x80`, Down `0x81`, Left `0x82`,
+   Right `0x83`. One press event per physical press (browser auto-repeat is ignored) and one release event.
+   Two players on one keyboard use W/S and the arrow keys. Examples: Up pressed = `0x80`, Up released = `0x180`,
+   `W` pressed = `0x57`. A game that only cares about presses compares the value to the code.
 2. **Frame counter (optional).** Data address `0xFFFF` (last word of the data region) is reserved as `FRAME`.
    A program that has frames adds 1 to it once per frame (`ADDI` + `XST` through a register, or `XLD`/`ADDI`/`XST`).
    The VM treats it as ordinary memory. The debugger's "step by frame" runs single steps until `memory(0xFFFF, 1)`
@@ -313,6 +323,18 @@ call (for example `runUntil(pc, maxSteps)`); that would be a spec change.
 **Scrubbing.** `runTo(n)` costs about as much as stepping that distance, in either direction. When the
 scrubber moves far, call `runTo` in chunks (at most ~200,000 steps per animation frame) and show progress,
 instead of one blocking call. Throttle while dragging. The scrubber's range is `0 .. maxT` (section 11.3 item 6).
+
+**Reverse watchpoint.** Watch one register or one memory word (`registers()` or `memory(addr, 1)`).
+- Run backward: record the watched value `v`, then `stepBack()` repeatedly, comparing after each step. The first
+  time the value differs from `v`, that `stepBack` just undid the write, so **PC now points at the instruction
+  that wrote it** and `instructionCount` is the time just before that write. Stop there and show both.
+- Run forward is the mirror image: step until the value changes; the instruction that wrote it is the one just
+  executed (PC minus one for straight-line code; use the `t` before the step).
+- Same rules as other multi-step actions: stop at a breakpoint, on `halted`, `at_start` or `fault`, and after the
+  1,000,000-step cap (report "not written in the last N steps"). If the value never changes, say so.
+- It is a plain loop over `stepBack()`, so it works unchanged on both engines. On the reversible engine this
+  needs no stored history, which is the point worth showing.
+- A watch on `r14` (the stack pointer) or on a memory word the program writes through `XST` are good demos.
 
 **Breakpoints and watchpoints.** PC breakpoints are checked by the UI after every single step, in both directions.
 Watchpoints (stop when a register or memory word changes) are the same idea: compare before and after each

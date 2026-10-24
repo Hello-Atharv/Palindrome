@@ -33,6 +33,7 @@ tape's last timestamp, later events are discarded (new timeline branch). Saving 
 gives a replayable run. Decided: input while scrubbed back starts a new branch (SPEC section 7).
 
 ## Key event convention
-Keyboard events are tape values: `value = (pressed << 8) | code`. `pressed` is 1 on key down, 0 on key up.
-`code`: 1 up, 2 down, 3 left, 4 right, 5 space, 6 enter, otherwise uppercase ASCII (`'W'` = 87).
-One down event per physical press (no auto-repeat), one up event on release. Up pressed = 257, released = 1.
+Keyboard events are tape values: `value = code | (released ? 0x100 : 0)`. A press is the plain code; bit 8 marks a release.
+Codes: uppercase ASCII for printable keys (`'W'` = 0x57), Space `0x20`, Enter `0x0D`, Escape `0x1B`, Backspace `0x08`,
+Tab `0x09`, arrows Up `0x80`, Down `0x81`, Left `0x82`, Right `0x83`. One press event per physical press (no
+auto-repeat), one release event. Up pressed = `0x80`, released = `0x180`.

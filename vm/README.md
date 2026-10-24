@@ -1,5 +1,10 @@
 # vm/
-Purpose: the two VMs behind `spec/vm_api.h`: the logging VM (oracle) and the reversible VM. Built as the static library `rvm` (C++17).
-Owner: **vm**.
+Purpose: the two VMs behind `spec/vm_api.h`, built as the static library `rvm` (C++17, namespace `rev`).
+Owner: **core**.
 
-`include/` internal headers, `src/` sources. Add new .cpp files to the `rvm` target in the root `CMakeLists.txt`.
+- `include/rvm/`: shared pieces (`isa.h` constants/encoding, `program.h` image parse/serialize, `timeline.h` input tape + direction log).
+- `src/logging_vm.*`: the logging VM (oracle). Records per-step deltas; asserts the control-flow rules.
+- `src/machine.*`: shared state and non-stepping API (load, tape, direction log, memory reads).
+- `src/reversible_vm.*`: the reversible VM. No per-step history; step_back computes the inverse.
+- `src/api.cpp`: the C API over both VMs (`RVM_KIND_LOGGING`, `RVM_KIND_REVERSIBLE`).
+Add new .cpp files to the `rvm` target in the root `CMakeLists.txt`.
