@@ -59,7 +59,8 @@ function hit(h: WatchHit, name: string, backwards: boolean): string {
 }
 
 export function runCommand(dbg: Debugger, input: string): { out: string; quit: boolean } {
-  const [cmd, ...rest] = input.trim().split(/\s+/);
+  // anything after a # is a comment, so annotated command lists can be pasted as they are
+  const [cmd, ...rest] = input.replace(/(^|\s)#.*$/, '').trim().split(/\s+/);
   const arg = rest.join(' ');
   const count = Math.max(1, Number(rest[0]) || 1);
   let out = '';

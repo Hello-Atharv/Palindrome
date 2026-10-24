@@ -120,6 +120,14 @@ describe('debugger', () => {
     expect([hit!.before, hit!.after]).toEqual([12, 16]);
   });
 
+  it('ignores comments after a # so annotated command lists can be pasted', async () => {
+    const d = await debuggerFor('lang/examples/sort3.rev');
+    expect(runCommand(d, 'c   # run to the end').out).toMatch(/halted/);
+    expect(runCommand(d, 'p f1   # now 1').out).toBe('f1 = 1 (1)\n');
+    expect(runCommand(d, '# only a comment').out).toBe('');
+    expect(runCommand(d, 'rwatch f1  # who wrote it?').out).toMatch(/f1 was last written by line 8/);
+  });
+
   it('explains bad input instead of crashing', async () => {
     const d = await debuggerFor('lang/examples/fib.rev');
     expect(runCommand(d, 'watch nonsense').out).toMatch(/don't know what/);
