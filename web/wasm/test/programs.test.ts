@@ -123,3 +123,95 @@ describe.each(['logging', 'reversible'] as const)('cipher.s on the %s engine', (
     expect(v.instructionCount).toBe(1151);
   });
 });
+
+// ---- sort.s: a reversible sort that exposes its garbage ------------------------------------------------------------
+const NETWORK: [number, number][] = [
+  [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7], [0, 1], [2, 3], [4, 5], [6, 7],
+  [2, 4], [3, 5], [1, 4], [3, 6], [1, 2], [3, 4], [5, 6],
+];
+const SORT_INPUT = [42, 7, 19, 3, 88, 7, 55, 1];
+const GARBAGE = 8; // data address of the 19 garbage words (after the 8-word array)
+
+function refSort(input: number[]): { sorted: number[]; bits: number[] } {
+  const a = [...input];
+  const bits: number[] = [];
+  for (const [i, j] of NETWORK) {
+    const swapped = a[j] < a[i];
+    if (swapped) [a[i], a[j]] = [a[j], a[i]];
+    bits.push(swapped ? 1 : 0);
+  }
+  return { sorted: a, bits };
+}
+const sortWith = (vals: number[]): string => source('sort.s').replace(/^arr:.*$/m, `arr:    .word  ${vals.join(', ')}`);
+
+describe.each(['logging', 'reversible'] as const)('sort.s on the %s engine', (kind) => {
+  it('starts with the input and an empty garbage record', async () => {
+    const v = await start(kind, source('sort.s'));
+    expect(Array.from(v.memory(0, 8))).toEqual(SORT_INPUT);
+    expect(Array.from(v.memory(GARBAGE, 19))).toEqual(new Array(19).fill(0));
+  });
+
+  it('sorts, records one bit per comparator, and leaves no other garbage', async () => {
+    const v = await start(kind, source('sort.s'));
+    runToEnd(v);
+    const ref = refSort(SORT_INPUT);
+    expect(ref.sorted).toEqual([...SORT_INPUT].sort((a, b) => a - b));
+    expect(Array.from(v.memory(0, 8))).toEqual(ref.sorted);
+    expect(Array.from(v.memory(GARBAGE, 19))).toEqual(ref.bits);
+    const regs = Array.from(v.registers().regs);
+    expect(regs.every((r, i) => r === (i === 14 ? 0x10000 : 0))).toBe(true);
+  });
+
+  it('unsorts exactly by running backwards (direction -1), clearing the garbage', async () => {
+    const v = await start(kind, source('sort.s'));
+    runToEnd(v);
+    expect(v.setDirection(-1)).toBe('ok');
+    let s;
+    while ((s = v.stepForward()) === 'ok') {}
+    expect(s).toBe('halted');
+    expect(Array.from(v.memory(0, 8))).toEqual(SORT_INPUT);
+    expect(Array.from(v.memory(GARBAGE, 19))).toEqual(new Array(19).fill(0));
+  });
+
+  it('sorts and unsorts 25 random inputs, duplicates included, matching the reference', async () => {
+    const st = { s: 99 };
+    const next = (): number => {
+      st.s = (Math.imul(st.s, 1664525) + 1013904223) >>> 0;
+      return st.s >>> 8;
+    };
+    for (let k = 0; k < 25; k++) {
+      const input = Array.from({ length: 8 }, () => next() % (k % 2 ? 6 : 1000)); // odd runs: many duplicates
+      const v = await start(kind, sortWith(input));
+      runToEnd(v);
+      const ref = refSort(input);
+      expect(Array.from(v.memory(0, 8))).toEqual(ref.sorted);
+      expect(Array.from(v.memory(GARBAGE, 19))).toEqual(ref.bits);
+      v.setDirection(-1);
+      while (v.stepForward() === 'ok') {}
+      expect(Array.from(v.memory(0, 8))).toEqual(input);
+      v.destroy();
+    }
+  });
+
+  it('shows why the garbage is needed: different inputs, same sorted output, different garbage', async () => {
+    const a = await start(kind, sortWith([3, 1, 2, 4, 8, 7, 6, 5]));
+    const b = await start(kind, sortWith([1, 2, 3, 4, 5, 6, 7, 8]));
+    runToEnd(a);
+    runToEnd(b);
+    expect(Array.from(a.memory(0, 8))).toEqual(Array.from(b.memory(0, 8))); // identical sorted arrays
+    expect(Array.from(a.memory(GARBAGE, 19))).not.toEqual(Array.from(b.memory(GARBAGE, 19))); // the garbage tells them apart
+    expect(Array.from(b.memory(GARBAGE, 19))).toEqual(new Array(19).fill(0)); // already sorted: nothing to record
+  });
+
+  it('reports its size and cost', async () => {
+    const v = await start(kind, source('sort.s'));
+    runToEnd(v);
+    const r = assemble(source('sort.s'));
+    const swaps = refSort(SORT_INPUT).bits.reduce((a, b) => a + b, 0);
+    console.log(
+      `sort.s ${kind}: ${r.code.length} instructions, ${v.instructionCount} steps, ${swaps} swaps, ` +
+        `19 garbage words (information needed: log2(8!) = ${Math.log2(40320).toFixed(1)} bits), history ${v.historyBytes} bytes`,
+    );
+    expect(v.instructionCount).toBe(159);
+  });
+});

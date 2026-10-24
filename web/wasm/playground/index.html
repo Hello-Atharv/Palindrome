@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reversible Machine Playground</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --panel-2: #1c232c; --border: #2a3139;
+      --text: #e6edf3; --muted: #8b949e;
+      --fwd: #ffb454; --back: #4cc9f0; --ok: #3fb950; --fault: #ff6b6b; --reverse: #4cc9f0;
+      --mono: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px system-ui, sans-serif; }
+    header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    h1 { font-size: 15px; margin: 0 8px 0 0; }
+    select, button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+    button:hover { border-color: var(--muted); }
+    button.on { border-color: var(--fwd); color: var(--fwd); }
+    #banner { display: none; padding: 8px 16px; background: #123; color: var(--reverse); border-bottom: 2px solid var(--reverse); font-weight: 600; }
+    main { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(560px, 1.3fr); gap: 12px; padding: 12px 16px; }
+    section { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+    section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; }
+    section h2 .mono { text-transform: none; letter-spacing: 0; }
+    .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    #regs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .reg { background: var(--panel-2); border-radius: 6px; padding: 4px 8px; font-family: var(--mono); font-size: 13px; }
+    .reg b { color: var(--muted); font-weight: 400; margin-right: 6px; }
+    .fwd { animation: flashF .6s ease-out; } .back { animation: flashB .6s ease-out; }
+    @keyframes flashF { from { background: var(--fwd); color: #000; } }
+    @keyframes flashB { from { background: var(--back); color: #000; } }
+    #listing { font-family: var(--mono); font-size: 12.5px; max-height: 300px; overflow: auto; }
+    .row { display: grid; grid-template-columns: 44px 76px 1fr; padding: 1px 4px; white-space: pre; }
+    .row.pc { background: #3a2c10; outline: 1px solid var(--fwd); }
+    .row.pc.rev { background: #0e2f3b; outline-color: var(--back); }
+    #mem { font-family: var(--mono); font-size: 12.5px; }
+    #mem { overflow-x: auto; }
+    .mrow { display: grid; grid-template-columns: 48px repeat(8, 70px) 280px; gap: 3px; }
+    .mrow span { padding: 1px 3px; border-radius: 3px; }
+    .mrow .addr, .mrow .ascii { color: var(--muted); }
+    .mrow .ascii { white-space: nowrap; }
+    canvas { width: 512px; max-width: 100%; image-rendering: pixelated; background: #000; border: 1px solid var(--border); display: block; }
+    #bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    #bar input[type=range] { flex: 1; min-width: 200px; accent-color: var(--fwd); }
+    .stat { font-family: var(--mono); } .stat b { color: var(--muted); font-weight: 400; }
+    .good { color: var(--ok); } .bad { color: var(--fault); }
+    pre#diag { margin: 6px 0 0; color: var(--fault); font-family: var(--mono); white-space: pre-wrap; }
+    @media (prefers-reduced-motion: reduce) { .fwd, .back { animation: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Reversible Machine Playground</h1>
+    <label>Program <select id="program"></select></label>
+    <label>Engine <select id="engine">
+      <option value="reversible">Reversible: no history</option>
+      <option value="logging">Diary: keeps history</option>
+    </select></label>
+    <button id="reset" title="Back to t = 0">⏮ Start</button>
+    <button id="back" title="Step back one instruction">◀ Back</button>
+    <button id="step" title="Step forward one instruction">Step ▶</button>
+    <button id="run" title="Run forward">Run ▶▶</button>
+    <button id="runback" title="Run backward in time">◀◀ Run back</button>
+    <button id="pause">⏸ Pause</button>
+    <label>Speed <select id="speed">
+      <option value="1">1 / frame</option><option value="4">4 / frame</option><option value="20" selected>20 / frame</option>
+      <option value="200">200 / frame</option><option value="2000">2000 / frame</option>
+    </select></label>
+    <button id="dir" title="Run the program as its own inverse (decrypt / unsort)">Direction: +1</button>
+  </header>
+  <div id="banner">Program running in reverse (direction −1): this is the program's own inverse, not a replay of history.</div>
+  <main>
+    <section id="bar">
+      <span class="stat"><b>t</b> <span id="t">0</span></span>
+      <input id="scrub" type="range" min="0" max="0" value="0" />
+      <span class="stat"><b>state</b> <span id="status">ready</span></span>
+      <span class="stat"><b>VM history</b> <span id="hist">0 B</span></span>
+      <span class="stat" id="branch"></span>
+    </section>
+    <section><h2>Registers</h2><div id="regs"></div><pre id="diag"></pre></section>
+    <section><h2>Screen (64 × 32)</h2><canvas id="fb" width="64" height="32"></canvas></section>
+    <section><h2>Code <span class="mono" id="codeinfo"></span></h2><div id="listing"></div></section>
+    <section><h2>Memory <label class="mono">from <input id="memstart" value="0" size="6" /></label></h2><div id="mem"></div></section>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

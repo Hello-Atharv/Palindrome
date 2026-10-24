@@ -22,8 +22,11 @@ Updated: 2026-10-24
 
 - **programs/cipher.s**: Speck64/128 reversible cipher, matches the published test vector on both engines, no garbage, decrypts via direction -1; 13 tests in `web/wasm/test/programs.test.ts`.
 
+- **programs/sort.s**: reversible sort exposing its garbage (19 recorded bits), network proven on all 0/1 inputs, 25 random inputs + unsort tested on both engines. Macro doc corrected: only the `.fi` assertion registers matter.
+- **Playground** (`web/wasm/playground`, `npm run playground`): see the real engines run the demos in a browser (screenshot-checked in Chrome). Also proves Vite resolves the assembler's `.js` imports to `.ts`.
+
 ## In progress
-- Sort demo with its conventional twin (for the honest overhead benchmark); then Pong guidance.
+- Conventional twin of the sort for the honest overhead benchmark; Pong guidance.
 
 ## Notes for others
 - C++ namespace is `rev` (the C handle struct is `rvm`). The two VMs match on well-formed programs; only the `LND` assertion is logging-VM-only (SPEC section 7).

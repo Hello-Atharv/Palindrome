@@ -86,10 +86,13 @@ hand-written `ifelse.s` and `loop.s`.
         .again ne, r2, r1       ; go around again while this condition holds
 ```
 - All five macros take `cc, ra, rb` (`cc` is `al`, `eq`, `ne` or `lt`); `.else` takes none. They nest freely.
-- **The programmer's duty (Janus's rule):** the bodies of an `.if` must not change the registers named in its test or
-  its `.fi`; the `.fi` condition must be true when the else side ran and false when the then side ran. The loop
-  head condition must be false on the first entry and true on every later one. The logging VM faults ("LND assertion
-  failed") the moment one of these is wrong; the reversible VM trusts it. Test new code on the logging engine first.
+- **The programmer's duty (Janus's rule):** the `.fi` condition must be true when the else side ran and false when the
+  then side ran (so the bodies must leave the values it reads telling the two sides apart, or set them to do so; the
+  usual way is to let the `.if` test registers be untouched and reuse them, or to record the choice in a flag register
+  as `programs/sort.s` does). The `.if` test is only evaluated on entry, so the bodies are free to change the registers
+  it names. The loop head condition must be false on the first entry and true on every later one. The logging VM faults
+  ("LND assertion failed") the moment one of these is wrong; the reversible VM trusts it. Test new code on the
+  logging engine first.
 - A program must not start with `.loop` (its head is a landing and cannot be the entry); put an instruction first.
 - Generated labels start with `$` and are hidden from the symbol table; user labels may not start with `$`. A label
   on a macro line attaches to the first instruction it generates. Listing lines for generated code carry the line

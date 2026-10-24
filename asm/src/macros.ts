@@ -10,8 +10,9 @@
 //     ...body...
 //   .again cc, ra, rb      go around again while cc holds
 //
-// Bodies must not change the registers named in the .if test or the .fi assertion. Generated labels start
-// with "$" (user labels may not), and are hidden from the symbol table.
+// The .if test is evaluated only on entry, so bodies may change the registers it names; what matters is that the
+// .fi assertion is true after the else side and false after the then side. Generated labels start with "$" (user
+// labels may not), and are hidden from the symbol table.
 
 import type { Diagnostic } from './diag.js';
 import type { Stmt } from './parser.js';
