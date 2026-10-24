@@ -5,6 +5,7 @@
  * (exact inverse). "direction" is which way the PROGRAM runs (+1 normal, -1 program
  * executed as its own inverse); it is host-set and independent of time.
  * Addresses in get_memory are data-space WORD addresses (see SPEC.md memory map).
+ * set_direction / push_input at time t start a new branch (later flips/events dropped).
  */
 #ifndef RVM_API_H
 #define RVM_API_H
@@ -53,13 +54,16 @@ rvm_status rvm_run_to(rvm_t* vm, uint64_t n);
 rvm_status rvm_get_registers(const rvm_t* vm, uint32_t out_regs[16], uint32_t* out_pc);
 /* Copies nwords words starting at word address addr (data space) into out. */
 rvm_status rvm_get_memory(const rvm_t* vm, uint32_t addr, uint32_t nwords, uint32_t* out);
+/* Copies nwords instruction words starting at code address addr (for disassembly). */
+rvm_status rvm_get_code(const rvm_t* vm, uint32_t addr, uint32_t nwords, uint32_t* out);
 
 int rvm_get_direction(const rvm_t* vm);            /* +1 or -1 */
 rvm_status rvm_set_direction(rvm_t* vm, int dir);  /* +1 or -1 */
 
 uint64_t rvm_instruction_count(const rvm_t* vm);
 
-/* Bytes of memory used to hold history. Always 0 for the reversible VM. */
+/* Bytes of memory used to hold history. Logging VM: grows with t. Reversible VM: only
+ * 8 bytes per direction flip (SPEC section 7), nothing per step. */
 size_t rvm_history_bytes(const rvm_t* vm);
 
 const char* rvm_last_error(const rvm_t* vm);

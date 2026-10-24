@@ -16,7 +16,9 @@ Event k becomes visible when the machine reaches time `t_k` and stays visible.
 | IN_BASE+1 | `COUNT`: number of events with `t_k <= t` |
 | IN_BASE+2+k | value of event k if `k < COUNT`, else 0 |
 
-Reads use `XLD`. Writes fault.
+Reads use `XLD`. Writes fault. A step from `t` to `t+1` (and its undo) reads the window as of `t`.
+Under program direction -1 the window still follows machine time, so input-reading programs are
+not exactly self-inverse there; time travel (`step_back`) is always exact.
 
 ## Consuming and un-consuming
 "Consume" = the program increments its own cursor (a register or data word). That is an

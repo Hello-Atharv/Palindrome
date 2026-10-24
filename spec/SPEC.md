@@ -1,119 +1,176 @@
 # Reversible Machine Spec
 
-**STATUS: DRAFT v0.1.** Nothing here is agreed until the team settles "Open questions" at the end.
-Changes: log in `SPEC_CHANGELOG.md`.
+**STATUS: v0.2 DRAFT, decisions applied. Treat the ISA table (section 4), memory map (5) and API
+(`vm_api.ts`/`vm_api.h`, section 8) as the contract. Change them only through `core`; every change is logged in
+`SPEC_CHANGELOG.md`.** Unresolved items are in section 10.
+
+Companion files: `vm_api.ts` (TypeScript API, canonical for web), `vm_api.h` (C ABI), `program_format.md` (.rvm binary), `input_tape.md`
+(input), `asm_syntax.md` (assembly source syntax).
+
+## 0. One-paragraph summary
+A 32-bit machine whose every instruction is a bijection on machine state, so any run can be
+stepped backwards by computing inverses, with no history log. We build two engines behind one API:
+a **logging VM** (normal semantics + per-step delta log; the correctness oracle and benchmark
+baseline) and a **reversible VM** (no log). Both must agree on state at every instruction count.
+Programs may still carry "garbage" (extra bits they cannot discard); that lives in program
+memory, not in VM history.
+
+Glossary: **state** = registers + RW data memory + PC. **t** = instruction count (machine time).
+**d** = program direction, +1 normal, -1 "run the program as its own inverse". **oracle** = logging VM.
+**garbage** = information a program keeps only because it cannot erase it.
 
 ## 1. Principles
-- Machine state `S = (R[0..15], RW data memory, PC)`. Time `t` (instruction count) is an input to
-  a step, not stored state.
-- Every instruction is a **bijection** on `S`. No instruction destroys information, so
-  `step_back` needs no log. Copying is `XOR` into a zeroed register; "erasing" is only possible
-  by uncomputing (running the copy's computation backwards). Garbage is real and visible.
-- Faults (illegal operands, bad address, write to read-only) leave `S` unchanged and stop the VM.
+- Every instruction is a bijection on state. No instruction destroys information.
+- Copy = `XOR` into a zeroed register. Erase = only by uncomputing. Nothing is ever just overwritten.
+- Faults (bad operands, bad address, write to read-only) leave state unchanged and stop the VM.
 
-## 2. Data types (why: determinism, easy to test, same result on MSVC and Apple clang)
-- **32-bit words**, 16 registers `r0..r15`. Fixed-width integers only. **No floating point.**
-- **Little-endian** wherever bytes are visible (program files, tape files).
-- **Wraparound**: all arithmetic is mod 2^32; `ADD`/`SUB`/`ADDI` wrap, no overflow flags.
-  Immediates are sign-extended unless stated. Signed compare uses two's complement.
-- Convention: `r14` = SP (starts at `0x10000`), `r15` = free. All other registers start 0.
+## 2. Data types
+- 32-bit words, 16 registers `r0..r15`. Integers only, **no floating point**.
+- **Little-endian** wherever bytes are visible (files). Arithmetic wraps mod 2^32, no flags.
+- Immediates are sign-extended (`sext`) unless marked `zext`. Signed compare is two's complement.
+- Reset state: all registers 0 except `r14` = SP = `0x10000`. Data memory 0 except the loaded image.
+- Convention: `r14` is the stack pointer. Stack slots at or above `r14` must be zero (invariant).
 
-## 3. Instruction encoding
-32 bits, fixed width. `op[31:26] ra[25:22] rb[21:18]`, then one of:
-- Format R: `imm18[17:0]`; 3-register ops use `rc[17:14]`.
+## 3. Encoding (32-bit fixed)
+`op[31:26] ra[25:22] rb[21:18]` then:
+- Format R: `imm18[17:0]` (3-register ops use `rc[17:14]`).
 - Format B: `cc[17:16] target16[15:0]` (absolute code word address).
 
-Code space and data space are **separate** (Harvard); code is read-only at run time.
-Code: 64K words. Data: word-addressed, see section 5.
+Code space (64K words) and data space (word-addressed, section 5) are **separate**; code is read-only.
 
 ## 4. Instruction set (19)
-Inverse column: how `step_back` undoes it (the same table, read right to left, gives program
-direction -1). "x≠y" means the VM faults / assembler rejects equal register operands, because
-the op would not be a bijection (`ra += ra` loses the top bit).
+"Inverse" = what `step_back` does to the data. `x≠y` = operands must differ (else fault; assembler
+rejects) because equal operands would not be a bijection (`ra += ra` loses the top bit).
 
-| # | Mnemonic | Effect | Inverse | Constraint |
+| Op | Mnemonic | Effect | Inverse | Constraint |
 |---|---|---|---|---|
-| 0 | `NOP` | none | NOP | |
-| 1 | `HLT` | VM stops *before* executing it (status HALTED) | n/a | marks program end |
-| 2 | `ADD ra,rb` | ra += rb | `SUB ra,rb` | ra≠rb |
-| 3 | `SUB ra,rb` | ra -= rb | `ADD ra,rb` | ra≠rb |
-| 4 | `ADDI ra,imm` | ra += sext(imm18) | `ADDI ra,-imm` | |
-| 5 | `XOR ra,rb` | ra ^= rb | itself | ra≠rb |
-| 6 | `XORI ra,imm` | ra ^= zext(imm18) | itself | |
-| 7 | `NOT ra` | ra = ~ra | itself | |
-| 8 | `SWAP ra,rb` | swap | itself | |
-| 9 | `ROLI ra,k` | ra = rotl(ra, k mod 32) | `ROLI ra,32-k` | |
-| 10 | `XLD ra,[rb+imm]` | ra ^= MEM[rb+sext(imm18)] | itself | ra≠rb; any mapped region |
-| 11 | `XST ra,[rb+imm]` | MEM[rb+sext(imm18)] ^= ra | itself | target RW |
-| 12 | `CSWAP rc,ra,rb` | if rc≠0: swap ra,rb (Fredkin) | itself | rc∉{ra,rb} |
-| 13 | `TOFF ra,rb,rc` | ra ^= rb & rc (Toffoli) | itself | ra∉{rb,rc} |
-| 14 | `BR cc,ra,rb,T` | see 4.1 | see 4.1 | |
-| 15 | `LND cc,ra,rb,S` | see 4.1 | see 4.1 | |
-| 16 | `CALL T` | see 4.2 | see 4.2 | |
-| 17 | `PROC E` | marks callee entry; E = address of its `RET`; no-op | NOP | |
-| 18 | `RET` | see 4.2 | see 4.2 | |
+| 0 | `NOP` | none; PC+1 | none | |
+| 1 | `HLT` | VM stops *before* executing it (HALTED) | n/a | program end |
+| 2 | `ADD ra,rb` | ra += rb | ra -= rb | ra≠rb |
+| 3 | `SUB ra,rb` | ra -= rb | ra += rb | ra≠rb |
+| 4 | `ADDI ra,imm` | ra += sext(imm18) | ra -= sext(imm18) | |
+| 5 | `XOR ra,rb` | ra ^= rb | same | ra≠rb |
+| 6 | `XORI ra,imm` | ra ^= zext(imm18) | same | |
+| 7 | `NOT ra` | ra = ~ra | same | |
+| 8 | `SWAP ra,rb` | swap ra, rb | same | |
+| 9 | `ROLI ra,k` | ra = rotl(ra, k mod 32) | rotl by (32-k) mod 32 | |
+| 10 | `XLD ra,[rb+imm]` | ra ^= MEM[rb+sext(imm18)] | same | ra≠rb; any mapped region |
+| 11 | `XST ra,[rb+imm]` | MEM[rb+sext(imm18)] ^= ra | same | target RW |
+| 12 | `CSWAP rc,ra,rb` | if rc≠0 swap ra, rb (Fredkin) | same | rc∉{ra,rb} |
+| 13 | `TOFF ra,rb,rc` | ra ^= rb & rc (Toffoli) | same | ra∉{rb,rc} |
+| 14 | `BR cc,ra,rb,T` | PC = cond ? T : PC+1 | PC only (see 6) | |
+| 15 | `LND cc,ra,rb,S` | no-op forward; PC+1 | PC only (see 6) | |
+| 16 | `CALL T` | MEM[r14] ^= PC+1; r14 += 1; PC = T | see 6 | I[T] is `PROC` |
+| 17 | `PROC E` | no-op; marks entry, E = address of the matching `RET` | none | |
+| 18 | `RET` | r14 -= 1; v = MEM[r14]; MEM[r14] ^= v; PC = v | see 6 | |
 
-Why xor-load/store and no `MOV`/`AND`/`OR`: those destroy the old value. `XLD`/`XST` are
-self-inverse and compose into copies. Memory is only ever xor-updated or swapped.
-Multiplication is left out of v0.1 (only odd constants are bijective; see open questions).
+Condition `cc`: 0 `al` (always), 1 `eq` (ra==rb), 2 `ne`, 3 `lt` (signed ra<rb).
+Derived by the assembler: `subi`, `neg ra` = `NOT ra; ADDI ra,1`. There is no `MOV/AND/OR/MUL`.
+Memory is changed only by xor (`XST`) or swap-through-register; reading is `XLD`.
 
-### 4.1 Paired branches (Janus entry test / exit assertion, no history needed)
-`cc`: 0 always, 1 `ra==rb`, 2 `ra!=rb`, 3 signed `ra<rb`.
-- `BR cc,ra,rb,T` at address S: if cc holds then `PC=T` else `PC=S+1`. Changes only PC.
-- `LND cc,ra,rb,S` at address T (the landing, "come-from"): forward it is a no-op (`PC=T+1`).
-  The programmer asserts: **cc holds here iff we arrived by the jump from S**, else by fall-through.
-  The logging VM checks this (it knows the previous PC); the reversible VM cannot, and trusts it.
-- Inverse of a step that ended at address q: if `I[q]` is `LND` and cc holds, the predecessor
-  is S; otherwise q-1 (or see 4.2). Then undo that predecessor (BR undo = nothing).
-- Rule (assembler-checked): any address reachable other than by fall-through is an `LND`
-  or `PROC`. A join with n incoming edges is a chain of n-1 `LND`s. `if`/`loop` macros hide this.
-
-### 4.2 Reversible call/return (single entry, single exit per procedure)
-Stack grows up from `r14`.
-- `CALL T` at C: `MEM[r14] ^= C+1; r14 += 1; PC = T`. `I[T]` must be `PROC E`.
-- `RET` at E: `r14 -= 1; PC = MEM[r14]; MEM[r14] ^= PC` (slot returns to 0).
-- Inverse of `CALL`: reached at `q = T` (the `PROC`): `ret = MEM[r14-1]; MEM[r14-1] ^= ret;
-  r14 -= 1; PC = ret-1`.
-- Inverse of `RET`: reached at `q = C+1` where `I[q-1]` is `CALL T`: `PC = E` (from `I[T]`),
-  `MEM[r14] ^= q; r14 += 1`.
-- Because the return address is *xored into a zero slot and zeroed again*, the stack holds no
-  garbage after a balanced call/return. Recursion works; each procedure has exactly one `RET`.
-
-## 5. Memory map (data space, word addresses; accesses are 32-bit words)
+## 5. Memory map (data space, word addresses, 32-bit word accesses)
 | Range | Use | Access |
 |---|---|---|
-| `0x00000-0x0FFFF` | data (initial image from the .rvm file) | RW |
-| `0x10000-0x1FFFF` | stack | RW |
-| `0x20000-0x207FF` | framebuffer, 64x32, row-major, one word per pixel (`0x00RRGGBB`) | RW |
-| `0x30000-0x3FFFF` | input tape window (`spec/input_tape.md`) | RO |
+| `0x00000-0x0FFFF` | data (initial image from .rvm) | RW |
+| `0x10000-0x1FFFF` | stack (SP starts `0x10000`, grows up) | RW |
+| `0x20000-0x207FF` | framebuffer 64x32, row-major, pixel `0x00RRGGBB` | RW |
+| `0x30000-0x3FFFF` | input window (`input_tape.md`) | RO |
 
-The VM never draws; the UI reads the framebuffer through `rvm_get_memory`.
-Everything else faults. Address = `(rb + sext(imm18)) mod 2^32`.
+Everything else faults. Effective address = `(rb + sext(imm18)) mod 2^32`. The VM never draws;
+the UI reads the framebuffer via `get_memory`. Note `imm18` is signed (max 131071) but
+`XORI` is zero-extended (max 262143): load a high address with `xori r1, 0x20000`.
 
-## 6. Time and direction
-- `step_forward`: t→t+1 by `F_d`. `step_back`: t→t-1, the exact inverse of the last step.
-- `d` (direction) is host-set (`rvm_set_direction`). With `d=-1`, `F` executes the program's
-  inverse, so "run the cipher in reverse" is a button, not a second program. `F_-1` is
-  `step_back` of the `d=+1` machine.
-- Logging VM: records deltas (old values of changed regs/mem/PC) per step; `rvm_history_bytes`
-  grows linearly. Reversible VM: `rvm_history_bytes` = 0. Both must agree on `(R, PC, RW memory)`
-  at every t (differential tests).
+## 6. Reference semantics (normative pseudocode)
+`cond(I)` evaluates `I.cc` on current `R[I.ra], R[I.rb]`. `code[]` is the program.
 
-## 7. Open questions (settle in the first hour)
-1. **Control-flow scheme.** Is BR/LND + CALL/PROC/RET (above) good enough, or adopt Pendulum's
-   branch-register scheme? Must make "find predecessor without a log" provable and checkable
-   by the assembler. Do loops/ifs compile cleanly to it?
-2. **In-program direction reversal.** A `REV` instruction (program turns itself around) was
-   dropped: from `(PC=p-1, d=-1)` the predecessor is ambiguous (REV at p, or inverse of `I[p]`).
-   Is host-set direction enough for the demos?
-3. **Input tape model.** Program-owned cursor over a time-gated window (above) vs a VM-owned
-   consume instruction. On live input while scrubbed back: branch the timeline (above) or forbid?
-4. **VM-to-web boundary.** Emscripten/WASM of the real C++ VM (works on native Windows) vs a JS port
-   vs a local server. Decides what `web/mock_vm` must mimic and whether `vm_api.h` needs a batch call.
-5. **Expressiveness.** Multiply by odd constants (bijective mod 2^32)? Shifts need garbage. Enough
-   for cipher + sort + Pong? Also: framebuffer size, 64K-word memories, and whether `r14`/SP
-   should be hardware-enforced.
-6. Differential-test contract: state equality = `(R, PC, RW memory)` at every t? Faults: identical
-   status and unchanged state in both VMs?
-7. Garbage convention: does the assembler offer Bennett-style `compute/copy/uncompute` macros?
-8. Sort "garbage": what exactly do we expose and how does the UI show it?
+```
+forward(S):                          # one step, d=+1; t -> t+1
+  I = code[PC]
+  HLT:           return HALTED       # no change
+  NOP,PROC,LND:  PC += 1
+  data ops:      apply Effect from the table; PC += 1
+  BR:            PC = cond(I) ? I.target : PC+1
+  CALL:          MEM[R14] ^= PC+1; R14 += 1; PC = I.target
+  RET:           R14 -= 1; v = MEM[R14]; MEM[R14] ^= v; PC = v
+
+backward(S):                         # exact inverse of forward; t -> t-1. q = PC
+  if t == 0: return AT_START
+  I = code[q]
+  if I is LND and cond(I):  PC = I.target; return        # undo jump from S
+  if I is PROC:             ret = MEM[R14-1]; MEM[R14-1] ^= ret; R14 -= 1
+                            PC = ret-1; return           # undo CALL
+  J = code[q-1]
+  if J is CALL:             E = code[J.target].E; MEM[R14] ^= q; R14 += 1
+                            PC = E; return               # undo RET
+  undo J on data per the Inverse column; PC = q-1        # J fell through (BR/LND: no data change)
+```
+Reads of the input window during step `t->t+1` use window(t) (value of t *before* the step),
+for both forward and its undo. HLT: in d=+1, `forward` stops at HLT. In d=-1, `forward` (= `backward`)
+returns HALTED when `PC == entry`.
+
+Control-flow rules (the assembler checks them; the **logging VM also asserts them**):
+1. Any address reached other than by fall-through is an `LND` or `PROC`. A join with n incoming
+   edges is a chain of n-1 `LND`s. The instruction before an `LND` may jump instead of falling through.
+2. `LND cc,ra,rb,S`: asserts "cc holds here iff we arrived by the jump from the `BR` at S". The reversible
+   VM cannot check this (it has no history) and trusts it; the logging VM checks it every time.
+3. Each procedure has one `PROC E` entry and one `RET` at `E`. `entry` is not a jump target.
+4. Instructions that cannot fall through (`RET`, `HLT`, `BR al`) must be followed by an `LND`, `PROC`,
+   or end of code.
+
+### Worked example: if / else
+```
+        br   eq, r1, r2, Lthen        ; S0: entry test
+        ...B...                       ; else body (must not change r1, r2)
+S1:     br   al, Lend
+Lthen:  lnd  al, r0, r0, S0           ; reached only by the jump from S0
+        ...A...                       ; then body (must not change r1, r2)
+Lend:   lnd  ne, r1, r2, S1           ; true iff we came from the else side
+```
+Backwards from `Lend`: if r1≠r2 the predecessor is S1 (the else path), else it is the last instruction of A.
+
+### Worked example: procedure
+```
+        call f
+        ...
+f:      proc f_end
+        ...body...
+f_end:  ret
+```
+
+## 7. Time and direction
+- `step_forward`: t -> t+1 using `forward` (d=+1) or `backward` (d=-1). `step_back` is its exact inverse.
+- `d` is set by the host (`rvm_set_direction`). With d=-1 the program runs as its own inverse
+  ("decrypt = run the cipher backwards"). Caveat: programs that read the time-gated input window
+  are not exactly self-inverse under d=-1, because the window depends on machine time. Time travel
+  (`step_back`) is always exact.
+- Direction flips are recorded as `(t, d)` pairs (host metadata, 8 bytes per flip) so `step_back`
+  knows which direction each step used. They count in `rvm_history_bytes`; step history does not.
+- **Any host action at time t (`set_direction`, `push_input`) starts a new branch: later direction
+  flips and later input events are discarded.** Stepping back and forward with no host action is lossless.
+- Logging VM: stores per-step deltas, so `rvm_history_bytes` grows with t. Reversible VM:
+  `rvm_history_bytes` = 8 bytes per direction flip, nothing per step.
+- **Oracle contract:** for the same program, tape and direction schedule, `(R[0..15], PC, RW memory)` and
+  the returned status are identical in both VMs at every t, and a fault leaves state unchanged.
+
+## 8. API
+**Web code is written against `spec/vm_api.ts`** (TypeScript interface `RVM`, constants, opcodes). It is
+implemented first by `web/mock_vm` and later by the WASM build of the C++ VMs, so the UI never changes.
+`spec/vm_api.h` is the C ABI underneath (same operations, one-to-one: `rvm_step_back` = `stepBack()`, etc.)
+and is what the two C++ VMs implement. The two files must stay in step.
+
+## 9. Decisions taken (formerly open questions)
+| Topic | Decision |
+|---|---|
+| Control flow | `BR`/`LND` + `CALL`/`PROC`/`RET` as above; fall back to Pendulum's scheme if it breaks |
+| In-program direction reversal | None. Host-set direction (a `REV` instruction made the predecessor ambiguous) |
+| Input | Program-owned cursor over a time-gated read-only window; host action starts a new branch |
+| Web boundary | Real C++ VM to WASM (Emscripten); `web/mock_vm` mimics the JS interface meanwhile |
+| Arithmetic | No multiply in v0.2. Maybe `MULI` by odd constants later if the cipher needs it |
+| Oracle equality | `(R, PC, RW memory)` and status at every t; faults leave state unchanged |
+| Sort garbage | The sort writes a permutation record to a fixed region; the UI highlights it |
+
+## 10. Still open
+1. Does `BR/LND` compile cleanly for loops? (Verified by the logging VM and the assembler macros first.)
+2. Pong collision with little garbage; the cipher key schedule without multiply.
+3. Garbage macros (`compute/copy/uncompute`) after basic `if`/`loop` macros.
+4. Framebuffer fixed at 64x32 for now.
