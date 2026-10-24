@@ -47,7 +47,7 @@ describe('data instructions', () => {
   });
 
   it('XST/XLD move data through memory by xor', () => {
-    const vm = load(prog((p) => p.xori(1, 0x1234).xst(1, 0, 40).xld(2, 0, 40).xld(3, 0, 0)), [0xabcd]);
+    const vm = load(prog((p) => p.xori(1, 0x1234).xst(1, 0, 40).xld(2, 0, 40).xld(3, 0, 0), [0xabcd]));
     run(vm);
     expect(vm.memory(40, 1)[0]).toBe(0x1234);
     expect(regs(vm)[2]).toBe(0x1234);

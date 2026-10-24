@@ -16,11 +16,14 @@ Updated: 2026-10-24
   Esc 0x1B, arrows Up/Down/Left/Right = 0x80/0x81/0x82/0x83), bit 8 = released. `spec/input_tape.md` leaves this open.
 
 ## In progress
-- Nothing. Waiting on first real run (see below).
+- Nothing. Not yet looked at in a real browser (only built and unit-tested); needs an eyeball pass on layout.
+
+## Verified (Node 24, 2026-10-24)
+- `web/mock_vm`: `tsc` clean, 47/47 vitest tests pass (incl. 300 random programs round-trip and the d=-1 retrace).
+- `web/viz`: `tsc` clean, 10/10 tests pass, `vite build` succeeds.
 
 ## Blocked / need from others
-- Node is not installed on my machine, so NOTHING in web/ has been executed: no `vitest`, no `tsc`, no `vite`. The code was
-  hand-checked only. Do not trust it until `npm install && npm test && npm run build` pass in `web/mock_vm` and `web/viz`.
+- Nothing.
 
 ## Interfaces I changed or rely on
 - Toolchain (debugger: please match): Vite + TypeScript (strict), vanilla DOM (no framework), Vitest, 2-space indent.
