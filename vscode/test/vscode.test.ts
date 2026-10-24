@@ -95,6 +95,14 @@ describe('editor logic', () => {
     expect(diagnose('rvm-asm', 'start: addi r1, 1\n hlt\n')).toEqual([]);
   });
 
+  it('reports suspicious fi clauses as warnings, not errors', () => {
+    const ds = diagnose('rev', 'var a = 5, b = 3, f = 0; main { if (a > b) { a <=> b; f += 1; } fi (a > b); }');
+    expect(ds.length).toBe(1);
+    expect(ds[0]).toMatchObject({ line: 1, severity: 'warning' });
+    expect(ds[0].message).toMatch(/repeats the test/);
+    expect(diagnose('rev', 'var a = 5, b = 3, f = 0; main { if (a > b) { a <=> b; f += 1; } fi (f != 0); }')).toEqual([]);
+  });
+
   it('computes per-line costs, a summary, and the report', async () => {
     const src = readFileSync(repo('lang/examples/fib.rev'), 'utf8');
     const c = await cost(src);

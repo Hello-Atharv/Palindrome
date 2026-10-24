@@ -28,6 +28,7 @@ if (!result.ok) {
   console.error(formatDiagnostics(basename(file), result.diagnostics));
   process.exit(1);
 }
+for (const w of result.warnings) console.error(`${basename(file)}:${w.line}: warning: ${w.message}`);
 const out = opt('-o');
 if (out) writeFileSync(out, result.image!);
 const asmOut = opt('--asm');

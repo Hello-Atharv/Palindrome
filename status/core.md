@@ -42,6 +42,8 @@ Updated: 2026-10-24
 
 - **Console** (SPEC 11.9): `.print` macro in the assembler (strings, characters, unsigned/signed/hex; 13 instructions per character, each entry appears in one step), a `print` statement in `rev` (undone by `uncall`, counted as garbage by the cost report), `lang/src/console.ts` to read it back for any UI, `rvm run` prints it, the debugger has `console`. 11 assembler tests, 5 engine tests, 14 language tests. A test found that updating the length by moving it through zero showed an empty console mid-print; the length now changes in one step.
 
+- **Optional `fi` and warnings** (`lang/`): an `if` without `fi` gets the test as its assertion when no branch (or procedure it calls) changes what the test reads and the test uses only registers and constants; otherwise a compile error says exactly why. The inferred code is byte-identical to writing the same `fi` (tested for all six relations). `programs/pong.rev` lost 7 redundant `fi`s and compiles to the identical image. Warnings (a `fi` that repeats the test after a branch changed it; a `fi` no branch can influence and that is not the test) reach `rvmc`, the VS Code extension and the browser editor (yellow underline). The cost report says how many `if`s had an inferred vs a written `fi`. 12 new tests, mutation-checked.
+
 ## In progress
 - Benchmark chart for the demo (Atharv's UI), the showpiece, the writeup, and a README that gets a stranger from clone to demo.
 

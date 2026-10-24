@@ -14,7 +14,11 @@ export interface EditorDiagnostic {
 /** Compile (or assemble) only: instant, used while typing. */
 export function diagnose(language: 'rev' | 'rvm-asm', source: string): EditorDiagnostic[] {
   if (language === 'rev') {
-    return compile(source).diagnostics.map((d) => ({ line: d.line, message: d.message, severity: 'error' as const }));
+    const c = compile(source);
+    return [
+      ...c.diagnostics.map((d) => ({ line: d.line, message: d.message, severity: 'error' as const })),
+      ...c.warnings.map((d) => ({ line: d.line, message: d.message, severity: 'warning' as const })),
+    ];
   }
   return assemble(source).diagnostics.map((d) => ({ line: d.line, message: d.message, severity: d.severity }));
 }
@@ -46,7 +50,10 @@ export async function cost(source: string, maxSteps = 400_000): Promise<Costs> {
   }
   const r = await analyze(c, source, maxSteps);
   return {
-    diagnostics: r.fault ? [{ line: 0, message: r.fault, severity: 'error' as const }] : [],
+    diagnostics: [
+      ...(r.fault ? [{ line: 0, message: r.fault, severity: 'error' as const }] : []),
+      ...c.warnings.map((d) => ({ line: d.line, message: d.message, severity: 'warning' as const })),
+    ],
     lines: r.lines.filter((l) => l.steps > 0).map((l) => ({
       line: l.line,
       steps: l.steps,
