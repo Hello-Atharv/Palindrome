@@ -43,8 +43,10 @@ on the reversible engine, with 0 bytes of history (`web/wasm`, test "rewinds a l
 
 ## A real program: Pong (`programs/pong.s`)
 Measured by `web/wasm/test/pong.test.ts` (200 frames, a paddle that chases the ball, 105 key events):
-- about **300 steps per frame** (487 instructions of code);
-- diary engine history **14,413 bytes per frame** (48 bytes x 300 steps), reversible engine history **0**;
+- about **400 steps per frame** (275 instructions of code);
+- diary engine history **19,145 bytes per frame** (48 bytes x 399 steps), reversible engine history **0**;
 - the program's own garbage is its input log: **8 bytes per frame** (two words), and the words are zero while nobody presses a key.
+An earlier version of the same game, written without the new macros, was 487 instructions and about 300 steps per frame (14,413 bytes
+of diary history per frame): smaller code costs more steps per frame here.
 Caveats: the diary figure is our straightforward 48-byte-per-step diary (a tighter one would be smaller but still linear); the reversible
 program's extra instructions compared with a conventional Pong are not measured (there is no conventional version yet).

@@ -83,7 +83,8 @@ class PongModel {
         this.alive = false;
         return false;
       }
-      this.screen[this.hpos++] ^= YELLOW;
+      for (const o of [0, 1, 64, 65]) this.screen[this.hpos + o] ^= YELLOW; // a 2 x 2 score block
+      this.hpos += 3;
       this.hits++;
     }
     this.frames++;
@@ -99,9 +100,10 @@ function chase(m: PongModel, last: number): number | null {
   return want === last ? null : want;
 }
 
+/** The temporaries (r9..r13, r15) are zero and the stack is empty: nothing hidden is left in registers. */
 const clean = (v: WasmVm): boolean => {
   const r = v.registers().regs;
-  return [6, 7, 8, 9, 10, 11, 12, 13, 15].every((i) => r[i] === 0) && r[14] === 0x10000;
+  return [9, 10, 11, 12, 13, 15].every((i) => r[i] === 0) && r[14] === 0x10000;
 };
 
 /** Play `frames` frames pushing events from `strategy`, comparing the machine with the model after each. */
@@ -127,8 +129,8 @@ async function play(
     expect(Array.from(v.framebuffer()), `screen after frame ${f + 1}`).toEqual(Array.from(m.screen));
     if (!alive) break;
     const regs = v.registers().regs;
-    expect([regs[1], regs[2], regs[3], regs[4], regs[5]], `state after frame ${f + 1}`).toEqual([
-      m.px, m.py, m.pp, 0x20000 + m.hpos, 2 * m.frames,
+    expect([regs[1], regs[2], regs[3], regs[4], regs[5], regs[6], regs[7], regs[8]], `state after frame ${f + 1}`).toEqual([
+      m.px, m.py, m.pp, 0x20000 + m.hpos, 2 * m.frames, fold(m.px).b, fold(m.py).b, fold(m.px).q,
     ]);
     expect(clean(v), `temporaries zero after frame ${f + 1}`).toBe(true); // nothing hidden is left in registers
     expect(v.memory(FRAME_WORD, 1)[0]).toBe(m.frames);
@@ -144,6 +146,8 @@ describe.each(['logging', 'reversible'] as const)('pong.s on the %s engine', (ki
     const m = new PongModel();
     expect(Array.from(v.framebuffer())).toEqual(Array.from(m.screen));
     expect(clean(v)).toBe(true);
+    const r = v.registers().regs;
+    expect([r[6], r[7], r[8]]).toEqual([fold(m.px).b, fold(m.py).b, fold(m.px).q]); // the ball's position is live state
   });
 
   it('with no input the ball gets past the paddle on its first return: game over at frame 53', async () => {
@@ -205,6 +209,6 @@ describe.each(['logging', 'reversible'] as const)('pong.s on the %s engine', (ki
         `${frames} frames, ${m.hits} hits, ${events} key events; VM history ${v.historyBytes} bytes ` +
         `(${(v.historyBytes / frames).toFixed(0)} per frame); program log ${8 * frames} bytes (8 per frame)`,
     );
-    expect(ASM.code.length).toBeLessThan(700);
+    expect(ASM.code.length).toBeLessThan(500);
   });
 });

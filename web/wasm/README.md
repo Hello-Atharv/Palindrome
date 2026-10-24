@@ -35,5 +35,11 @@ differential test between them, and a long rewind).
   flashing amber (forward) or cyan (backward), a code listing with the PC marked, a memory window (jump to data / stack / screen,
   ASCII column), and a zoom for the small screen.
 - URL options: `?p=<program index>&e=reversible|logging&cmp=1&t=<steps to run>&mem=<memory start>&dir=-1&after=<steps in reverse>`.
+  Testing options: `run=1` starts running at once; `speed=<steps per frame>`; `debug=1` shows the page's scroll position and the fewest paddle
+  pixels visible in any redraw in the tab title; `selftest=<n>` drives n iterations of the run loop synchronously (no animation frames) and
+  reports in the title; `frames=0` turns off frame-synced drawing.
+- **Frame-synced drawing.** XOR drawing erases before it redraws, so a screen sampled in the middle of a frame is half-erased (Pong's
+  paddle would flicker). For programs that increment the FRAME word (SPEC 11.7), Run stops exactly when it ticks and redraws only then.
+  Measured with `?selftest=300&p=2&debug=1`: the fewest paddle pixels visible in any redraw is 0 without it and 4 with it.
   Examples: `?p=0&t=800` the cipher part-way through; `?p=1&cmp=1&t=200` the sort on both engines; `?p=0&t=1203&dir=-1&after=600`
   the cipher decrypting.

@@ -9,7 +9,7 @@ const has = (src: string, re: RegExp): boolean => errors(src).some((m) => re.tes
 const example = (name: string): string => readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8');
 
 describe('the shipped examples assemble cleanly', () => {
-  for (const name of ['ifelse.s', 'loop.s', 'call.s', 'memory.s', 'ifelse_macro.s', 'loop_macro.s', 'nested.s']) {
+  for (const name of ['ifelse.s', 'loop.s', 'call.s', 'memory.s', 'ifelse_macro.s', 'loop_macro.s', 'nested.s', 'bennett.s']) {
     it(name, () => {
       const r = assemble(example(name), { fileName: name });
       expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);

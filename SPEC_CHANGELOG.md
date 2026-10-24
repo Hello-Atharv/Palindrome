@@ -18,3 +18,4 @@ One line per change to `spec/`, newest last: `YYYY-MM-DD | file | what changed |
 2026-10-24 | SPEC.md | 11.4/11.8: added reverse watchpoint (run backward until a register or memory word changes; lands on the writing instruction); no API change | core
 2026-10-24 | asm_syntax.md, program_format.md, SPEC.md (11.8) | assembler built: asm_syntax.md rewritten to the implemented syntax (expressions, directives, br/lnd forms, rejected cases); source map v1 defined in program_format.md; no ISA change | core
 2026-10-24 | asm_syntax.md | added macros: .if/.else/.fi and .loop/.again (expand to br/lnd; same code as hand-written examples); $ labels reserved for generated code; no ISA change | core
+2026-10-24 | asm_syntax.md | added macros .with/.endwith, .compute/.use/.uncompute (automatic inverse of straight-line code, checks the use block does not change an input), .plot; no ISA change | core

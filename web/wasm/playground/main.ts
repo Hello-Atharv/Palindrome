@@ -11,15 +11,15 @@ import nested from '../../../asm/examples/nested.s?raw';
 import { createWasmVm, type WasmVm } from '../src/index.js';
 
 type Kind = 'logging' | 'reversible';
-interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string }
+interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string; frames?: boolean }
 
 const PROGRAMS: Program[] = [
   { name: 'cipher.s: Speck64/128 (decrypt = direction −1)', src: cipher, crop: 'top', mem: '0x20000',
     note: '<b>The screen is the message.</b> Row 0 first shows 8 dull grey-blue pixels (the plaintext), which turn into 8 random colours (the ciphertext) as it runs. Flip <b>Direction</b> and run: the same program decrypts. The memory panel is on the screen words.' },
   { name: 'sort.s: sort that exposes its garbage', src: sort, crop: 'top', mem: '0x20000',
     note: '<b>The screen is the list.</b> Row 0 is the list (small = green, large = red): watch the compared pair vanish into registers and return swapped, ending as a gradient. Row 1 is the <b>garbage</b>: one pixel per comparison (cyan = swapped). Flip <b>Direction</b> to unsort.' },
-  { name: 'pong.s: Pong (W/S or ↑/↓)', src: pong, crop: 'full', mem: '0x1000', speed: '100',
-    note: '<b>Click this page, press Run, then use W / S or ↑ / ↓</b> to move the paddle (cyan, left edge). Each time the ball returns to the left edge, a paddle there is a hit (a yellow score pixel lights, right half); otherwise the program halts: game over. <b>◀ Back and the scrubber rewind the game exactly</b> (keys pressed are replayed). The memory panel shows the <b>input log</b>, the only garbage this program keeps (8 bytes a frame). The Direction toggle is exact only for programs that read no input, so use Back for Pong. Try <b>Compare engines</b>.' },
+  { name: 'pong.s: Pong (W/S or ↑/↓)', src: pong, crop: 'full', mem: '0x1000', speed: '100', frames: true,
+    note: '<b>Click this page, press Run, then use W / S or ↑ / ↓</b> to move the paddle (cyan, left edge). Each time the ball returns to the left edge, a paddle there is a hit and a <b>yellow block lights up on the right half: that is your score</b>; otherwise the program halts: game over. <b>◀ Back and the scrubber rewind the game exactly</b> (keys pressed are replayed). The memory panel shows the <b>input log</b>, the only garbage this program keeps (8 bytes a frame). The Direction toggle is exact only for programs that read no input, so use Back for Pong. Try <b>Compare engines</b>.' },
   { name: 'nested.s: loop with an if inside', src: nested, crop: 'full', mem: '0',
     note: 'A loop (r2 counts 1 to 5) with an if inside. Result: r2 = 5, r5 = 1, r6 = 4.' },
   { name: 'ifelse_macro.s', src: ifelse, crop: 'full', mem: '0', note: 'If / else with the macros. Result: r3 = 7.' },
@@ -41,6 +41,9 @@ let move: 'fwd' | 'back' | 'none' = 'none';
 let status = 'ready';
 let running: 'fwd' | 'back' | null = null;
 let diverged: string | null = null;
+let paddleMin = 99; // debug: fewest paddle pixels visible in any redraw
+let lastFrame = -1; // FRAME word at the last redraw while running (programs with frames: true)
+const FRAME_WORD = 0xffff;
 let samples = new Map<number, [number, number]>(); // t -> [diary bytes, reversible bytes]
 
 const primary = (): Machine => machines[0];
@@ -72,6 +75,7 @@ async function load(): Promise<void> {
   move = 'none';
   status = 'ready';
   diverged = null;
+  lastFrame = -1;
   samples = new Map([[0, [0, 0]]]); // the chart starts at the origin, so jumping straight to a time still draws a line
   // optional start state from the URL, e.g. ?p=0&t=500&dir=-1&after=300&cmp=1 (handy for sharing a view)
   const t0 = Number(q.get('t') ?? 0);
@@ -201,6 +205,12 @@ function render(): void {
     $('hist').className = m0.vm.historyBytes === 0 ? 'good' : '';
     $('regs').innerHTML = regsHtml(m0, regs, pc);
     drawScreen($<HTMLCanvasElement>('fb'), m0.vm);
+    if (q.get('debug') === '1') {
+      const fb = m0.vm.framebuffer();
+      let cyan = 0;
+      for (let r = 0; r < 32; r++) if (fb[r * 64] === 0x00ffff) cyan++;
+      if (t > 400) paddleMin = Math.min(paddleMin, cyan);
+    }
 
     const cls = move === 'back' ? 'back' : 'fwd';
     const start = memStart();
@@ -270,16 +280,36 @@ function stepOnce(direction: 'fwd' | 'back'): void {
 }
 
 function loop(): void {
+  loopBody();
+}
+function loopBody(schedule = true): void {
   if (machines.length === 0 || !running) return;
   const n = parseInt($<HTMLSelectElement>('speed').value, 10);
+  // XOR drawing erases before it redraws, so a screen sampled mid-frame is half-erased (the paddle would flicker).
+  // For programs that count frames, stop exactly when the frame counter ticks and redraw only then.
+  const frameSync = !!PROGRAMS[PROGRAM_SELECT.selectedIndex].frames && q.get('frames') !== '0';
+  const readFrame = (): number => primary().vm.memory(FRAME_WORD, 1)[0];
+  if (frameSync && lastFrame < 0) lastFrame = readFrame();
+  let frameDone = false;
   for (let i = 0; i < n && running; i++) {
     const before = primary().vm.instructionCount;
     const s = stepAll(running);
     applyStatus(s, running ?? 'fwd');
     if (primary().vm.instructionCount === before && s === 'ok') break;
+    if (frameSync && running && readFrame() !== lastFrame) {
+      frameDone = true;
+      break;
+    }
+  }
+  if (frameSync && running) {
+    if (!frameDone) { // still inside a frame: keep going, draw nothing
+      if (schedule) requestAnimationFrame(loop);
+      return;
+    }
+    lastFrame = readFrame();
   }
   render();
-  if (running) requestAnimationFrame(loop);
+  if (running && schedule) requestAnimationFrame(loop);
 }
 
 const PROGRAM_SELECT = $<HTMLSelectElement>('program');
@@ -369,6 +399,13 @@ window.addEventListener('keyup', (e) => onKey(e, true));
 
 // ?run=1 starts running straight away; ?debug=1 reports the page scroll position in the tab title (for testing the page itself)
 void load().then(() => {
+  if (q.get('selftest')) {
+    running = 'fwd';
+    const n = Number(q.get('selftest'));
+    for (let i = 0; i < n && running; i++) loopBody(false);
+    document.title = `selftest t=${machines[0].vm.instructionCount} paddleMin=${paddleMin} status=${status}`;
+    return;
+  }
   if (q.get('run') === '1') { running = 'fwd'; requestAnimationFrame(loop); }
 });
-if (q.get('debug') === '1') setInterval(() => { document.title = `scrollY=${window.scrollY} t=${machines[0]?.vm.instructionCount ?? 0}`; }, 100);
+if (q.get('debug') === '1' && !q.get('selftest')) setInterval(() => { document.title = `scrollY=${window.scrollY} t=${machines[0]?.vm.instructionCount ?? 0} paddleMin=${paddleMin}`; }, 100);
