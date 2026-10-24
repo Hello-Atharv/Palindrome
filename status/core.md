@@ -28,6 +28,8 @@ Updated: 2026-10-24
 - **Macros for reversible programming** (`asm/src/macros.ts`): `.with`/`.endwith` (constants), `.compute`/`.use`/`.uncompute` (the assembler writes the undo; checks the use block does not change an input), `.plot` (XOR a pixel). 14 new tests.
 - **programs/pong.s** rewritten with them and procedures: 275 instructions, 238 lines of plain source (was 487 instructions, 524 generated lines), ~400 steps/frame (was 300). 14 tests per engine against an independent model after every frame; mutation-checked. Score is a yellow 2x2 block per hit. Playground plays it (keyboard wired).
 
+- **Cost model** (SPEC section 12, logged in `SPEC_CHANGELOG.md`) and **demo script** (`demo/DEMO.md`): one definition of history, garbage, bits erased and overhead; fair-baseline rules; planned vs built labelled.
+
 ## In progress
 - Conventional twin of the sort and of Pong for the honest overhead benchmark.
 

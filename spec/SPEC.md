@@ -347,3 +347,62 @@ line). The browser assembler (`assemble()` in `asm/`) returns the same data as `
 
 **Reading faults.** After a `fault`, state is unchanged and `lastError` explains why. PC points at the
 instruction that faulted. Stepping back still works.
+
+## 12. Cost model (what "the cost of undoing" means, and how it is counted)
+One definition shared by the benchmarks, the compiler's cost report, the debugger readouts and the writeup. If a
+number is shown anywhere, it is one of the quantities below, measured the way described here.
+
+Status key: **built** = measured today; **planned** = defined here, not yet implemented. Do not show a planned
+number as if it were measured.
+
+### 12.1 Quantities
+| Name | Unit | Definition | Status |
+|---|---|---|---|
+| `steps` | instructions | Machine time `t` after running a program to completion, forward. | built |
+| `undo_steps(k)` | instructions | Instructions executed to move from `t` to `t-k` (step back k times). | built (timed) |
+| `seek_steps(a,b)` | instructions | Instructions executed to move from any `t=a` to any `t=b`. | planned for baselines |
+| `history_bytes` | bytes | Bytes the **machine** keeps so that it can step back (`rvm_history_bytes`). Diary: grows with `t`. Reversible: 8 per direction flip. | built |
+| `garbage_bits` | bits | Bits the **program** keeps only because it cannot erase them. Upper bound: 32 x (non-zero words in the program's declared garbage region). Declared by label `garbage_*` or by the compiler's report. | built for sort (by hand); planned in general |
+| `bits_erased` | bits | What a conventional machine destroys running the same computation (12.2). | planned |
+| `overhead_steps` | ratio | `steps(reversible program) / steps(conventional twin)` for the same task and input. | planned |
+| `overhead_code` | ratio | Same, for program size in instructions. | planned |
+
+`history_bytes` and `garbage_bits` are different things and are reported separately: the first is paid by the machine
+for every program, the second is paid by a particular program. The reversible engine has no `history_bytes` per step
+but a reversible program can have `garbage_bits`. Total cost of undoing = `history_bytes*8 + garbage_bits`.
+
+### 12.2 Bits erased (the tight floor)
+For one step of a **conventional** instruction set (the same operations, but destinations may be overwritten), count the
+bits the step destroys:
+- an instruction whose destination is overwritten with a value that does not determine the old one
+  (`mov rd,rs`, `add rd,rs,rt` with `rd` distinct from sources, a store over a non-zero word): **32 bits** (the width
+  of the overwritten value; we cannot know the real entropy of the data, so this is a worst-case count);
+- a bijection on state (`add rd,rd,rs`, `xor`, `swap`, rotate): **0 bits**;
+- a branch join (a program point reached from two predecessors): **1 bit** per join taken (which way we came).
+`bits_erased` of a run is the sum over its steps. A **tight diary** stores exactly this much: `ceil(bits_erased/8)`
+bytes. It is a lower bound for any history-based rewind of that conventional run, so it is the fair number to put
+next to the reversible side. The 48 bytes per step of our logging VM is a naive diary and must not be quoted as
+"what a diary costs" (see `bench/RESULTS.md`).
+
+### 12.3 The strategies that get compared
+All four undo the same computation; they differ in what they pay.
+
+| Strategy | Memory held at time `t` | Cost to go back 1 step | Cost to seek to arbitrary `t'` | Forward cost |
+|---|---|---|---|---|
+| **Naive diary** (our logging VM) | 48 B x `t` | O(1) | O(\|t - t'\|) | 1x, plus the cost of recording |
+| **Tight diary** | `bits_erased/8` bytes | O(1) | O(\|t - t'\|) | 1x on the conventional twin |
+| **Checkpoint and replay** (interval `K`) | `state_size x t/K` | up to `K` steps of replay | up to `K` steps from the nearest checkpoint | 1x on the conventional twin |
+| **Reversible** (this project) | 0 per step, plus the program's `garbage_bits` | 1 inverse step | O(\|t - t'\|) | `overhead_steps` x on the reversible twin |
+`state_size` is the writable machine state (520 KiB), so a checkpoint is large and memory falls only as `K` grows; the
+benchmark sweeps `K` to show the trade between memory and replay time. Rows 2 and 3 run the **conventional twin** of each demo program (sort, Pong), which is what
+makes the comparison honest: the reversible program is allowed to be bigger and slower, and that is measured
+(`overhead_steps`, `overhead_code`), not hidden.
+
+### 12.4 Rules for reporting
+1. Always report memory (history plus garbage) **and** time (steps to undo, steps forward) together. Never one alone.
+2. Quote naive and tight diaries as separate rows. The headline ratio uses the tight diary.
+3. State the program, the input and the number of steps. Conventional twins must be checked to produce the same
+   output as the reversible program before any ratio is quoted.
+4. Anything planned in 12.1 is labelled "planned" in the UI and the writeup until `bench/` produces it.
+5. Do not claim reversible computing, or time-travel debugging, as invented here. The claim is the measured
+   comparison and the verified, browser-based toolchain.
