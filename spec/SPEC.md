@@ -279,11 +279,13 @@ nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SP
 `vm_api.ts`; the viz owner writes them.
 
 ### 11.7 Conventions (adopted)
-1. **Key events.** The UI sends `pushInput(value)` with `value = (pressed << 8) | code`: `pressed` is 1 on key down,
-   0 on key up; `code` is 1 up, 2 down, 3 left, 4 right, 5 space, 6 enter, otherwise the uppercase ASCII code
-   of the character (`'W'` = 87). The UI sends one down event per physical press (ignore browser auto-repeat)
-   and one up event on release. Two players on one keyboard use W/S and the arrow keys. Example: up pressed =
-   257, up released = 1.
+1. **Key events** (adopted from the viz implementation, `web/viz/src/keys.ts`). The UI sends `pushInput(value)`
+   with `value = code | (released ? 0x100 : 0)`. A key **press** is just the plain code; bit 8 (`0x100`) is set on
+   **release**. Codes: printable keys are their uppercase ASCII (`'W'` = 0x57, `'0'` = 0x30), Space `0x20`,
+   Enter `0x0D`, Escape `0x1B`, Backspace `0x08`, Tab `0x09`, arrows Up `0x80`, Down `0x81`, Left `0x82`,
+   Right `0x83`. One press event per physical press (browser auto-repeat is ignored) and one release event.
+   Two players on one keyboard use W/S and the arrow keys. Examples: Up pressed = `0x80`, Up released = `0x180`,
+   `W` pressed = `0x57`. A game that only cares about presses compares the value to the code.
 2. **Frame counter (optional).** Data address `0xFFFF` (last word of the data region) is reserved as `FRAME`.
    A program that has frames adds 1 to it once per frame (`ADDI` + `XST` through a register, or `XLD`/`ADDI`/`XST`).
    The VM treats it as ordinary memory. The debugger's "step by frame" runs single steps until `memory(0xFFFF, 1)`
