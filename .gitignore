@@ -1,0 +1,16 @@
+build/
+out/
+dist/
+node_modules/
+CMakeUserPresets.json
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.lib
+*.a
+*.o
+*.log
+.vs/
+.idea/
+.DS_Store

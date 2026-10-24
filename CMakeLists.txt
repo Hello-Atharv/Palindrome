@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.21)
+project(revvm LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Warnings, per compiler. Link rvm_warnings (PRIVATE) from any target to opt in.
+add_library(rvm_warnings INTERFACE)
+if(MSVC)
+    target_compile_options(rvm_warnings INTERFACE /W4 /permissive-)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(rvm_warnings INTERFACE -Wall -Wextra -Wpedantic)
+endif()
+
+# The VM library. Add new sources to this list (owner: vm).
+add_library(rvm STATIC
+    vm/src/version.cpp
+)
+target_include_directories(rvm PUBLIC spec vm/include)
+target_link_libraries(rvm PRIVATE rvm_warnings)
+
+enable_testing()
+add_subdirectory(tests)
+# add_subdirectory(bench)   # enable when bench/CMakeLists.txt exists

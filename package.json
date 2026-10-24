@@ -1,0 +1,11 @@
+{
+  "name": "revvm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "OxHack 2026: a reversible computer",
+  "scripts": {
+    "build": "cmake --preset default && cmake --build --preset default",
+    "test": "npm run build && ctest --preset default",
+    "dev": "cmake --preset debug && cmake --build --preset debug"
+  }
+}
