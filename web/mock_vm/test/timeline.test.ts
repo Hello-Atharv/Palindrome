@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { IN_BASE } from '../../../spec/vm_api';
 import { ProgramBuilder } from '../src/builder';
+import { LoggingVm } from '../src/logging_vm';
 import { Tape } from '../src/tape';
 import { countingLoop } from '../src/programs';
 import { load, run, snap } from './helpers';
@@ -48,16 +49,37 @@ describe('input window', () => {
     expect(vm.stepForward()).toBe('fault');
   });
 
-  it('loads a recorded tape and restarts at t=0', () => {
+  it('a no-program VM answers bad_arg', () => {
+    const vm = new LoggingVm();
+    expect(vm.stepForward()).toBe('bad_arg');
+    expect(vm.lastError).toBe('no program loaded');
+  });
+
+  it('setInputTape only replaces the tape (t does not move); a bad tape is rejected and changes nothing', () => {
     const tape = new Tape();
     tape.append(0, 5);
     const vm = load(reader());
     vm.runTo(3);
     expect(vm.setInputTape(tape.serialize())).toBe('ok');
-    expect(vm.instructionCount).toBe(0);
+    expect(vm.instructionCount).toBe(3);
     run(vm);
     expect(regs(vm)[4]).toBe(5);
     expect(vm.setInputTape(new Uint8Array(3))).toBe('bad_arg');
+    const longer = new Uint8Array([...tape.serialize(), 0]); // size does not match count
+    expect(vm.setInputTape(longer)).toBe('bad_arg');
+    expect(vm.memory(IN_BASE + 1, 1)[0]).toBe(1);
+  });
+
+  it('the tape survives loadProgram; the direction log does not', () => {
+    const img = reader();
+    const vm = load(img);
+    vm.pushInput(9);
+    vm.setDirection(-1);
+    expect(vm.loadProgram(img.image)).toBe('ok');
+    expect(vm.direction).toBe(1);
+    expect(vm.instructionCount).toBe(0);
+    run(vm);
+    expect(regs(vm)[4]).toBe(9);
   });
 });
 
@@ -107,19 +129,19 @@ describe('host actions start a new branch', () => {
 });
 
 describe('history accounting', () => {
-  it('logging VM history grows with t and shrinks on stepBack; flips cost 8 bytes', () => {
+  it('costs 48 bytes per step (like the C++ logging VM) and 8 per direction flip', () => {
     const vm = load(countingLoop(50));
-    const h0 = vm.historyBytes;
-    expect(h0).toBe(0);
+    expect(vm.historyBytes).toBe(0);
     vm.runTo(100);
-    const h100 = vm.historyBytes;
-    expect(h100).toBeGreaterThan(h0);
+    expect(vm.historyBytes).toBe(100 * 48);
     vm.runTo(200);
-    expect(vm.historyBytes).toBeGreaterThan(h100);
+    expect(vm.historyBytes).toBe(200 * 48);
     vm.runTo(100);
-    expect(vm.historyBytes).toBe(h100);
+    expect(vm.historyBytes).toBe(100 * 48);
     vm.setDirection(-1);
-    expect(vm.historyBytes).toBe(h100 + 8);
+    expect(vm.historyBytes).toBe(100 * 48 + 8);
+    vm.stepForward(); // a d=-1 step costs the same as any other
+    expect(vm.historyBytes).toBe(101 * 48 + 8);
   });
 
   it('runTo stops early on halt and reports it', () => {

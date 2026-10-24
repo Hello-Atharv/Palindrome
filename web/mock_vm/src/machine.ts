@@ -6,6 +6,8 @@ import { Tape } from './tape';
 const DATA_WORDS = 0x10000;
 const STACK_WORDS = 0x10000;
 const IN_WORDS = 0x10000;
+/** The C++ window cap (kMaxWindowEvents): only this many events are ever visible. */
+const MAX_WINDOW_EVENTS = 0x10000 - 2;
 
 /** Address classes returned by Machine.region. Values below R_IN are read-write. */
 export const R_DATA = 0, R_STACK = 1, R_FB = 2, R_IN = 3, R_NONE = -1;
@@ -49,7 +51,8 @@ export class Machine {
     this.tookBranch = false;
   }
 
-  get historyBytes(): number {
+  /** Actual size of the (compact) journal. The VM reports the C++ cost instead, see HISTORY_BYTES_PER_STEP. */
+  get journalBytes(): number {
     return this.logLen * 4;
   }
 
@@ -76,7 +79,7 @@ export class Machine {
 
   private readWindow(off: number): number {
     if (off === IN_TIME - IN_BASE) return this.t >>> 0;
-    const count = this.tape.count(this.t);
+    const count = Math.min(this.tape.count(this.t), MAX_WINDOW_EVENTS);
     if (off === IN_COUNT - IN_BASE) return count;
     const k = off - (IN_EVENTS - IN_BASE);
     return k < count ? this.tape.value(k) : 0;
@@ -122,11 +125,26 @@ export class Machine {
     this.t++;
   }
 
-  /** True if the most recent logged step was a forward (d=+1) BR that jumped from address `from`. */
-  lastStepJumpedFrom(from: number): boolean {
-    if (this.logLen === 0) return false;
+  /**
+   * How the previous step arrived at pc, for the LND assertion: 0 = unknown (t = 0, or the previous step
+   * ran with d = -1), 1 = a d=+1 step that fell through, 2 = a d=+1 BR that jumped. Same as the C++ `Prev`.
+   */
+  prevKind(): 0 | 1 | 2 {
+    if (this.logLen === 0) return 0;
     const h = this.log[this.logLen - 1];
-    return (h & FLAG_TAKEN) !== 0 && (h & 0xffff) === from;
+    if (h & FLAG_REVERSE) return 0;
+    return h & FLAG_TAKEN ? 2 : 1;
+  }
+
+  /** Address of the instruction executed by the previous step (valid when prevKind() != 0). */
+  prevPc(): number {
+    return this.log[this.logLen - 1] & 0xffff;
+  }
+
+  /** Writable RAM: data, stack and framebuffer (address < 0x20800). */
+  isRam(a: number): boolean {
+    const r = this.region(a);
+    return r !== R_NONE && r !== R_IN;
   }
 
   /** Undo the most recent logged step exactly. Caller guarantees t > 0. */

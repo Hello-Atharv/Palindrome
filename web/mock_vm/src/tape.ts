@@ -47,7 +47,7 @@ export class Tape {
     const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     if (dv.getUint32(0, true) !== TAPE_MAGIC) return false;
     const n = dv.getUint32(4, true);
-    if (bytes.byteLength < 8 + n * 8) return false;
+    if (bytes.byteLength !== 8 + n * 8) return false;
     const times: number[] = [], values: number[] = [];
     for (let k = 0; k < n; k++) {
       const t = dv.getUint32(8 + k * 8, true);

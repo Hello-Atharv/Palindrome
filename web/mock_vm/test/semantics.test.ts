@@ -102,7 +102,36 @@ describe('faults leave state unchanged and stop the VM', () => {
   });
 
   it('LND whose condition disagrees with how it was reached', () => {
-    faultsOn((p) => p.label('start').lnd('al', 0, 0, 'start'));
+    faultsOn((p) => p.lnd('al', 0, 0, 'start'), (p) => p.label('start').nop());
+  });
+
+  it('LND is not checked when the previous step is unknown (t = 0)', () => {
+    const vm = load(new ProgramBuilder().label('start').lnd('al', 0, 0, 'start').hlt().build());
+    expect(vm.stepForward()).toBe('ok');
+  });
+
+  it('a taken BR must land on an LND naming that BR', () => {
+    faultsOn((p) => p.br('al', 0, 0, 'x').label('x').nop());
+    faultsOn((p) => p.br('al', 0, 0, 'x').label('x').lnd('al', 0, 0, 'start'), (p) => p.label('start').nop());
+  });
+
+  it('CALL needs a zero stack slot; RET needs a CALL of its own PROC', () => {
+    // a non-zero word where CALL would push
+    const dirty = (p: ProgramBuilder) => p.xori(1, 0x10000).xori(2, 5).xst(2, 1, 0);
+    faultsOn((p) => p.call('f').hlt().label('f').proc('fe').label('fe').ret(), dirty);
+    // sp bumped by hand with a plausible-looking return address that does not follow a CALL
+    faultsOn((p) => p.ret(), (p) => p.xori(1, 0x10000).xori(2, 1).xst(2, 1, 0).addi(14, 1));
+  });
+});
+
+describe('stack lives in any writable word (as in the C++ VM)', () => {
+  it('CALL works with sp in the data region', () => {
+    const p = new ProgramBuilder().label('start').xori(14, 0x10000).xori(14, 0x100).call('f').hlt()
+      .label('f').proc('fe').addi(1, 1).label('fe').ret().build();
+    const vm = load(p);
+    expect(run(vm)).toBe('halted');
+    expect(regs(vm)[1]).toBe(1);
+    expect(regs(vm)[14]).toBe(0x100); // sp back where it started
   });
 });
 

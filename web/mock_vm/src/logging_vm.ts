@@ -10,6 +10,8 @@ import { Machine } from './machine';
 import { Stepper } from './semantics';
 
 const FLIP_BYTES = 8;
+/** sizeof(Delta) in vm/src/logging_vm.h. */
+export const HISTORY_BYTES_PER_STEP = 48;
 
 export class LoggingVm implements RVM {
   readonly kind: VmKind = 'logging';
@@ -29,8 +31,13 @@ export class LoggingVm implements RVM {
     return this.m.t;
   }
 
+  /**
+   * What the C++ logging VM would hold: 48 bytes for every step taken (including d=-1 steps) plus 8 per
+   * direction flip. The mock's own journal is smaller; it reports the real engine's cost on purpose, so
+   * the UI's memory warnings and history graph use honest numbers.
+   */
   get historyBytes(): number {
-    return this.m.historyBytes + this.flips.length * FLIP_BYTES;
+    return this.m.t * HISTORY_BYTES_PER_STEP + this.flips.length * FLIP_BYTES;
   }
 
   loadProgram(image: Uint8Array): Status {
@@ -38,15 +45,13 @@ export class LoggingVm implements RVM {
     if (!parsed.ok) return this.fail('bad_program', parsed.error);
     this.prog = parsed.program;
     this.stepper = new Stepper(this.m, parsed.program);
-    this.m.tape.clear();
-    this.restart();
+    this.restart(); // t = 0, direction log cleared; the input tape deliberately survives a reload
     return this.ok();
   }
 
-  /** Replacing the tape restarts the run at t = 0 so the log stays consistent with it. */
+  /** Only replaces the tape (like the C++ VM): it does not restart or move t. */
   setInputTape(tape: Uint8Array): Status {
     if (!this.m.tape.load(tape)) return this.fail('bad_arg', 'malformed input tape');
-    if (this.prog) this.restart();
     return this.ok();
   }
 
@@ -67,18 +72,12 @@ export class LoggingVm implements RVM {
   }
 
   stepForward(): Status {
-    const { m, stepper, prog } = this;
-    if (!stepper || !prog) return this.noProgram();
+    const { m, stepper } = this;
+    if (!stepper) return this.noProgram();
     const reverse = this.direction === -1;
     const prevPc = m.pc;
     m.beginStep();
-    let status: Status;
-    if (reverse && prevPc === prog.entry) {
-      stepper.error = `halted: reversed to the entry point (pc ${prevPc})`;
-      status = 'halted';
-    } else {
-      status = reverse ? stepper.backward() : stepper.forward();
-    }
+    const status = reverse ? stepper.backward() : stepper.forward();
     if (status === 'ok') {
       m.commitStep(prevPc, reverse);
       this.lastError = '';
@@ -98,10 +97,13 @@ export class LoggingVm implements RVM {
   runTo(n: number): Status {
     if (!Number.isInteger(n) || n < 0) return this.fail('bad_arg', `bad target time ${n}`);
     if (!this.prog) return this.noProgram();
-    while (this.m.t > n) this.stepBack();
     while (this.m.t < n) {
       const s = this.stepForward();
       if (s !== 'ok') return s;
+    }
+    while (this.m.t > n) {
+      const s = this.stepBack();
+      if (s !== 'ok') return s; // never spin if an undo fails
     }
     return this.ok();
   }
@@ -110,6 +112,7 @@ export class LoggingVm implements RVM {
     return { regs: this.m.regs.slice(), pc: this.m.pc };
   }
 
+  /** Unmapped words read as 0 (the C++ API returns an error instead): callers must not ask for them. */
   memory(addr: number, nwords: number): Uint32Array {
     const out = new Uint32Array(Math.max(0, nwords));
     for (let i = 0; i < out.length; i++) out[i] = this.m.read((addr + i) >>> 0);
@@ -166,6 +169,6 @@ export class LoggingVm implements RVM {
   }
 
   private noProgram(): Status {
-    return this.fail('bad_program', 'no program loaded');
+    return this.fail('bad_arg', 'no program loaded');
   }
 }

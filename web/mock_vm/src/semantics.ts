@@ -1,12 +1,13 @@
 /**
  * Reference semantics, SPEC.md section 6: forward() and backward(), over a Machine.
+ * Mirrors vm/src/logging_vm.cpp (the oracle), including the strict control-flow checks of section 6 rule 4.
  * Every check happens before the first write, so a fault leaves state unchanged.
  */
 import { Op, SP_REG } from '../../../spec/vm_api';
 import type { Status } from '../../../spec/vm_api';
 import type { Instr } from './isa';
 import type { Program } from './image';
-import { Machine, R_IN, R_NONE, R_STACK } from './machine';
+import { Machine, R_NONE } from './machine';
 
 export class Stepper {
   /** Message for the most recent non-ok result. */
@@ -23,21 +24,12 @@ export class Stepper {
     return this.m.region(a) !== R_NONE;
   }
 
-  /** CALL/RET only touch the stack region (SPEC section 5); anything else is an over/underflow. */
-  private onStack(a: number): boolean {
-    return this.m.region(a) === R_STACK;
-  }
-
-  private writable(a: number): boolean {
-    const r = this.m.region(a);
-    return r !== R_NONE && r !== R_IN;
-  }
-
   /** forward(S): one step with d = +1. */
   forward(): Status {
     const { m, prog } = this;
+    const code = prog.decoded;
     const pc = m.pc;
-    const I = prog.decoded[pc];
+    const I = code[pc];
     if (!I) return this.fault(`pc ${pc} is outside the code`);
     switch (I.op) {
       case Op.HLT:
@@ -48,35 +40,48 @@ export class Stepper {
         m.pc = pc + 1;
         return 'ok';
       case Op.LND: {
-        const holds = cond(I.cc, m.regs[I.ra], m.regs[I.rb]);
-        const jumped = m.lastStepJumpedFrom(I.target);
-        if (holds !== jumped) {
-          return this.fault(`LND assertion failed at pc ${pc}: cc ${holds ? 'holds' : 'fails'} but ${jumped ? 'arrived' : 'did not arrive'} by the jump from ${I.target}`);
+        const prev = m.prevKind();
+        if (prev !== 0) {
+          const expected = prev === 2 && m.prevPc() === I.target;
+          if (cond(I.cc, m.regs[I.ra], m.regs[I.rb]) !== expected) {
+            return this.fault(`LND assertion failed at pc ${pc}: arrived ${expected ? 'by' : 'not by'} the jump from ${I.target}`);
+          }
         }
         m.pc = pc + 1;
         return 'ok';
       }
       case Op.BR: {
-        const taken = cond(I.cc, m.regs[I.ra], m.regs[I.rb]);
-        m.tookBranch = taken;
-        m.pc = taken ? I.target : pc + 1;
+        if (!cond(I.cc, m.regs[I.ra], m.regs[I.rb])) {
+          m.pc = pc + 1;
+          return 'ok';
+        }
+        const land = code[I.target];
+        if (!land) return this.fault(`BR target ${I.target} is outside the code`);
+        if (land.op !== Op.LND || land.target !== pc) return this.fault(`BR target ${I.target} is not an LND naming this branch`);
+        m.tookBranch = true;
+        m.pc = I.target;
         return 'ok';
       }
       case Op.CALL: {
-        const target = prog.decoded[I.target];
-        if (!target || target.op !== Op.PROC) return this.fault(`CALL target ${I.target} is not a PROC`);
-        const sp = m.regs[SP_REG];
-        if (!this.onStack(sp)) return this.fault(`CALL: stack slot ${hex(sp)} is outside the stack`);
-        m.xorMem(sp, pc + 1);
-        m.setReg(SP_REG, sp + 1);
+        const proc = code[I.target];
+        if (!proc || proc.op !== Op.PROC) return this.fault(`CALL target ${I.target} is not a PROC`);
+        const slot = m.regs[SP_REG];
+        if (!m.isRam(slot)) return this.fault(`CALL: stack pointer ${hex(slot)} is outside writable memory`);
+        if (m.read(slot) !== 0) return this.fault(`CALL: stack slot ${hex(slot)} above sp is not zero`);
+        m.xorMem(slot, pc + 1);
+        m.setReg(SP_REG, slot + 1);
         m.pc = I.target;
         return 'ok';
       }
       case Op.RET: {
         const slot = (m.regs[SP_REG] - 1) >>> 0;
-        if (!this.onStack(slot)) return this.fault(`RET: stack slot ${hex(slot)} is outside the stack (underflow?)`);
+        if (!m.isRam(slot)) return this.fault(`RET: stack pointer ${hex(slot + 1)} is outside writable memory`);
         const v = m.read(slot);
-        if (v >= prog.code.length) return this.fault(`RET to ${v}, outside the code`);
+        if (v === 0 || v >= code.length) return this.fault(`RET to invalid address ${v}`);
+        const call = code[v - 1];
+        if (call.op !== Op.CALL || !code[call.target]) return this.fault(`RET to ${v}, which does not follow a CALL`);
+        const proc = code[call.target];
+        if (proc.op !== Op.PROC || proc.target !== pc) return this.fault(`RET at ${pc} is not the PROC's declared exit`);
         m.xorMem(slot, v);
         m.setReg(SP_REG, slot);
         m.pc = v;
@@ -91,42 +96,54 @@ export class Stepper {
     }
   }
 
-  /** backward(S): exact inverse of forward, using no history. Caller handles the start-of-time check. */
+  /** backward(S): the program run as its own inverse (d = -1), using no history. */
   backward(): Status {
     const { m, prog } = this;
+    const code = prog.decoded;
     const q = m.pc;
-    const I = prog.decoded[q];
+    const I = code[q];
     if (!I) return this.fault(`pc ${q} is outside the code`);
-    if (I.op === Op.LND && cond(I.cc, m.regs[I.ra], m.regs[I.rb])) {
-      m.pc = I.target; // undo the jump from S
+    if (q === prog.entry) {
+      this.error = `halted: reversed to the entry point (pc ${q})`;
+      return 'halted';
+    }
+    if (I.op === Op.LND && cond(I.cc, m.regs[I.ra], m.regs[I.rb])) { // undo the jump from S
+      const br = code[I.target];
+      if (!br) return this.fault(`LND source ${I.target} is outside the code`);
+      if (br.op !== Op.BR || br.target !== q) return this.fault('LND source is not a BR to this landing');
+      m.pc = I.target;
       return 'ok';
     }
     if (I.op === Op.PROC) { // undo CALL
       const slot = (m.regs[SP_REG] - 1) >>> 0;
-      if (!this.onStack(slot)) return this.fault(`undo CALL: stack slot ${hex(slot)} is outside the stack`);
+      if (!m.isRam(slot)) return this.fault(`undo CALL: stack pointer ${hex(slot + 1)} is outside writable memory`);
       const ret = m.read(slot);
-      if (ret < 1) return this.fault('undo CALL: return address is 0');
+      if (ret === 0 || ret > code.length) return this.fault(`undo CALL: bad return address ${ret} on the stack`);
+      const call = code[ret - 1];
+      if (call.op !== Op.CALL || call.target !== q) return this.fault('undo CALL: stacked return address does not match a CALL of this PROC');
       m.xorMem(slot, ret);
       m.setReg(SP_REG, slot);
       m.pc = ret - 1;
       return 'ok';
     }
-    const J = prog.decoded[q - 1];
-    if (!J) return this.fault(`no predecessor of pc ${q}`);
+    if (q === 0) return this.fault('no predecessor');
+    const J = code[q - 1];
     if (J.op === Op.CALL) { // undo RET
-      const proc = prog.decoded[J.target];
-      if (!proc || proc.op !== Op.PROC) return this.fault(`CALL target ${J.target} is not a PROC`);
-      const sp = m.regs[SP_REG];
-      if (!this.onStack(sp)) return this.fault(`undo RET: stack slot ${hex(sp)} is outside the stack`);
-      m.xorMem(sp, q);
-      m.setReg(SP_REG, sp + 1);
+      const proc = code[J.target];
+      if (!proc || proc.op !== Op.PROC || proc.target >= code.length) return this.fault(`CALL target ${J.target} is not a PROC`);
+      const slot = m.regs[SP_REG];
+      if (!m.isRam(slot)) return this.fault(`undo RET: stack pointer ${hex(slot)} is outside writable memory`);
+      if (m.read(slot) !== 0) return this.fault(`undo RET: stack slot ${hex(slot)} above sp is not zero`);
+      m.xorMem(slot, q);
+      m.setReg(SP_REG, slot + 1);
       m.pc = proc.target;
       return 'ok';
     }
-    if (J.op === Op.RET) return this.fault(`pc ${q} follows a RET but not a CALL`);
-    const err = this.applyData(J, true);
+    // J fell through
+    if (J.op === Op.HLT || J.op === Op.RET || (J.op === Op.BR && J.cc === 0)) return this.fault('predecessor cannot fall through');
+    const err = this.applyData(J, true); // no-op for BR, LND, NOP, PROC
     if (err) return this.fault(err);
-    m.pc = q - 1; // J fell through (BR/LND/NOP/PROC/HLT: no data change)
+    m.pc = q - 1;
     return 'ok';
   }
 
@@ -176,7 +193,7 @@ export class Stepper {
       }
       case Op.XST: {
         const a = (R[rb] + I.imm) >>> 0;
-        if (!this.writable(a)) return `XST: address ${hex(a)} is ${this.readable(a) ? 'read-only' : 'unmapped'}`;
+        if (!m.isRam(a)) return `XST: address ${hex(a)} is ${this.readable(a) ? 'read-only' : 'unmapped'}`;
         m.xorMem(a, R[ra]);
         return '';
       }
@@ -212,5 +229,5 @@ export function cond(cc: number, a: number, b: number): boolean {
   }
 }
 
-const hex = (a: number): string => '0x' + a.toString(16);
+const hex = (a: number): string => '0x' + (a >>> 0).toString(16);
 const name = (I: Instr): string => Op[I.op];
