@@ -265,8 +265,16 @@ snapshot; each panel is a function of (snapshot, previous snapshot). Panels do n
 nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SPEC section 3) are not in
 `vm_api.ts`; the viz owner writes them.
 
-### 11.7 Open
-1. **Key encoding for `pushInput`.** Proposed: bit 8 = key pressed (1) or released (0); low byte = code
-   (1 up, 2 down, 3 left, 4 right, 5 space, otherwise ASCII). Games and viz must agree before building on it.
-2. **Frame boundary.** Proposed: the program increments a reserved word `FRAME` at data address `0xFFFF` once per
-   frame, and the debugger offers "step by frame". Not adopted yet; it changes the memory contract.
+### 11.7 Conventions (adopted)
+1. **Key events.** The UI sends `pushInput(value)` with `value = (pressed << 8) | code`: `pressed` is 1 on key down,
+   0 on key up; `code` is 1 up, 2 down, 3 left, 4 right, 5 space, 6 enter, otherwise the uppercase ASCII code
+   of the character (`'W'` = 87). The UI sends one down event per physical press (ignore browser auto-repeat)
+   and one up event on release. Two players on one keyboard use W/S and the arrow keys. Example: up pressed =
+   257, up released = 1.
+2. **Frame counter (optional).** Data address `0xFFFF` (last word of the data region) is reserved as `FRAME`.
+   A program that has frames adds 1 to it once per frame (`ADDI` + `XST` through a register, or `XLD`/`ADDI`/`XST`).
+   The VM treats it as ordinary memory. The debugger's "step by frame" runs single steps until `memory(0xFFFF, 1)`
+   changes, and gives up with a message after 1,000,000 steps (so programs that never touch it are not hung).
+   Programs must not use `0xFFFF` for anything else.
+3. **Assembler.** Written in TypeScript (`asm/`): a Node command line tool that also runs in the browser, so the
+   Code view can assemble live. It emits the same `.rvm` files either way.
