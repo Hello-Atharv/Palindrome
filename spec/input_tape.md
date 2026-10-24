@@ -30,4 +30,9 @@ Typical poll: `cursor < COUNT` ? read `value[cursor]`, `cursor += 1`.
 ## Live input and the API
 `rvm_push_input(v)` appends `(t_now, v)`. If the user has scrubbed back to `t_now` below the
 tape's last timestamp, later events are discarded (new timeline branch). Saving the tape
-gives a replayable run. Open question in SPEC.md: keep branching, or forbid input while scrubbed.
+gives a replayable run. Decided: input while scrubbed back starts a new branch (SPEC section 7).
+
+## Key event convention
+Keyboard events are tape values: `value = (pressed << 8) | code`. `pressed` is 1 on key down, 0 on key up.
+`code`: 1 up, 2 down, 3 left, 4 right, 5 space, 6 enter, otherwise uppercase ASCII (`'W'` = 87).
+One down event per physical press (no auto-repeat), one up event on release. Up pressed = 257, released = 1.

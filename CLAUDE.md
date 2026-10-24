@@ -35,9 +35,9 @@ writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `sp
 ## Role quick-starts
 - **viz**: build the app shell in `web/viz/`, importing types from `spec/vm_api.ts`. First build `web/mock_vm`
   (a small JS/TS interpreter of SPEC section 6, implementing `RVM`) so everyone can work before the real VM lands. Show registers, PC, disassembly (`code()` + `Op`), memory, 64x32 framebuffer. Export a shell the debugger can mount into.
-- **debugger**: `web/debugger/`: timeline scrubber (`runTo`), step/back buttons, run/pause, breakpoints on PC, direction toggle (`setDirection`), history-memory readout (`historyBytes`), highlight what changed between steps by diffing snapshots. Develop against `web/mock_vm`.
-- **games**: `programs/`: write Pong first (see `programs/README.md` for reversible idioms), in the syntax of `spec/asm_syntax.md`. Until the assembler exists, write a plain-JS model of the game (state, input, frame) and the exact register/memory layout, then translate. Cipher and sort are the fallback demos.
-- **core**: logging VM -> minimal assembler -> `if`/`loop` macros -> WASM build -> reversible VM, differential-tested against the oracle -> benchmarks.
+- **debugger**: `web/debugger/` (read SPEC section 11): timeline scrubber (`runTo`), "step by frame" (FRAME word at `0xFFFF`, SPEC 11.7), step/back buttons, run/pause, breakpoints on PC, direction toggle (`setDirection`), history-memory readout (`historyBytes`), highlight what changed between steps by diffing snapshots. Develop against `web/mock_vm`.
+- **games**: `programs/`: key codes and the FRAME counter are in SPEC 11.7. Write Pong first (see `programs/README.md` for reversible idioms), in the syntax of `spec/asm_syntax.md`. Until the assembler exists, write a plain-JS model of the game (state, input, frame) and the exact register/memory layout, then translate. Cipher and sort are the fallback demos.
+- **core**: logging VM -> minimal assembler (TypeScript, Node + browser) -> `if`/`loop` macros -> WASM build -> reversible VM, differential-tested against the oracle -> benchmarks.
 
 ## Build and test (C++)
 Needs CMake >= 3.21, a C++17 compiler (MSVC or Apple clang), Node.

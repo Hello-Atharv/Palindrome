@@ -76,7 +76,8 @@ Memory is changed only by xor (`XST`) or swap-through-register; reading is `XLD`
 | `0x20000-0x207FF` | framebuffer 64x32, row-major, pixel `0x00RRGGBB` | RW |
 | `0x30000-0x3FFFF` | input window (`input_tape.md`) | RO |
 
-Everything else faults. Effective address = `(rb + sext(imm18)) mod 2^32`. The VM never draws;
+Everything else faults. Effective address = `(rb + sext(imm18)) mod 2^32`. Data address `0xFFFF` is reserved by convention as the `FRAME` counter (section 11.7).
+The VM never draws;
 the UI reads the framebuffer via `get_memory`. Note `imm18` is signed (max 131071) but
 `XORI` is zero-extended (max 262143): load a high address with `xori r1, 0x20000`.
 
@@ -94,7 +95,7 @@ forward(S):                          # one step, d=+1; t -> t+1
   RET:           R14 -= 1; v = MEM[R14]; MEM[R14] ^= v; PC = v
 
 backward(S):                         # exact inverse of forward; t -> t-1. q = PC
-  if t == 0: return AT_START
+  if q == entry: return HALTED         # d=-1 only: nothing left to undo (step_back at t == 0 is AT_START)
   I = code[q]
   if I is LND and cond(I):  PC = I.target; return        # undo jump from S
   if I is PROC:             ret = MEM[R14-1]; MEM[R14-1] ^= ret; R14 -= 1
@@ -114,7 +115,10 @@ Control-flow rules (the assembler checks them; the **logging VM also asserts the
 2. `LND cc,ra,rb,S`: asserts "cc holds here iff we arrived by the jump from the `BR` at S". The reversible
    VM cannot check this (it has no history) and trusts it; the logging VM checks it every time.
 3. Each procedure has one `PROC E` entry and one `RET` at `E`. `entry` is not a jump target.
-4. Instructions that cannot fall through (`RET`, `HLT`, `BR al`) must be followed by an `LND`, `PROC`,
+4. Stricter checks the logging VM enforces (a fault otherwise): a taken `BR` must land on an `LND` whose
+   source operand is that `BR`; `CALL` must target a `PROC`; `RET` must be the `PROC`'s declared exit and
+   return to the instruction after a `CALL` of it; the stack slot above `r14` must be zero at `CALL`.
+5. Instructions that cannot fall through (`RET`, `HLT`, `BR al`) must be followed by an `LND`, `PROC`,
    or end of code.
 
 ### Worked example: if / else
@@ -174,3 +178,150 @@ and is what the two C++ VMs implement. The two files must stay in step.
 2. Pong collision with little garbage; the cipher key schedule without multiply.
 3. Garbage macros (`compute/copy/uncompute`) after basic `if`/`loop` macros.
 4. Framebuffer fixed at 64x32 for now.
+
+## 11. UI requirements (web/viz, web/debugger)
+The UI is one page of panels over one `RVM` (`vm_api.ts`). Tech stack is open: the viz owner picks it and
+records it in their status file. Words below: **must** = required for the demo, **should** = wanted,
+**could** = only if time allows.
+
+### 11.1 Sizes (what there is to show)
+| Thing | Size |
+|---|---|
+| Registers | 16 words + PC |
+| Code | up to 64K words (a demo program is a few hundred) |
+| Writable data memory | `0x20800` words = 133,120 words = 520 KiB: data 64K words, stack 64K words, framebuffer 2048 words |
+| Input window | read-only, 64K words of address space, but only `2 + COUNT` words are meaningful |
+| Framebuffer | 64 x 32 pixels, one word each (`0x00RRGGBB`) |
+
+Visualisation budget: a hex grid shows about 256 words at once (16 rows x 16 columns), so it must be a
+**scrollable window with jump-to-region** (data, stack, framebuffer, input). The whole writable memory fits as a
+**minimap**: one pixel per word, 512 x 260, colour = zero / non-zero / changed this step. Copying all 520 KiB
+per refresh is cheap, so a minimap is realistic; per-cell text for everything is not.
+
+**Refresh and limits**
+- Read only what is visible, once per animation frame, not after every step while running fast. Per refresh the UI
+  needs: 16 registers + PC, the framebuffer (2,048 words), the visible memory window (about 256 words), and
+  `historyBytes`. Read the whole 520 KiB (minimap, change counts) at most a few times per second.
+- Default memory window: the stack and data near address 0, where small programs live.
+- "Program memory in use" (tracker, 11.2) is the count of non-zero writable words. It needs a full scan, so
+  compute it at most a few times per second, never on every step.
+- The logging VM's history is **48 bytes per step** (measured), so 1 million steps is about 48 MB and 10 million
+  about 480 MB. In Compare view, warn when it passes 256 MiB (about 5.5 million steps) and let the user
+  continue or reload. The reversible VM stays at 0 per step. A hard cap in the VM itself is not implemented;
+  if the browser runs out of memory, ask core to add one (it would be a spec change).
+
+### 11.2 Views
+One app, three views selected by tabs. All use the same panels and the same `RVM` interface.
+
+| View | Purpose | Priority |
+|---|---|---|
+| **Debug** | One machine. Registers, code listing with breakpoints, memory window, game screen, timeline, controls. The everyday view. | must |
+| **Code** | The "scripting layer" on its own: editor, Assemble button, assembled listing, assembler errors, and a small run/step control. For writing and fixing programs. Needs `asm/`; until it lands, programs load as `.rvm` files. | must |
+| **Compare** | Vertical split. Left: logging VM (label: "Normal rewind, keeps a diary"). Right: reversible VM ("No history"). Same program, same input, one shared clock. | should |
+
+**Compare view rules**
+- Two machines in a list (`[left, right]`); every action (step, step back, run, scrub, key press, direction flip)
+  is applied to both, so they are always at the same `t`. Do not write the UI around a single `vm` variable.
+- Both load the same `.rvm` file and receive the same input events at the same `t`.
+- After every action compare registers, PC and framebuffer, and the whole writable memory at least every
+  N steps. Show a **state match** badge (green); on a difference stop and show the first `t` that differs.
+- Until the reversible VM exists, the right side may be a second logging VM or the mock; the swap is one line.
+- Labels must be honest: both sides run the same program on the same instruction set. The comparison proves
+  "rewinding needs no history memory". It does not prove reversible programs are cheaper overall (they carry
+  garbage and extra instructions); that comparison is a separate benchmark (below).
+
+**Tracker strip** (shown in Compare, optional in Debug): current `t` (shared); state match badge; `historyBytes`
+for each side; program memory in use (count of non-zero writable words) for each side, so garbage is visible;
+steps per second for each side, so the time cost of the reversible side is not hidden.
+
+**Normal-style vs reversible-style benchmark (not a live view).** To measure what reversibility costs overall,
+a normal-style version and a reversible version of a program (the sort first) are different programs and take
+different numbers of steps, so they cannot run in lockstep by `t`. They are compared in `bench/` (instruction
+count, code size, diary growth, garbage bytes) and, if ever shown live, aligned by frame (needs the `FRAME`
+word, 11.7).
+
+### 11.3 Must include
+1. **Machine view:** 16 registers and PC in hex and decimal; the instruction at PC, disassembled; registers and
+   memory words changed by the last step visibly highlighted.
+2. **Code view:** listing with disassembly (decode per SPEC section 3, labels from the .rvm symbol table when
+   present), a marker at PC, and clickable PC breakpoints.
+3. **Memory view:** windowed hex grid with region jump (data, stack, framebuffer, input window) and changed-word
+   highlight.
+4. **Screen:** the framebuffer drawn from `framebuffer()` after every refresh; keyboard events are sent with
+   `pushInput`.
+5. **Controls:** load program, step forward, step back, run, pause, run speed (steps per animation frame).
+6. **Timeline:** shows instruction count `t` and a scrubber that calls `runTo`. Its range is `0 .. maxT`, where
+   `maxT` is the largest `t` reached on the current branch. A host action (`pushInput`, `setDirection`) starts
+   a new branch, so after one the UI must reset `maxT` to the current `t`.
+7. **Direction toggle** via `setDirection`, showing the current `direction`.
+8. **Status:** `historyBytes` readout, and a clear message for `halted`, `at_start` and `fault` (show `lastError`
+   for a fault). A fault leaves state unchanged, so stepping back stays possible.
+
+Behaviours the UI must respect: `stepForward` at HLT returns `halted` and changes nothing; with direction -1
+a program halts when PC reaches the entry. `runTo(n)` stops early on halt or fault, so check the returned
+status and the actual `instructionCount`. Breakpoints are checked by the UI after each single step, in both
+directions. While dragging the scrubber, throttle `runTo` calls.
+
+### 11.4 Should include
+- Stack view (from `r14` down to the base), with return addresses labelled as such.
+- A live graph of `historyBytes` against `t` (this is the project's headline claim, drawn live).
+- Garbage highlighting: the sort demo writes a permutation record to a fixed region; the memory view marks it.
+- In-browser editor with an Assemble button (needs the assembler, `asm/`).
+- Indication when the user is on a new branch (typed a key or flipped direction after scrubbing back).
+
+### 11.5 Could include
+- Memory minimap (11.1), watch lists, tape recorder and save/load of input tapes.
+
+### 11.6 Structure (recommended, not mandatory)
+Hold machines in a list (one in Debug and Code, two in Compare) and apply every action to each. After every action call one `refresh()` that reads registers, memory, framebuffer and stats into a single
+snapshot; each panel is a function of (snapshot, previous snapshot). Panels do not talk to each other. Import
+nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SPEC section 3) are not in
+`vm_api.ts`; the viz owner writes them.
+
+### 11.7 Conventions (adopted)
+1. **Key events.** The UI sends `pushInput(value)` with `value = (pressed << 8) | code`: `pressed` is 1 on key down,
+   0 on key up; `code` is 1 up, 2 down, 3 left, 4 right, 5 space, 6 enter, otherwise the uppercase ASCII code
+   of the character (`'W'` = 87). The UI sends one down event per physical press (ignore browser auto-repeat)
+   and one up event on release. Two players on one keyboard use W/S and the arrow keys. Example: up pressed =
+   257, up released = 1.
+2. **Frame counter (optional).** Data address `0xFFFF` (last word of the data region) is reserved as `FRAME`.
+   A program that has frames adds 1 to it once per frame (`ADDI` + `XST` through a register, or `XLD`/`ADDI`/`XST`).
+   The VM treats it as ordinary memory. The debugger's "step by frame" runs single steps until `memory(0xFFFF, 1)`
+   changes, and gives up with a message after 1,000,000 steps (so programs that never touch it are not hung).
+   Programs must not use `0xFFFF` for anything else.
+3. **Assembler.** Written in TypeScript (`asm/`): a Node command line tool that also runs in the browser, so the
+   Code view can assemble live. It emits the same `.rvm` files either way.
+
+### 11.8 Debugger notes
+Everything here is done in the UI with the existing `RVM` calls. None of it changes the API.
+
+**Stepping.** Single step = one `stepForward()` or `stepBack()`. All the following stop early at a breakpoint,
+on `halted`, `at_start` or `fault`, and after a cap of 1,000,000 steps (then show "gave up", so nothing hangs).
+- **Step over** (forward): if the instruction at PC is `CALL`, record `sp = r14` and `ret = PC + 1`, then step until
+  `PC == ret` and `r14 == sp`. Otherwise it is a single step.
+- **Step out** (forward, inside a procedure): record `sp = r14`, then step until `r14 < sp` (the `RET` has run).
+- **Step over** (backward): if the instruction at `PC - 1` is `CALL` (we are just after a call), record `sp = r14`,
+  then `stepBack()` until `PC == (the CALL's address)` and `r14 == sp`. Otherwise a single `stepBack()`.
+- **Step by frame**: single steps until `memory(0xFFFF, 1)` changes (section 11.7).
+- Under direction -1 the same rules apply to whichever way the program is running; use the stack depth (`r14`),
+  not the direction, to decide when a call has finished.
+
+**Run loop.** Run N steps per animation frame (the speed control), check breakpoints after each step, and
+yield to the browser between frames. If profiling shows one call per step is too slow, ask core for a batch
+call (for example `runUntil(pc, maxSteps)`); that would be a spec change.
+
+**Scrubbing.** `runTo(n)` costs about as much as stepping that distance, in either direction. When the
+scrubber moves far, call `runTo` in chunks (at most ~200,000 steps per animation frame) and show progress,
+instead of one blocking call. Throttle while dragging. The scrubber's range is `0 .. maxT` (section 11.3 item 6).
+
+**Breakpoints and watchpoints.** PC breakpoints are checked by the UI after every single step, in both directions.
+Watchpoints (stop when a register or memory word changes) are the same idea: compare before and after each
+step. Both are UI-side.
+
+**Labels and source lines.** `vm_api.ts` has no symbol accessor. For label names, the UI parses the symbol table
+at the end of the `.rvm` file (`program_format.md`). For source lines, the assembler will write a
+`.rvm.map` source map (JSON, code address to file and line). **Its exact format is defined by `asm/` and is
+not final**; until it lands, show disassembly and labels only.
+
+**Reading faults.** After a `fault`, state is unchanged and `lastError` explains why. PC points at the
+instruction that faulted. Stepping back still works.
