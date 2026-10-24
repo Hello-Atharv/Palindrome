@@ -24,7 +24,7 @@ export interface Move {
 
 /** What becomes visible when a phase ends. */
 export type Effect =
-  | { kind: 'text'; node: 'MAR' | 'MBR' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'IN' | 'OUT'; text: string }
+  | { kind: 'text'; node: 'CODE' | 'MAR' | 'MBR' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'IN' | 'OUT'; text: string }
   /** index 0..15 = r0..r15, 16 = PC. Forward playback shows `after`, reversed shows `before`. */
   | { kind: 'reg'; index: number; before: number; after: number }
   | { kind: 'code'; addr: number }
@@ -105,7 +105,7 @@ export function buildScript(s: StepState): Phase[] {
   phases.push({
     note: `Fetch: the PC (${s.pc}) addresses the program memory. The incrementer prepares PC + 1.`,
     moves: [{ from: 'PC', to: 'CODE', label: String(s.pc) }, { from: 'PC', to: 'INC', label: String(s.pc) }],
-    effects: [{ kind: 'code', addr: s.pc }],
+    effects: [{ kind: 'code', addr: s.pc }, { kind: 'text', node: 'CODE', text: `${s.pc}: ${mnemonic(d)}` }],
   });
   phases.push({
     note: 'The instruction word comes back and is held in the CIR. The PC becomes PC + 1.',

@@ -1,4 +1,4 @@
-// Screenshots of every UI state at 1280x720, from the dev server and the real WebAssembly engines.
+// Screenshots of the UI states at 1280x720, from the dev server and the real WebAssembly engines.
 //   node scripts/screenshots.mjs            -> web/viz/screenshots/*.png (+ index.html contact sheet)
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -19,12 +19,13 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => ['error', 'warning'].includes(m.type()) && errors.push(`${m.type()}: ${m.text()}`));
 
+const TAB = (n) => `.work > .tabs .tab:nth-child(${n})`; // 1 Visualisation, 2 Output, 3 Compare
 const load = async (name) => {
   await page.goto('http://localhost:5199/');
   await page.waitForFunction(() => window.__dev);
   if (name) await page.evaluate((n) => { const { viz, programs } = window.__dev; const p = programs.find((q) => q.name === n); viz.loadImage(n, p.load(), p.source); }, name);
 };
-const shot = async (name, wait = 450) => {
+const shot = async (name, wait = 400) => {
   await page.waitForTimeout(wait);
   await page.screenshot({ path: join(out, `${name}.png`) });
   console.log('shot', name);
@@ -35,146 +36,90 @@ const noScroll = async (name) => {
   if (over > 0) console.log(`!! page scrolls by ${over}px in state ${name}`);
 };
 
-// 01 paused at t = 0 on the real diary engine
-await load('gradient');
-await shot('01-paused-t0');
-await noScroll('paused');
+// 01 the first screen: editor + debug bar on the left, the visualisation on the right
+await load('if / else');
+await shot('01-first-screen');
+await noScroll('first screen');
 
-// 02/03 step forward (amber flash), step back (cyan flash)
-await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 9; i++) v.step(); });
-await shot('02-step-forward-flash', 100);
+// 02-03 a step in the visualisation: the sphere travelling along its wire (slow pace)
+await dev(() => window.__dev.viz.step());
+await shot('02-sphere-fetch', 1500);
+await page.waitForTimeout(2500);
+await shot('03-sphere-later', 600);
+await page.waitForTimeout(9000);
+
+// 04 stepping back plays the same wires in cyan
 await dev(() => window.__dev.viz.stepBack());
-await shot('03-step-back-flash', 100);
+await shot('04-step-back-cyan', 1800);
+await page.waitForTimeout(9000);
 
-// 04/05 running: slow (flashes) and fast (heat map)
-await dev(() => { const s = document.querySelector('.speed'); s.value = '4'; s.dispatchEvent(new Event('input')); window.__dev.viz.run('forward'); });
-await shot('04-run-forward-100ps');
-await dev(() => { const s = document.querySelector('.speed'); s.value = '6'; s.dispatchEvent(new Event('input')); });
-await shot('05-run-forward-heat');
-await dev(() => { window.__dev.viz.pause(); window.__dev.viz.run('back'); });
-await shot('06-run-back');
+// 05 running in the visualisation: the animation sets the pace, one instruction at a time
+await load('loop');
+await dev(() => window.__dev.viz.run('forward'));
+await shot('05-run-paced-by-animation', 3500);
 await dev(() => window.__dev.viz.pause());
 
-// 07 halted, 08 at start, 09 fault
-await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh('halted'); });
-await shot('07-halted');
-await noScroll('halted');
+// 06 direction -1
 await load('loop');
-await dev(() => window.__dev.viz.stepBack());
-await shot('08-at-start');
-await load();
-await dev(() => {
-  const { viz } = window.__dev;
-  viz.assembleAndLoad('start: xori r1, 0x30000\n xst r2, [r1]\n hlt\n', 'fault demo');
-  viz.step(); viz.step();
-});
-await shot('09-fault');
-
-// 10 new branch, 11 direction -1
-await load('loop');
-await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 40; i++) v.step(); for (let i = 0; i < 25; i++) v.stepBack(); v.pushInput(0x41); });
-await shot('10-new-branch');
-await load('loop');
-await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 10; i++) v.step(); v.setDirection(-1); v.step(); v.step(); });
-await shot('11-direction-minus-1');
-
-// 12 memory: stack
-await load('call / return');
-await dev(() => { const v = window.__dev.viz; v.step(); v.step(); v.step(); });
-await page.click('.viz-col > .tabs .tab:nth-child(2)');
-await page.click('.region-tabs .tab:nth-child(2)');
-await shot('12-memory-stack');
-
-// 13/14 sort: the garbage fills in as it runs (hatched words), then the reversible engine shows 0 B
-await load('sort');
-await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh(); });
-await page.click('.viz-col > .tabs .tab:nth-child(2)');
-await page.click('.region-tabs .tab:nth-child(1)');
-await shot('13-sort-garbage');
-await dev(async () => { await window.__dev.viz.setEngine('reversible'); });
-await shot('14-reversible-engine');
-
-// 15/16 cipher: the message as text, then decrypted by flipping the direction (banner)
-await page.click('.viz-col > .tabs .tab:nth-child(1)');
-await load('cipher');
-await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh(); });
-await page.click('.viz-col > .tabs .tab:nth-child(2)');
-await page.selectOption('.pager select', { label: 'msg  001b' });
-await shot('15-cipher-encrypted');
-await dev(() => { const v = window.__dev.viz; v.setDirection(-1); v.vm.runTo(v.vm.instructionCount + 5000); v.refresh(); });
-await shot('16-cipher-decrypted-direction-minus-1');
-
-// 17 compare view: both engines in lockstep
-await load('sort');
-await page.click('.viz-col > .tabs .tab:nth-child(3)');
-await page.click('.compare-bar .btn');
-await page.waitForTimeout(300);
-await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 300; i++) v.step(); });
-await shot('17-compare');
-
-// 18 code view with a diagnostic, 19 with the real editor assembled
-await page.click('.viz-header .tabs .tab:nth-child(3)');
-await dev(() => { const e = document.querySelector('.code-editor'); e.value = 'start: xori r1, 5\n add r1, r1\n hlt\n'; });
-await page.click('.code-bar .btn');
-await shot('18-code-diagnostics');
-await load('nested loop');
-await page.click('.viz-header .tabs .tab:nth-child(3)');
-await page.click('.code-bar .btn');
-await shot('19-code-assembled');
-
-// 21-27 Learn view: the datapath, for simple programs only
-const learnTab = '.viz-header .tabs .tab:nth-child(2)';
-await load('if / else');
-await page.click(learnTab);
-await shot('21-learn-idle');
-await noScroll('learn');
-// step forward and catch the animation partway: fetch (PC -> program memory), then the ALU
-await dev(() => window.__dev.viz.step());
-await shot('22-learn-fetch', 250);
-await page.waitForTimeout(1000);
-await shot('23-learn-decode-execute', 700);
-await page.waitForTimeout(2500);
-// a memory write: the 'memory' example stores to the data window and the screen
-await load('memory');
-await page.click(learnTab);
-await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 4; i++) v.vm.stepForward(); v.refresh(); });
-await dev(() => window.__dev.viz.step());
-await page.waitForTimeout(1500);
-await shot('24-learn-memory-access', 1800);
-await page.waitForTimeout(3500);
-// the same instruction undone: the packets run the other way, in cyan
-await dev(() => window.__dev.viz.stepBack());
-await shot('25-learn-step-back-cyan', 900);
-await page.waitForTimeout(3500);
-// direction -1: the program runs as its own inverse
-await load('loop');
-await page.click(learnTab);
 await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 6; i++) v.vm.stepForward(); v.refresh(); v.setDirection(-1); v.step(); });
-await shot('26-learn-direction-minus-1', 900);
-await page.waitForTimeout(3500);
-// call / return on the stack
-await load('call / return');
-await page.click(learnTab);
-await dev(() => { const v = window.__dev.viz; v.vm.stepForward(); v.refresh(); v.step(); });
-await shot('27-learn-call', 2200);
-await page.waitForTimeout(4000);
-// a big program has no animation: the tab is disabled
-await load('sort');
-await shot('28-learn-disabled-for-sort');
+await shot('06-direction-minus-1', 1500);
 
-// 20 debugger mounted: left pane present, built-in transport hidden
+// 07 output: the sort program's numbers, the garbage and the registers
+await load('sort');
+await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh(); });
+await page.click(TAB(2));
+await shot('07-output-sort');
+
+// 08 output: the cipher message as text, and the screen
+await load('cipher');
+await page.click(TAB(2));
+await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh(); });
+await shot('08-output-cipher-text');
+await dev(() => { const v = window.__dev.viz; v.setDirection(-1); v.vm.runTo(v.vm.instructionCount + 5000); v.refresh(); });
+await shot('09-output-cipher-decrypted');
+
+// 10 output: graphics
+await load('gradient');
+await page.click(TAB(2));
+await dev(() => { const v = window.__dev.viz; v.vm.runTo(1_000_000); v.refresh(); });
+await shot('10-output-graphics');
+
+// 11 compare: measure the forward and back tracks, and run side by side
+await load('sort');
+await page.click(TAB(3));
+await page.click('.cmp-head .btn.primary');
+await page.waitForFunction(() => !document.querySelector('.cmp-table')?.hidden, null, { timeout: 30000 });
+await page.click('.cmp-section:nth-child(2) .btn');
+await page.waitForTimeout(500);
+await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 120; i++) v.step(); });
+await shot('11-compare');
+
+// 12 the editor: a breakpoint and the current line, on a program with source
+await load('nested loop');
+await page.click('.ed-ln:nth-child(5)');
+await dev(() => { const v = window.__dev.viz; v.step(); v.step(); v.step(); });
+await page.click(TAB(2));
+await shot('12-editor-breakpoint-output');
+
+// 13 an assembler error in the editor
+await dev(() => { const t = document.querySelector('.ed-text'); t.value = 'start: xori r1, 5\n add r1, r1\n hlt\n'; t.dispatchEvent(new Event('input')); });
+await page.click('.ed-build');
+await shot('13-editor-problems');
+
+// 14 a fault
+await dev(() => { const { viz } = window.__dev; viz.assembleAndLoad('start: xori r1, 0x30000\n xst r2, [r1]\n hlt\n', 'fault demo'); viz.step(); viz.step(); });
+await page.click(TAB(2));
+await shot('14-fault');
+
+// 15 the editor and debug controls collapsed
 await load('if / else');
-await dev(() => {
-  const v = window.__dev.viz;
-  const p = document.createElement('section');
-  p.className = 'panel';
-  p.innerHTML = '<header class="panel-head"><h2 class="panel-title">Debugger (stand-in)</h2></header><div class="panel-body">editor, controls, watches go here</div>';
-  v.slots.left.append(p);
-  v.listing.setBreakpoints([2, 5]);
-  v.listing.setCulprit(3);
-  v.step(); v.step();
-});
-await shot('20-debugger-mounted');
+await page.click('.sidebar-btn');
+await shot('15-editor-collapsed');
+
+// 16 a program too big to animate
+await load('sort');
+await page.click(TAB(1));
+await shot('16-visualisation-too-big');
 
 await browser.close();
 await server.close();

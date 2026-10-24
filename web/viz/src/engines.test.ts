@@ -49,7 +49,7 @@ describe('engine switch', () => {
     expect(viz.vm.registers().pc).toBe(before.pc);
     expect(viz.vm.memory(0x30001, 1)[0]).toBe(1); // the key press came along
     expect(viz.vm.historyBytes).toBe(0);
-    expect(root.querySelector('.history')!.getAttribute('data-engine')).toBe('reversible');
+    expect(root.querySelector('.dbg-hist')!.textContent).toBe('Reversible history 0 B');
     expect(viz.machines).toHaveLength(1);
   });
 
@@ -78,9 +78,9 @@ describe('compare', () => {
     expect(viz.machines.map((m) => m.vm.instructionCount)).toEqual([20, 20]);
     viz.stepBack(); viz.stepBack();
     expect(viz.machines.map((m) => m.vm.instructionCount)).toEqual([18, 18]);
-    const badge = root.querySelector<HTMLElement>('.match-badge')!;
+    const badge = root.querySelector<HTMLElement>('.match')!;
     expect(badge.dataset.state).toBe('match');
-    expect(badge.textContent).toContain('match');
+    expect(badge.textContent).toBe('States match');
     const hist = [...root.querySelectorAll('.cmp-hist')].map((e) => e.textContent);
     expect(hist).toEqual(['864 B', '0 B']); // 18 steps x 48 B, and nothing
     await viz.setCompare(false);
@@ -92,9 +92,9 @@ describe('compare', () => {
     viz.step();
     viz.machines[1].vm.stepForward(); // push one machine out of step behind the shell's back
     viz.refresh();
-    const badge = root.querySelector<HTMLElement>('.match-badge')!;
+    const badge = root.querySelector<HTMLElement>('.match')!;
     expect(badge.dataset.state).toBe('diff');
-    expect(badge.textContent).toContain('differ');
+    expect(badge.textContent).toContain('States differ');
   });
 
   it('scanMemory finds the first differing word and counts used words', () => {
@@ -133,5 +133,33 @@ describe('garbage and ASCII', () => {
   it('shows a word as four little-endian characters', () => {
     expect(asciiOf(0x48544f4e)).toBe('NOTH');
     expect(asciiOf(0x00410100)).toBe('··A·');
+  });
+});
+
+describe('forward and back track measurement', () => {
+  it('measures both engines on the same program: same steps, the diary keeps 48 B per step, the reversible engine none', async () => {
+    const { measureTracks } = await import('./track');
+    const [diary, reversible] = await measureTracks(createWasmVm, ['logging', 'reversible'], loopImage(), { minTotalMs: 5 });
+    expect(diary.steps).toBe(reversible.steps);
+    expect(diary.steps).toBeGreaterThan(10);
+    expect(diary.capped).toBe(false);
+    expect(diary.historyBytes).toBe(diary.steps * 48);
+    expect(reversible.historyBytes).toBe(0);
+    expect(diary.restored && reversible.restored).toBe(true);
+    expect(diary.endDigest).toBe(reversible.endDigest);
+    expect(diary.forwardMs).toBeGreaterThanOrEqual(0);
+    expect(diary.passes).toBeGreaterThanOrEqual(3);
+  });
+
+  it('formats times in the unit that keeps them short, and builds the table rows', async () => {
+    const { formatMs } = await import('./track');
+    expect([formatMs(0.0004), formatMs(0.038), formatMs(1.4), formatMs(12.34), formatMs(2100)]).toEqual(['< 1 µs', '38 µs', '1.40 ms', '12.3 ms', '2.10 s']);
+    const { trackRows } = await import('./panels/compare');
+    const r = (forwardMs: number, backMs: number, historyBytes: number) => ({ kind: 'logging' as const, steps: 100, capped: false, passes: 5, forwardMs, backMs, historyBytes, restored: true, endDigest: 'x' });
+    const rows = trackRows(r(2, 1, 4800), r(1, 4, 0));
+    expect(rows.map((x) => x.tone)).toEqual(['fwd', 'back', 'mem']);
+    expect(rows[0].bars).toEqual([1, 0.5]);
+    expect(rows[1].bars).toEqual([0.25, 1]);
+    expect(rows[2].bars).toEqual([1, 0]);
   });
 });

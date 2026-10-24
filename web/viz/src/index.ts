@@ -13,7 +13,7 @@ import './style.css';
 
 export { mountViz } from './shell';
 export type { BuiltinControls, Machine, UpdateEvent, VizEvents, VizHandle, VizOptions, VizSlots } from './shell';
-export type { LineClick, ListingApi } from './panels/listing';
+export type { LineClick, ListingApi } from './panels/editor';
 export type { ProgramEntry, ProgramInfo } from './program';
 export type { Snapshot } from './snapshot';
 export { changedRegs, changedWords } from './snapshot';

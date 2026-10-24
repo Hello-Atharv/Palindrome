@@ -1,0 +1,32 @@
+/* The debug bar at the foot of the editor: small controls, the count, the state and the tape strip. */
+.debugbar { flex: none; border-top: 1px solid var(--border); background: var(--panel); padding: var(--s-8) var(--s-12); display: flex; flex-direction: column; gap: var(--s-8); }
+.dbg-top { display: flex; align-items: center; gap: var(--s-8); }
+.transport { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+.tsep { width: 1px; height: 18px; background: var(--border); margin: 0 var(--s-4); }
+.t-box { display: flex; align-items: baseline; gap: var(--s-4); margin-left: auto; }
+.t-num { font-size: 18px; font-weight: 600; }
+.slot-toolbar { display: flex; align-items: center; gap: var(--s-4); }
+
+.dbg-status { display: flex; align-items: center; gap: var(--s-12); min-height: 20px; flex-wrap: wrap; }
+.dbg-state { display: inline-flex; align-items: center; gap: var(--s-4); font-weight: 600; color: var(--muted); }
+.dbg-state[data-state='fwd'] { color: var(--fwd); }
+.dbg-state[data-state='back'] { color: var(--back); }
+.dbg-state[data-state='fault'] { color: var(--fault); }
+.dbg-fork { display: inline-flex; align-items: center; gap: var(--s-4); color: var(--branch); }
+
+/* the tape strip */
+.strip { position: relative; height: 30px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; cursor: pointer; touch-action: none; user-select: none; }
+.viz[data-builtin-controls='off'] .strip { cursor: default; }
+.strip-fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--motion) 28%, transparent); border-right: 2px solid var(--motion); }
+.viz[data-run='paused'] .strip-fill { background: color-mix(in srgb, var(--muted) 16%, transparent); border-right-color: var(--muted); }
+.strip-future { position: absolute; inset: 0 auto 0 0; background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--muted) 18%, transparent) 6px 8px); }
+.strip-lost { position: absolute; inset: 0 auto 0 0; opacity: 0.5; border-left: 2px dashed var(--branch); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--branch) 30%, transparent) 6px 8px); }
+.strip-ticks { position: absolute; inset: 0; pointer-events: none; }
+.tick { position: absolute; bottom: 0; width: 1px; height: 6px; background: var(--muted); opacity: 0.7; }
+.tick.major { height: 11px; opacity: 1; }
+.tick-label { position: absolute; top: 1px; transform: translateX(3px); color: var(--muted); font: 12px/14px var(--mono); }
+.strip-max { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.8; }
+.strip-max.merged { display: none; }
+.strip-branch { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--branch); }
+.strip-handle { position: absolute; top: 0; bottom: 0; width: 10px; margin-left: -5px; background: var(--motion); border-radius: 3px; box-shadow: 0 0 0 2px var(--bg); }
+.viz[data-run='paused'] .strip-handle { background: var(--text); opacity: 0.85; }

@@ -36,14 +36,15 @@ const fromSource = (name: string, blurb: string, source: string): ProgramEntry =
   },
 });
 
+/** Simple programs first: they open in the Visualisation tab. Sort, cipher and the gradient are too big to animate. */
 const programs: ProgramEntry[] = [
-  fromSource('cipher', 'Speck64/128: encrypt, then flip Reverse (direction -1) and the same program decrypts', cipher),
-  fromSource('sort', 'a reversible sort that exposes its garbage: 19 hatched words at data address 8', sort),
-  fromSource('nested loop', 'a loop with an if inside', nested),
-  fromSource('if / else', '.if / .else / .fi macros', ifelse),
+  fromSource('if / else', '.if / .else / .fi macros: watch the data move through the datapath', ifelse),
   fromSource('loop', '.loop / .again macros', loop),
-  fromSource('call / return', 'CALL, PROC and RET', call),
+  fromSource('nested loop', 'a loop with an if inside', nested),
+  fromSource('call / return', 'CALL, PROC and RET on the stack', call),
   fromSource('memory', 'data, framebuffer, neg', memory),
+  fromSource('sort', 'a reversible sort that exposes its garbage: 19 hatched words at data address 8', sort),
+  fromSource('cipher', 'Speck64/128: encrypt, then flip Reverse (direction -1) and the same program decrypts', cipher),
   { name: 'gradient', blurb: 'fills the framebuffer in a loop (hand-built image)', load: () => gradient().image },
 ];
 

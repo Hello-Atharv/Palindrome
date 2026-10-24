@@ -21,7 +21,7 @@ export interface ProgramInfo {
    */
   garbage: [number, number][];
   /** Source text per code address, when the program came from the assembler (for the Learn view). */
-  listing?: { addr: number; text: string }[];
+  listing?: { addr: number; line: number; text: string }[];
   /** Assembly source, when the program came from the assembler. */
   source?: string;
 }
@@ -84,7 +84,7 @@ export function learnVerdict(info: ProgramInfo | null): { ok: boolean; why: stri
   if (info.codeLen > LEARN_MAX_CODE || info.dataLen > LEARN_MAX_DATA) {
     return {
       ok: false,
-      why: `This program is too large to animate (${info.codeLen} instructions, ${info.dataLen} data words; the limit is ${LEARN_MAX_CODE} and ${LEARN_MAX_DATA}). The datapath view is for simple examples: use the Debug view.`,
+      why: `This program is too large to animate (${info.codeLen} instructions, ${info.dataLen} data words; the limit is ${LEARN_MAX_CODE} and ${LEARN_MAX_DATA}). The datapath animation is for simple examples. Step through this one in the editor and watch the Output tab.`,
     };
   }
   return { ok: true, why: '' };

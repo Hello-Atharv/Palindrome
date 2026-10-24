@@ -1,0 +1,48 @@
+/* The Visualisation tab: the datapath with a travelling sphere, and the small memory window. */
+.vis { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: var(--s-8); padding: var(--s-12); }
+.vis-bar { flex: none; display: flex; align-items: center; gap: var(--s-12); min-height: 34px; }
+.vis-note { flex: 1; min-width: 0; padding: var(--s-4) var(--s-12); border-left: 3px solid var(--flash); background: var(--panel); border-radius: 0 var(--radius) var(--radius) 0; line-height: 1.35; }
+.vis-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: var(--s-12); }
+.vis-main > * { min-height: 0; min-width: 0; }
+.vis-dp { display: flex; flex-direction: column; gap: var(--s-4); }
+.vis-dp .dp { flex: 1; min-height: 0; width: 100%; display: block; }
+.vis-caption { margin: 0; }
+.vis-mem { overflow: auto; }
+.vis-h { margin: 0 0 var(--s-4); font-size: 14px; font-weight: 600; }
+.vis-off { margin: var(--s-12); }
+
+/* memory window */
+.lw { display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)); gap: 0 var(--s-8); font: 13px/20px var(--mono); margin-bottom: var(--s-12); }
+.lw-addr { color: var(--muted); }
+.lw-cell { text-align: right; padding: 0 var(--s-4); border-radius: 3px; }
+.lw-cell.zero { color: var(--muted); opacity: 0.65; }
+.lw-cell.changed { background: color-mix(in srgb, var(--flash) 22%, transparent); box-shadow: inset 0 0 0 1px var(--flash); opacity: 1; }
+.lw-cell.mark { outline: 1px solid var(--branch); }
+.lw-cell.read, .lw-cell.write { opacity: 1; color: var(--bg); background: var(--flash); font-weight: 700; }
+
+/* the diagram */
+.dp { font-family: var(--sans); font-size: 16px; }
+.dp[data-dir='fwd'] { --flash: var(--fwd); }
+.dp[data-dir='back'] { --flash: var(--back); }
+.dp-bus { stroke: var(--border); stroke-width: 12; stroke-linecap: round; }
+.dp-wire { fill: none; stroke: var(--border); stroke-width: 3; }
+.dp-head { fill: var(--border); }
+.dp-box { fill: var(--panel); stroke: var(--border); stroke-width: 1.5; }
+.dp-unit { fill: var(--panel-2); }
+.dp-cu { fill: color-mix(in srgb, var(--fault) 12%, var(--panel-2)); }
+.dp-alu { fill: color-mix(in srgb, var(--back) 10%, var(--panel-2)); }
+.dp-tile { fill: var(--panel-2); stroke: transparent; stroke-width: 1.5; }
+.dp-title { fill: var(--muted); font-weight: 600; }
+.dp-name { fill: var(--muted); }
+.dp-val { fill: var(--text); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 15.5px; }
+.dp-ext { fill: var(--muted); }
+.dp-lit { stroke: var(--flash); stroke-width: 2.5; }
+.dp-tile.dp-lit { fill: color-mix(in srgb, var(--flash) 20%, var(--panel-2)); }
+
+/* the data on the move: the wire in use fills in behind a sphere that carries the value */
+.dp-trace { fill: none; stroke: var(--flash); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
+.dp-halo { fill: var(--flash); opacity: 0.22; }
+.dp-ball-mid { stop-color: var(--flash); }
+.dp-ball-edge { stop-color: color-mix(in srgb, var(--flash) 55%, #000); }
+.dp-tag rect { fill: var(--bg); stroke: var(--flash); stroke-width: 1.5; }
+.dp-tag text { fill: var(--text); font: 600 16px var(--mono); }

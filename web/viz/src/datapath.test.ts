@@ -85,9 +85,9 @@ describe('routing', () => {
     expect(r[r.length - 1]).toEqual({ x: BOXES.ALU.x, y: 340 });
   });
 
-  it('uses direct wires for the program memory and the data memory', () => {
-    expect(route('PC', 'CODE')[1]).toEqual({ x: -30, y: 37 });
-    expect(route('MAR', 'MEM')[1].x).toBe(560);
+  it('uses direct wires for the control unit and the data memory', () => {
+    expect(route('CIR', 'CU')).toEqual([{ x: 100, y: 346 }, { x: 100, y: 360 }]);
+    expect(route('MAR', 'MEM')[1].x).toBe(566);
   });
 
   it('pointAt walks a polyline by length', () => {
@@ -118,7 +118,7 @@ describe('Diagram', () => {
     const { d, log } = mk();
     const before = regs({ 1: 5, 2: 3 }), after = regs({ 1: 8, 2: 3 });
     const ps = buildScript({ word: w(Op.ADD, 1, 2), pc: 0, pcAfter: 1, before, after });
-    const done = d.play(ps, { reversed: false, phaseMs: 1, before, after, pcBefore: 0, pcAfter: 1 });
+    const done = d.play(ps, { reversed: false, pace: { unitsPerSec: 1e6, minMs: 1, dwellMs: 1 }, before, after, pcBefore: 0, pcAfter: 1 });
     expect(d.el.dataset.dir).toBe('fwd');
     await done;
     expect(log[0].startsWith('note:Fetch')).toBe(true);
@@ -131,7 +131,7 @@ describe('Diagram', () => {
     const { d, log } = mk();
     const before = regs({ 1: 5, 2: 3 }), after = regs({ 1: 8, 2: 3 });
     const ps = buildScript({ word: w(Op.ADD, 1, 2), pc: 0, pcAfter: 1, before, after });
-    const done = d.play(ps, { reversed: true, phaseMs: 1, before, after, pcBefore: 0, pcAfter: 1 });
+    const done = d.play(ps, { reversed: true, pace: { unitsPerSec: 1e6, minMs: 1, dwellMs: 1 }, before, after, pcBefore: 0, pcAfter: 1 });
     expect(d.el.dataset.dir).toBe('back');
     expect(vals(d, 3)).toEqual(['0', '8', '3']); // starts from the later state
     await done;
@@ -143,7 +143,7 @@ describe('Diagram', () => {
     const { d } = mk();
     const before = regs(), after = regs({ 1: 1 });
     const ps = buildScript({ word: w(Op.ADDI, 1, 0, 1), pc: 0, pcAfter: 1, before, after });
-    const first = d.play(ps, { reversed: false, phaseMs: 5000, before, after, pcBefore: 0, pcAfter: 1 });
+    const first = d.play(ps, { reversed: false, pace: { unitsPerSec: 1, minMs: 5000, dwellMs: 5000 }, before, after, pcBefore: 0, pcAfter: 1 });
     d.cancel();
     await first; // resolves promptly instead of waiting seconds per phase
     expect(d.el.querySelectorAll('.dp-packet')).toHaveLength(0);

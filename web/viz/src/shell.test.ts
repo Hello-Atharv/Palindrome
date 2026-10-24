@@ -97,48 +97,93 @@ describe('built-in controls', () => {
   });
 });
 
-describe('listing hooks', () => {
+describe('editor hooks', () => {
+  // the mock samples have no source, so the editor shows their disassembly: line n is the instruction at address n - 1
+  const gutterRow = (line: number) => root.querySelector<HTMLElement>(`.ed-ln[data-line="${line}"]`)!;
+  const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+
   it('reports clicks with the code address and whether the gutter was hit', () => {
     const clicks: { addr: number; gutter: boolean }[] = [];
     viz.listing.onLineClick((e) => clicks.push({ addr: e.addr, gutter: e.gutter }));
-    const rows = root.querySelectorAll<HTMLElement>('.dis-row:not([hidden])');
-    expect(rows.length).toBeGreaterThan(3);
-    rows[2].querySelector<HTMLElement>('.dis-mn')!.click();
-    rows[3].querySelector<HTMLElement>('.dis-gutter')!.click();
-    expect(clicks).toEqual([{ addr: 2, gutter: false }, { addr: 3, gutter: true }]);
+    gutterRow(4).click(); // the gutter of line 4 = address 3
+    const text = root.querySelector<HTMLTextAreaElement>('.ed-text')!;
+    const offset = text.value.split('\n').slice(0, 2).join('\n').length + 3; // inside line 3
+    text.setSelectionRange(offset, offset);
+    text.click();
+    expect(clicks).toEqual([{ addr: 3, gutter: true }, { addr: 2, gutter: false }]);
   });
 
-  it('draws breakpoints, the culprit and the PC marker', async () => {
+  it('draws breakpoints, the culprit line and the current instruction', async () => {
     viz.listing.setBreakpoints([1, 4]);
     viz.listing.setCulprit(2);
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    const cls = (a: number) => root.querySelector<HTMLElement>(`.dis-row[data-addr="${a}"]`)!.className;
-    expect(cls(1)).toContain('bp');
-    expect(cls(4)).toContain('bp');
-    expect(cls(2)).toContain('culprit');
-    expect(cls(0)).toContain('current'); // pc = entry = 0 at t = 0
-    expect(cls(3)).not.toContain('bp');
+    expect(gutterRow(2).classList.contains('bp')).toBe(true);
+    expect(gutterRow(5).classList.contains('bp')).toBe(true);
+    expect(gutterRow(3).classList.contains('bp')).toBe(false);
+    const culprit = root.querySelector<HTMLElement>('.ed-culprit')!;
+    expect(culprit.hidden).toBe(false);
+    expect(culprit.style.top).toBe('40px'); // line 3, 20px per line
+    expect(gutterRow(1).classList.contains('now')).toBe(true); // pc = entry = 0 at t = 0
     viz.listing.setBreakpoints([]);
     viz.listing.setCulprit(null);
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    expect(cls(1)).not.toContain('bp');
-    expect(cls(2)).not.toContain('culprit');
+    await frame();
+    expect(root.querySelectorAll('.ed-ln.bp')).toHaveLength(0);
+    expect(root.querySelector<HTMLElement>('.ed-culprit')!.hidden).toBe(true);
   });
 
-  it('moves the PC marker as the machine runs', () => {
+  it('moves the current-line marker as the machine runs', () => {
     viz.step(); viz.step();
-    const current = root.querySelector<HTMLElement>('.dis-row.current')!;
-    expect(current.dataset.addr).toBe(String(viz.snapshot.pc));
+    const now = root.querySelector<HTMLElement>('.ed-ln.now')!;
+    expect(now.dataset.line).toBe(String(viz.snapshot.pc + 1));
+  });
+
+  it('with nobody listening, a gutter click toggles a breakpoint; once someone listens it does not', () => {
+    gutterRow(3).click();
+    expect(gutterRow(3).classList.contains('bp')).toBe(true);
+    gutterRow(3).click();
+    expect(gutterRow(3).classList.contains('bp')).toBe(false);
+    viz.listing.onLineClick(() => {});
+    gutterRow(3).click();
+    expect(gutterRow(3).classList.contains('bp')).toBe(false);
+  });
+});
+
+describe('layout', () => {
+  it('has three tabs on the right and an editor with the debug bar on the left', () => {
+    const tabs = [...root.querySelectorAll('.work > .tabs .tab')].map((t) => t.textContent);
+    expect(tabs).toEqual(['Visualisation', 'Output', 'Compare']);
+    expect(root.querySelector('.ide .editor')).not.toBeNull();
+    expect(root.querySelector('.ide .debugbar .transport')).not.toBeNull();
+    expect(root.querySelector('.debugbar .strip')).not.toBeNull();
+  });
+
+  it('the editor and debug controls collapse completely, with the button and with Ctrl+B', () => {
+    expect(root.dataset.ide).toBe('open');
+    root.querySelector<HTMLButtonElement>('.sidebar-btn')!.click();
+    expect(root.dataset.ide).toBe('closed');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, bubbles: true }));
+    expect(root.dataset.ide).toBe('open');
+  });
+
+  it('the registers and memory are not on the first screen: they live in the Output tab', () => {
+    const visible = root.querySelector('.tab-pane:not([hidden])')!;
+    expect(visible.querySelector('.reg-grid')).toBeNull();
+    expect(visible.querySelector('.hexgrid')).toBeNull();
+    expect(root.querySelector('.out .reg-grid')).not.toBeNull();
+    expect(root.querySelector('.out .values')).not.toBeNull();
   });
 });
 
 describe('keys', () => {
-  it('only reach the machine while the Screen tab is open', () => {
+  it('only reach the machine while the Output tab (the screen) is open', () => {
     const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-    root.querySelectorAll<HTMLButtonElement>('.viz-col > .tabs .tab')[0].click(); // Screen
+    const tab = (i: number) => root.querySelectorAll<HTMLButtonElement>('.work > .tabs .tab')[i].click();
+    tab(0); // Visualisation
+    press();
+    expect(vm.memory(0x30001, 1)[0]).toBe(0);
+    tab(1); // Output
     press();
     expect(vm.memory(0x30001, 1)[0]).toBe(1); // COUNT
-    root.querySelectorAll<HTMLButtonElement>('.viz-col > .tabs .tab')[1].click(); // Memory
+    tab(0);
     press();
     expect(vm.memory(0x30001, 1)[0]).toBe(1); // unchanged
   });

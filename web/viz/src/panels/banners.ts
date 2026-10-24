@@ -1,28 +1,31 @@
 import { h } from '../dom';
+import { icon } from '../icons';
+import type { IconName } from '../icons';
 import type { Ctx, Panel } from './panel';
 
 /**
- * Full-width banners, only present when there is something to say:
+ * Slim notices, only present when there is something to say:
  *  - direction -1: the PROGRAM runs as its own inverse (not time travel; stepping back never shows this);
- *  - a stopped state: halted, at start, or a fault (state unchanged, with the VM's reason).
+ *  - a stopped state: halted, at the start, a fault (state unchanged, with the VM's reason), or a load that failed.
  */
 export function bannersPanel(): Panel {
   const el = h('div', 'banners');
   el.setAttribute('role', 'status');
 
   const reverse = h('div', 'banner reverse');
-  const rIcon = h('span', 'icon', '◀◀');
-  const rText = h('span', '', 'Program running in reverse');
-  const rSub = h('small', '', 'direction −1: the program is executing as its own inverse. This is not stepping back in time.');
-  reverse.append(rIcon, rText, rSub);
+  reverse.append(
+    icon('reverse'),
+    h('strong', '', 'Program running in reverse'),
+    h('span', 'banner-sub', 'Direction −1: the program executes as its own inverse. This is not stepping back in time.'),
+  );
 
   const stopped = h('div', 'banner');
-  const sIcon = h('span', 'icon');
-  const sText = h('span');
-  const sSub = h('small');
-  stopped.append(sIcon, sText, sSub);
-
+  const sText = h('strong');
+  const sSub = h('span', 'banner-sub');
+  stopped.append(h('span', 'banner-icon'), sText, sSub);
   el.append(reverse, stopped);
+
+  const setIcon = (name: IconName): void => stopped.firstElementChild!.replaceChildren(icon(name));
 
   return {
     el,
@@ -34,20 +37,20 @@ export function bannersPanel(): Panel {
       if (!known) return;
       stopped.className = `banner ${s === 'halted' || s === 'at_start' ? 'halted' : 'fault'}`;
       if (s === 'bad_program' || s === 'bad_arg') {
-        sIcon.textContent = '✖';
+        setIcon('warn');
         sText.textContent = 'Could not load';
-        sSub.textContent = notice || snap.lastError || 'the program was rejected';
+        sSub.textContent = notice || snap.lastError || 'The program was rejected.';
       } else if (s === 'fault') {
-        sIcon.textContent = '✖';
+        setIcon('warn');
         sText.textContent = 'Fault';
-        sSub.textContent = `${snap.lastError || 'the VM refused the step'}. State is unchanged, so stepping back still works.`;
+        sSub.textContent = `${snap.lastError || 'The VM refused the step'}. State is unchanged, so stepping back still works.`;
       } else if (s === 'halted') {
-        sIcon.textContent = '■';
+        setIcon('halt');
         sText.textContent = 'Halted';
-        sSub.textContent = `${snap.lastError || 'the program reached HLT'}. Step back to rewind.`;
+        sSub.textContent = `${snap.lastError || 'The program reached HLT'}. Step back to rewind.`;
       } else {
-        sIcon.textContent = '⏮';
-        sText.textContent = 'At start';
+        setIcon('stepBack');
+        sText.textContent = 'At the start';
         sSub.textContent = 'Already at t = 0: nothing earlier to step back to.';
       }
     },

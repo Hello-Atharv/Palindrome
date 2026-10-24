@@ -123,3 +123,16 @@ Updated: 2026-10-24
   byte mode (word-addressed memory); separate program memory, so fetch does not use MAR/MBR; input is a read-only window.
 - Known gaps: the bus is drawn as one shared path, not separate buses; registers and memory values change when the packet arrives
   only for registers (memory words update when the whole instruction finishes); no editable source in Learn (use Code view).
+
+## IDE layout redesign (2026-10-24)
+- Done (user request): Debug and Code combined into one VS Code-style left side (editor with breakpoint gutter + current line, a
+  compact debug bar at its foot, collapsible with a button or Ctrl+B); registers and memory removed from that screen. Right side:
+  Visualisation (datapath, one sphere at a time on a wire, constant speed, Slow/Normal/Fast, the wire filling in behind it, runs
+  wait for the animation), Output (screen, labelled values as numbers and text, registers, memory inspector), Compare (forward
+  track and back track measured on both engines, time and memory with bars; plus the live side-by-side).
+- avoid-ai-design: scanner 5 findings (glyphs as icons) -> 0. Replaced glyph icons with SVG icons, all-caps tracked titles with
+  sentence case, pill badges with plain text, glow chrome with flat 1px borders. Palette is the project brief's.
+- `Listing hooks` moved to the editor (same ListingApi). New: `viz.listing` fallback breakpoints (only while nobody listens),
+  `setSidebar` via UI, `Runner` options `gate` and `stopAt`. Removed: tracker panel, listing/code/learn panels, hero timeline.
+- Tests: viz 55/55 (new: editor hooks, layout, sidebar, measurement), tsc clean, scanner 0. Screenshots 01-16.
+- Compare result on sort (159 steps): forward 9.0 us diary vs 4.6 us reversible; back 4.4 us vs 5.4 us; history 7.5 KiB vs 0 B.

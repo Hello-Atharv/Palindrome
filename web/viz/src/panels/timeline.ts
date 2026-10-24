@@ -1,5 +1,7 @@
 import type { Transport } from '../controls';
-import { h } from '../dom';
+import { formatBytes, h } from '../dom';
+import { icon } from '../icons';
+import type { IconName } from '../icons';
 import type { Ctx, Panel } from './panel';
 
 /** Round up to 1, 2 or 5 times a power of ten. */
@@ -15,32 +17,29 @@ export function tickStep(domain: number, widthPx: number, minPx: number): number
   for (let pow = 1; ; pow *= 10) for (const m of [1, 2, 5]) if (m * pow * pxPerStep >= minPx) return m * pow;
 }
 
-const CHIP: Record<string, { icon: string; text: string }> = {
-  fwd: { icon: '▶', text: 'RUNNING FORWARD' },
-  back: { icon: '◀', text: 'RUNNING BACK' },
-  paused: { icon: '❚❚', text: 'PAUSED' },
-  halted: { icon: '■', text: 'HALTED' },
-  at_start: { icon: '⏮', text: 'AT START' },
-  fault: { icon: '✖', text: 'FAULT' },
+const STATE: Record<string, { icon: IconName; text: string }> = {
+  fwd: { icon: 'play', text: 'Running forward' },
+  back: { icon: 'playBack', text: 'Running back' },
+  paused: { icon: 'pause', text: 'Paused' },
+  halted: { icon: 'halt', text: 'Halted' },
+  at_start: { icon: 'stepBack', text: 'At the start' },
+  fault: { icon: 'warn', text: 'Fault' },
 };
 
 /**
- * The hero: big t, state chip, transport, and a tape strip with ticks, a maxT marker, the branch point and the
- * discarded future. Pointer input on the strip is reported through `onSeek`; the shell decides what a seek does.
+ * The debug bar at the foot of the editor: small controls, the instruction count, the state, and a tape strip (ticks,
+ * the furthest point reached, the fork point and the discarded future). Dragging the strip is reported through `onSeek`;
+ * the shell decides what a seek does.
  */
 export function timelinePanel(transport: Transport, onSeek: (t: number) => void): Panel {
-  const el = h('section', 'timeline');
-  el.setAttribute('aria-label', 'timeline');
+  const el = h('section', 'debugbar');
+  el.setAttribute('aria-label', 'debug controls and timeline');
 
-  const top = h('div', 'timeline-top');
-  const tBlock = h('div', 't-block');
-  const tNum = h('span', 't-num');
-  tBlock.append(h('span', 't-label', 't · instructions'), tNum);
-  const chip = h('span', 'state-chip');
-  const chipIcon = h('span', 'chip-icon');
-  const chipText = h('span', 'chip-text');
-  chip.append(chipIcon, chipText);
-  top.append(tBlock, chip, h('span', 'timeline-spacer'), transport.el);
+  const top = h('div', 'dbg-top');
+  const tNum = h('span', 't-num mono');
+  const tBox = h('span', 't-box');
+  tBox.append(h('span', 'dim', 't'), tNum);
+  top.append(transport.el, tBox);
 
   const strip = h('div', 'strip');
   strip.tabIndex = 0;
@@ -54,7 +53,16 @@ export function timelinePanel(transport: Transport, onSeek: (t: number) => void)
   const branchMark = h('div', 'strip-branch');
   const handle = h('div', 'strip-handle');
   strip.append(lost, future, fill, ticks, maxMark, branchMark, handle);
-  el.append(top, strip);
+
+  const status = h('div', 'dbg-status');
+  const state = h('span', 'dbg-state');
+  const hist = h('span', 'dbg-hist dim');
+  const fork = h('span', 'dbg-fork');
+  fork.append(icon('fork', 14), h('span', '', 'New timeline'));
+  fork.title = 'A key press or direction flip while scrubbed back discarded the rest of the old timeline';
+  fork.hidden = true;
+  status.append(state, hist, fork);
+  el.append(top, strip, status);
 
   let domain = 64;
   let tickKey = '';
@@ -62,8 +70,7 @@ export function timelinePanel(transport: Transport, onSeek: (t: number) => void)
 
   const seekFromEvent = (ev: PointerEvent): void => {
     const r = strip.getBoundingClientRect();
-    const t = Math.round(((ev.clientX - r.left) / r.width) * domain);
-    onSeek(Math.max(0, t));
+    onSeek(Math.max(0, Math.round(((ev.clientX - r.left) / r.width) * domain)));
   };
   strip.addEventListener('pointerdown', (ev) => {
     strip.setPointerCapture(ev.pointerId);
@@ -74,7 +81,7 @@ export function timelinePanel(transport: Transport, onSeek: (t: number) => void)
   });
 
   function drawTicks(width: number): void {
-    const step = tickStep(domain, width, 48);
+    const step = tickStep(domain, width, 36);
     const key = `${domain}/${step}/${Math.round(width)}`;
     if (key === tickKey) return;
     tickKey = key;
@@ -94,11 +101,11 @@ export function timelinePanel(transport: Transport, onSeek: (t: number) => void)
 
   return {
     el,
-    update({ snap, maxT, branchAt, lostTo, run }: Ctx) {
+    update({ snap, maxT, branch, branchAt, lostTo, run, vm }: Ctx) {
       tNum.textContent = snap.t.toLocaleString('en-GB');
       const far = Math.max(maxT, lostTo ?? 0, snap.t, 64);
       domain = niceCeil(far * 1.1);
-      drawTicks(strip.clientWidth || 1000);
+      drawTicks(strip.clientWidth || 380);
 
       fill.style.width = pct(snap.t);
       handle.style.left = pct(snap.t);
@@ -119,13 +126,14 @@ export function timelinePanel(transport: Transport, onSeek: (t: number) => void)
         lost.style.left = pct(branchAt);
         lost.style.width = `${((lostTo - branchAt) / domain) * 100}%`;
       }
+      fork.hidden = !branch;
 
-      // one chip, in order of importance: a stopped state beats the run state
-      const state = run !== 'paused' ? run : snap.status === 'ok' ? 'paused' : snap.status;
-      const c = CHIP[state] ?? CHIP.paused;
-      chip.dataset.state = state;
-      chipIcon.textContent = c.icon;
-      chipText.textContent = c.text;
+      // one state, in order of importance: a stopped state beats the run state
+      const key = run !== 'paused' ? run : snap.status === 'ok' ? 'paused' : snap.status;
+      const st = STATE[key] ?? STATE.paused;
+      state.dataset.state = key;
+      state.replaceChildren(icon(st.icon, 14), h('span', '', st.text));
+      hist.textContent = `${vm.kind === 'logging' ? 'Diary' : 'Reversible'} history ${formatBytes(snap.historyBytes)}`;
     },
   };
 }

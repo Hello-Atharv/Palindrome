@@ -10,6 +10,16 @@ export const LEARN_SPEED = SPEEDS.indexOf(2);
 const FRAME_BUDGET_MS = 10;
 const MAX_STEPS_PER_FRAME = 200_000;
 
+export interface RunnerOptions {
+  /**
+   * Asked before every frame. 'free': run at the chosen speed. 'wait': skip this frame (an animation is still playing).
+   * 'single': take exactly one step (the animation sets the pace).
+   */
+  gate?: () => 'free' | 'wait' | 'single';
+  /** Checked after every step; true ends the run (a breakpoint was reached). */
+  stopAt?: () => boolean;
+}
+
 /**
  * Drives the machines from requestAnimationFrame. Many steps per frame, one UI update per frame,
  * so the screen cost is independent of the speed. Every machine takes every step (Compare view);
@@ -26,6 +36,7 @@ export class Runner {
     private readonly machines: () => readonly { vm: RVM }[],
     /** Called after each frame's batch, and once when the run stops. */
     private readonly onFrame: (status: Status, running: boolean) => void,
+    private readonly options: RunnerOptions = {},
   ) {}
 
   get running(): boolean {
@@ -62,10 +73,18 @@ export class Runner {
   private readonly tick = (now: number): void => {
     const mode = this.mode;
     if (mode === null) return;
+    const gate = this.options.gate?.() ?? 'free';
+    if (gate === 'wait') {
+      this.last = now;
+      this.raf = requestAnimationFrame(this.tick);
+      return;
+    }
     const rate = SPEEDS[this.speedIndex];
     const deadline = now + FRAME_BUDGET_MS;
     let want: number;
-    if (rate === Infinity) {
+    if (gate === 'single') {
+      want = 1;
+    } else if (rate === Infinity) {
       want = MAX_STEPS_PER_FRAME;
     } else {
       this.carry += (rate * (now - this.last)) / 1000;
@@ -75,11 +94,13 @@ export class Runner {
     this.last = now;
 
     let status: Status = 'ok';
-    for (let i = 0; i < want && status === 'ok'; i++) {
+    let hitBreakpoint = false;
+    for (let i = 0; i < want && status === 'ok' && !hitBreakpoint; i++) {
       status = this.step(mode);
+      if (status === 'ok' && this.options.stopAt?.()) hitBreakpoint = true;
       if ((i & 255) === 255 && performance.now() > deadline) break;
     }
-    const finished = status !== 'ok';
+    const finished = status !== 'ok' || hitBreakpoint;
     if (finished) this.mode = null;
     this.onFrame(status, !finished);
     if (!finished) this.raf = requestAnimationFrame(this.tick);

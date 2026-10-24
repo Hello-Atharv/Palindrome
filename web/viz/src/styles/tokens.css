@@ -1,5 +1,5 @@
-/* Design tokens. Dark theme only. Amber = time moving forward, cyan = time moving back, violet = a new branch.
-   Colour is never the only signal: every state also has an arrow or a text label. */
+/* Design tokens. Amber is time moving forward, cyan is time moving back, violet is a new branch (set by the project
+   brief, avoid-ai-design-ignore: SD2). Colour is never the only signal: every state also has an icon or words. */
 .viz {
   --bg: #0d1117;
   --panel: #161b22;
@@ -20,13 +20,13 @@
   --s-16: 16px;
   --s-24: 24px;
   --radius: 6px;
+  --ide-w: clamp(380px, 38vw, 520px);
 
   --mono: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
   --sans: system-ui, sans-serif;
 
-  /* what a "change" flashes in: forward time amber, backward time cyan */
+  /* what a change flashes in, and the colour of whatever is moving */
   --flash: var(--fwd);
-  /* the accent of the moving parts: arrows, scrubber fill */
   --motion: var(--muted);
 }
 .viz[data-motion='fwd'] { --flash: var(--fwd); }
@@ -39,3 +39,5 @@ body { margin: 0; background: #0d1117; }
 .viz [hidden] { display: none !important; }
 .viz .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .viz .dim { color: var(--muted); }
+.viz .grow { flex: 1; min-width: 0; min-height: 0; }
+.viz .icon { display: block; flex: none; }

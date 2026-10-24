@@ -17,15 +17,14 @@ export function screenPanel(): Panel & { capturing(): boolean; setLastKey(value:
   const box = h('input');
   box.type = 'checkbox';
   box.checked = true;
-  const last = h('span', 'last-key mono', 'no key yet');
-  bar.append(box, h('span', '', 'send keys to the machine while this tab is open'), last);
+  const last = h('span', 'last-key mono', '');
+  bar.append(box, h('span', '', 'Send keys to the machine'), last);
   el.append(fb.el, bar);
 
   const fit = (): void => {
-    // room for the frame padding (10px), the gap (8px) and the capture bar (24px)
-    const w = el.clientWidth - 10;
-    const hgt = el.clientHeight - 10 - 8 - 24;
-    if (w > 0 && hgt > 0) fb.setScale(integerScale(w, hgt));
+    // the width sets the scale: a whole number of screen pixels per machine pixel, at most 10
+    const w = el.clientWidth - 2 * 12 - 2;
+    if (w > 0) fb.setScale(Math.min(10, integerScale(w, Number.MAX_SAFE_INTEGER)));
   };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(el);
 

@@ -1,6 +1,7 @@
-/* Reversible machine visualiser. Tokens, layout, panels, timeline. Dark theme only. */
+/* Reversible machine visualiser: tokens, layout, shared controls, the debug bar, the visualisation, compare. */
 @import './styles/tokens.css';
 @import './styles/layout.css';
 @import './styles/panels.css';
-@import './styles/timeline.css';
-@import './styles/datapath.css';
+@import './styles/debug.css';
+@import './styles/visualise.css';
+@import './styles/compare.css';

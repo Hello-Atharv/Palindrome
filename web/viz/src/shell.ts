@@ -7,25 +7,26 @@ import { h } from './dom';
 import { attachKeys } from './keys';
 import type { Machine } from './machines';
 import { bannersPanel } from './panels/banners';
-import { codePanel } from './panels/code';
 import { comparePanel } from './panels/compare';
-import { listingPanel } from './panels/listing';
-import type { ListingApi } from './panels/listing';
+import { editorPanel } from './panels/editor';
+import type { ListingApi } from './panels/editor';
 import { memoryPanel } from './panels/memory';
 import type { Ctx, Panel } from './panels/panel';
-import { learnPanel } from './panels/learn';
 import { registersPanel } from './panels/registers';
 import { screenPanel } from './panels/screen';
 import { timelinePanel } from './panels/timeline';
-import { trackerPanel } from './panels/tracker';
+import { valuesPanel } from './panels/values';
+import { visualisePanel } from './panels/visualise';
 import { inspectImage, learnVerdict } from './program';
 import type { ProgramEntry, ProgramInfo } from './program';
+import { icon } from './icons';
 import { LEARN_SPEED, Runner, SPEEDS } from './runner';
 import type { RunMode } from './runner';
 import { attachShortcuts } from './shortcuts';
 import { takeSnapshot } from './snapshot';
 import type { Snapshot } from './snapshot';
 import { Tabs } from './tabs';
+import { measureTracks } from './track';
 
 export type { Machine } from './machines';
 
@@ -168,6 +169,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   let rateMs = 0;
   let refreshQueued = false;
   let seekQueued: number | null = null;
+  let lastCtx: Ctx | null = null;
+  let movedOffVisualisation = false;
   const listeners: Listeners = { update: new Set(), load: new Set(), run: new Set(), engine: new Set() };
   const seekListeners = new Set<(t: number) => void>();
   const emit = <K extends keyof VizEvents>(k: K, e: VizEvents[K]): void => listeners[k].forEach((fn) => fn(e));
@@ -177,23 +180,45 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
 
   // ---- panels ----
   const registers = registersPanel();
-  const listing = listingPanel();
+  const editor = editorPanel({ onAssemble: (src, name) => api.assembleAndLoad(src, name), canBuild: !!opts.assemble });
   const memory = memoryPanel();
   const screen = screenPanel();
-  const tracker = trackerPanel();
+  const values = valuesPanel();
   const banners = bannersPanel();
+  const visualise = visualisePanel();
   const compare = comparePanel({
     onToggle: (on) => void api.setCompare(on),
     onMismatch: () => api.pause(),
+    onMeasure: async () => {
+      if (!createVm || !program) throw new Error('Load a program first.');
+      return measureTracks(createVm, ['logging', 'reversible'], program.image);
+    },
   });
   const canCompare = !!createVm && engines.includes('logging') && engines.includes('reversible');
-  compare.setAvailable(canCompare, 'Comparing needs both engines: it needs the WebAssembly build (web/wasm)');
+  compare.setAvailable(canCompare, 'Needs both engines, which needs the WebAssembly build (web/wasm)');
+
+  // breakpoints: while nobody else is listening to the editor, a click on the gutter toggles one here
+  const breakpoints = new Set<number>();
+  editor.onDefaultClick((e) => {
+    if (!e.gutter) return;
+    if (!breakpoints.delete(e.addr)) breakpoints.add(e.addr);
+    editor.api.setBreakpoints([...breakpoints]);
+  });
 
   // ---- runner and transport ----
-  const runner = new Runner(() => machines, (s, running) => {
-    refresh(s);
-    if (!running) setRun('paused');
-  });
+  const runner = new Runner(
+    () => machines,
+    (s, running) => {
+      if (!running) setRun('paused'); // first, so the redraw shows the stopped state
+      refresh(s);
+    },
+    {
+      // the animation sets the pace of a run: one instruction at a time, the next only when the picture is done
+      gate: () => (!lastCtx || !visualise.paces(lastCtx) ? 'free' : visualise.busy() ? 'wait' : 'single'),
+      // a run stops when the PC reaches a breakpoint
+      stopAt: () => breakpoints.size > 0 && breakpoints.has(primary().registers().pc),
+    },
+  );
   const transport = buildTransport(
     {
       step: () => api.step(),
@@ -207,9 +232,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     runner.speedIndex,
   );
   const timeline = timelinePanel(transport, (t) => seek(t));
-  const code = opts.assemble ? codePanel(programs, (src, name) => api.assembleAndLoad(src, name), (i) => loadSample(i)) : null;
-  const learn = learnPanel();
-  const panels: Panel[] = [registers, listing, memory, screen, tracker, banners, timeline, compare, learn, ...(code ? [code] : [])];
+  const panels: Panel[] = [registers, editor, memory, screen, values, banners, timeline, compare, visualise];
 
   const programBar = buildProgramBar(
     programs,
@@ -226,61 +249,72 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     code: h('div', 'slot slot-code'),
   };
   for (const [k, e] of Object.entries(slots)) e.dataset.slot = k;
-  timeline.el.querySelector('.timeline-top')!.insertBefore(slots.toolbar, transport.el);
+  timeline.el.querySelector('.dbg-top')!.insertBefore(slots.toolbar, transport.el.nextSibling);
 
+  // header: sidebar switch, name, engine, program
   const header = h('header', 'viz-header');
-  const brand = h('div', 'brand');
-  brand.append(h('span', 'brand-mark', '⇄'), h('h1', '', 'Reversible machine'), h('span', 'brand-sub', 'time runs both ways'));
-  const engineBadge = h('span', 'badge engine-badge');
+  const sidebarBtn = h('button', 'ibtn sidebar-btn');
+  sidebarBtn.type = 'button';
+  sidebarBtn.title = 'Show or hide the editor and debug controls (Ctrl+B)';
+  sidebarBtn.setAttribute('aria-label', 'Toggle the editor and debug controls');
+  sidebarBtn.append(icon('sidebar'));
+  const brand = h('h1', 'brand', 'Reversible machine');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
-  const branchBadge = h('span', 'badge branch-badge', '⑂ New timeline');
-  branchBadge.title = 'A key press or direction flip while scrubbed back discarded the rest of the old timeline';
-  branchBadge.hidden = true;
-  header.append(brand, branchBadge, engineBadge, engineSwitch.el, programBar.el);
+  header.append(sidebarBtn, brand, h('span', 'grow'), engineSwitch.el, programBar.el);
 
-  // right-hand tabs: Screen / Memory / Compare
+  // left: the editor with the debug bar at its foot (collapsible)
+  const ide = h('aside', 'ide');
+  ide.setAttribute('aria-label', 'editor and debugger');
+  ide.append(slots.code, editor.el, slots.left, slots.timeline, timeline.el);
+
+  // right: three tabs
+  const outputPane = h('div', 'out');
+  const outLeft = h('div', 'out-col');
+  outLeft.append(screen.el, registers.el);
+  const inspector = h('details', 'inspector');
+  const summary = h('summary', '', 'Memory inspector');
+  inspector.append(summary, memory.el);
+  const outRight = h('div', 'out-col');
+  outRight.append(values.el, inspector);
+  outputPane.append(outLeft, outRight);
+
   const rightTabs = new Tabs(
     [
-      { id: 'screen', label: 'Screen', el: screen.el },
-      { id: 'memory', label: 'Memory', el: memory.el },
+      { id: 'visualisation', label: 'Visualisation', el: visualise.el },
+      { id: 'output', label: 'Output', el: outputPane },
       { id: 'compare', label: 'Compare', el: compare.el, disabled: !canCompare, title: canCompare ? 'Run both engines side by side' : 'Needs both engines: the WebAssembly build (web/wasm)' },
     ],
-    'screen',
+    'visualisation',
   );
-  const right = h('div', 'viz-col');
-  right.append(rightTabs.bar, rightTabs.body, tracker.el, slots.side);
+  const work = h('main', 'work');
+  work.append(rightTabs.bar, rightTabs.body, slots.side);
   rightTabs.body.classList.add('grow');
-
-  const centre = h('div', 'viz-col');
-  centre.append(registers.el, listing.el);
-
-  const debugView = h('div', 'viz-main');
-  debugView.append(slots.left, centre, right);
-
-  const codeView = h('div', 'code-view');
-  codeView.append(slots.code);
-  if (code) codeView.append(code.el);
-  else codeView.append(h('p', 'empty code-empty', 'The editor appears here when the debugger is mounted.'));
-
-  const views = new Tabs([
-    { id: 'debug', label: 'Debug', el: debugView },
-    { id: 'learn', label: 'Learn', el: learn.el, disabled: true, title: 'Load a simple program to watch the datapath' },
-    { id: 'code', label: 'Code', el: codeView },
-  ]);
-  header.append(views.bar);
-  views.body.classList.add('viz-body');
-  views.onChange((id) => {
-    // watching data move needs a slow run: bring a fast speed down when the Learn view opens
-    if (id === 'learn' && runner.speedIndex > LEARN_SPEED) {
+  /** Watching data move needs a slow run: bring a fast speed down when the visualisation shows a simple program. */
+  function calmForVisualisation(): void {
+    if (rightTabs.active === 'visualisation' && program && learnVerdict(program).ok && runner.speedIndex > LEARN_SPEED) {
       runner.speedIndex = LEARN_SPEED;
       transport.setSpeedIndex(LEARN_SPEED);
       updateMode();
     }
+  }
+  rightTabs.onChange(() => {
+    calmForVisualisation();
     refresh(status);
   });
 
+  const split = h('div', 'split');
+  split.append(ide, work);
   root.classList.add('viz');
-  root.replaceChildren(header, banners.el, slots.timeline, views.body, timeline.el);
+  root.dataset.ide = 'open';
+  root.replaceChildren(header, banners.el, split);
+
+  function setSidebar(open: boolean): void {
+    root.dataset.ide = open ? 'open' : 'closed';
+    sidebarBtn.setAttribute('aria-pressed', String(open));
+    try { localStorage.setItem('viz.ide', open ? 'open' : 'closed'); } catch { /* storage can be blocked */ }
+  }
+  sidebarBtn.addEventListener('click', () => setSidebar(root.dataset.ide !== 'open'));
+  try { if (localStorage.getItem('viz.ide') === 'closed') setSidebar(false); else setSidebar(true); } catch { setSidebar(true); }
 
   // ---- state flow ----
   function updateMode(): void {
@@ -324,13 +358,11 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     root.dataset.dir = cur.direction === 1 ? 'fwd' : 'rev';
     root.dataset.status = s;
     root.dataset.engine = vmNow.kind;
-    branchBadge.hidden = !branch;
-    engineBadge.textContent = vmNow.kind === 'logging' ? 'Diary: keeps history' : 'Reversible: no history';
-    engineBadge.dataset.engine = vmNow.kind;
     engineSwitch.setKind(vmNow.kind);
     transport.setDirection(cur.direction);
     const frame = vmNow.memory(FRAME_ADDR, 1)[0];
-    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: views.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat' };
+    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: rightTabs.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat' };
+    lastCtx = ctx;
     for (const p of panels) p.update(ctx);
     emit('update', { t: cur.t, maxT, branch, direction: cur.direction, snap: cur, prev, status: s });
   }
@@ -408,12 +440,13 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       api.pushInput(value);
       screen.setLastKey(value);
     },
-    () => screen.capturing() && views.active === 'debug' && rightTabs.active === 'screen',
+    () => screen.capturing() && rightTabs.active === 'output',
   );
   const detachShortcuts = attachShortcuts({
     step: () => void api.step(),
     stepBack: () => void api.stepBack(),
     toggleRun: () => (runState === 'fwd' ? api.pause() : api.run('forward')),
+    toggleSidebar: () => setSidebar(root.dataset.ide !== 'open'),
     stop: () => void api.reset(),
   });
 
@@ -423,7 +456,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     machines,
     slots,
     engines,
-    listing: listing.api,
+    listing: editor.api,
     timeline: {
       onSeek(fn) {
         seekListeners.add(fn);
@@ -474,10 +507,13 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
         all((v) => v.setInputTape(EMPTY_TAPE)); // every run starts with no inputs
         program = inspectImage(name, image, source);
         if (source !== undefined && opts.assemble) {
-          program.listing = opts.assemble(source, name).listing.map((r) => ({ addr: r.addr, text: r.text }));
+          program.listing = opts.assemble(source, name).listing.map((r) => ({ addr: r.addr, line: r.line, text: r.text }));
         }
         const verdict = learnVerdict(program);
-        views.setDisabled('learn', !verdict.ok, verdict.ok ? 'Watch the datapath: registers, ALU, memory and the bus' : verdict.why);
+        // too big to animate: show the output instead, and come back to the visualisation when a simple program loads
+        if (!verdict.ok && rightTabs.active === 'visualisation') { rightTabs.select('output'); movedOffVisualisation = true; }
+        else if (verdict.ok && movedOffVisualisation) { rightTabs.select('visualisation'); movedOffVisualisation = false; }
+        calmForVisualisation();
         programBar.setIndex(programs.findIndex((p) => p.name === name)); // -1 (blank) for a file or edited source
         notice = null;
         hostLog = [];

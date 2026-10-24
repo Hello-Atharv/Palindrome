@@ -1,52 +1,42 @@
-/* Page layout: header / banners / body / timeline hero. Sized for 1280x720 with no page scroll. */
+/* Page layout: a header, slim notices, then the editor (collapsible) beside the work area. */
 .viz {
-  height: 100vh; min-height: 560px;
-  display: flex; flex-direction: column; gap: var(--s-12);
-  padding: var(--s-12) var(--s-16);
-  background: var(--bg); color: var(--text);
-  font: 14px/1.4 var(--sans);
+  height: 100vh; min-height: 520px; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans);
 }
+.viz-header { flex: none; height: 44px; display: flex; align-items: center; gap: var(--s-12); padding: 0 var(--s-12); border-bottom: 1px solid var(--border); }
+.brand { margin: 0; font-size: 15px; font-weight: 650; white-space: nowrap; }
+.viz[data-dir='rev'] .brand { color: var(--back); }
 
-.viz-header { display: flex; align-items: center; gap: var(--s-16); min-width: 0; }
-.brand { display: flex; align-items: baseline; gap: var(--s-8); margin-right: auto; white-space: nowrap; }
-.brand h1 { margin: 0; font-size: 18px; font-weight: 650; }
-.brand-mark { color: var(--fwd); font-size: 20px; }
-.viz[data-dir='rev'] .brand-mark { color: var(--back); display: inline-block; transform: scaleX(-1); }
-.brand-sub { color: var(--muted); }
-@media (max-width: 1100px) { .brand-sub { display: none; } }
-
-/* banners: only present when there is something to say */
-.banners { display: flex; flex-direction: column; gap: var(--s-8); }
+.banners { flex: none; }
 .banners:empty { display: none; }
 
-/* body = the machine view. A direction -1 run tints a frame around it. */
-.viz-body { flex: 1; min-height: 0; position: relative; border-radius: var(--radius); }
-.viz-body > .tab-pane { height: 100%; }
-.viz > .timeline { flex: none; }
-.viz-header { flex: none; }
-.viz[data-dir='rev'] .viz-body { box-shadow: 0 0 0 2px var(--back), 0 0 24px rgb(76 201 240 / 0.25); }
-.viz-main {
-  height: 100%; min-height: 0;
-  display: grid; gap: var(--s-12);
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-}
-.viz-main:has(> .slot-left:not(:empty)) { grid-template-columns: minmax(0, 4fr) minmax(0, 4fr) minmax(0, 5fr); }
-.viz-col { display: flex; flex-direction: column; gap: var(--s-12); min-width: 0; min-height: 0; }
-.viz-col > .grow { flex: 1; min-height: 0; }
+.split { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ide-w) minmax(0, 1fr); }
+.viz[data-ide='closed'] .split { grid-template-columns: minmax(0, 1fr); }
+.viz[data-ide='closed'] .ide { display: none; }
+/* direction -1: a frame around the whole work area */
+.viz[data-dir='rev'] .split { box-shadow: inset 0 0 0 2px var(--back); }
+
+.ide { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); background: var(--panel); }
+.ide > .slot-left { flex: none; max-height: 40%; overflow: auto; border-top: 1px solid var(--border); padding: var(--s-8); }
+.ide > .slot-timeline { flex: none; }
 .slot { min-width: 0; }
 .slot:empty { display: none; }
-.slot-left { display: flex; flex-direction: column; gap: var(--s-12); min-height: 0; overflow: auto; }
-.slot-side { display: flex; flex-direction: column; gap: var(--s-8); }
-.code-view { height: 100%; overflow: auto; }
-.slot-code:not(:empty) ~ .code-builtin, .slot-code:not(:empty) + .code-empty { display: none; }
-.empty { padding: var(--s-16); border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); text-align: center; }
+/* an editor mounted by the debugger replaces the built-in one */
+.ide > .slot-code:not(:empty) ~ .editor { display: none; }
+.ide > .slot-code:not(:empty) { flex: 1; min-height: 0; overflow: auto; }
 
-@media (max-width: 960px) {
-  .viz { height: auto; }
-  .viz-main, .viz-main:has(> .slot-left:not(:empty)) { grid-template-columns: minmax(0, 1fr); height: auto; }
-}
+.work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.work > .tab-panes { flex: 1; min-height: 0; overflow: auto; }
+.work > .slot-side { flex: none; border-top: 1px solid var(--border); padding: var(--s-8) var(--s-12); }
+.empty { padding: var(--s-16); border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); }
 
-/* the debugger's controls replace the built-in transport and the fallback scrubber */
-.viz:has(.slot-left:not(:empty)) .transport { display: none; }
+/* the debugger's own controls replace the built-in ones */
+.viz:has(.ide > .slot-left:not(:empty)) .transport { display: none; }
 .viz[data-builtin-controls='on'] .transport { display: flex; }
 .viz[data-builtin-controls='off'] .transport { display: none; }
+
+@media (max-width: 860px) {
+  .viz { height: auto; }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .ide { border-right: 0; border-bottom: 1px solid var(--border); max-height: 70vh; }
+}
