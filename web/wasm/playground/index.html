@@ -13,7 +13,7 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font: 14px system-ui, sans-serif; }
-    header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    header { position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
     h1 { font-size: 15px; margin: 0 8px 0 0; }
     select, button, input { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font: inherit; }
     button, select { cursor: pointer; }
@@ -40,7 +40,7 @@
     .fwd { animation: flashF .6s ease-out; } .back { animation: flashB .6s ease-out; }
     @keyframes flashF { from { background: var(--fwd); color: #000; } }
     @keyframes flashB { from { background: var(--back); color: #000; } }
-    #listing { font-family: var(--mono); font-size: 12.5px; max-height: 300px; overflow: auto; }
+    #listing { position: relative; font-family: var(--mono); font-size: 12.5px; max-height: 300px; overflow: auto; }
     .row { display: grid; grid-template-columns: 44px 76px 1fr; padding: 1px 4px; white-space: pre; }
     .row.pc { background: #3a2c10; outline: 1px solid var(--fwd); }
     .row.pc.rev { background: #0e2f3b; outline-color: var(--back); }

@@ -226,7 +226,10 @@ function render(): void {
     $('listing').innerHTML = listing
       .map((r) => `<div class="row${r.addr === pc ? ` pc${dir < 0 ? ' rev' : ''}` : ''}"><span>${hex(r.addr, 4)}</span><span>${hex(r.word)}</span><span>${esc(r.text)}</span></div>`)
       .join('');
-    $('listing').querySelector('.pc')?.scrollIntoView({ block: 'nearest' });
+    // keep the current instruction in view by scrolling the listing box only (scrollIntoView would drag the whole page)
+    const list = $('listing');
+    const row = list.querySelector<HTMLElement>('.pc');
+    if (row) list.scrollTop = Math.max(0, row.offsetTop - list.clientHeight / 2);
   } else {
     const [L, R] = machines;
     for (const [m, regsId, fbId, histId] of [[L, 'regsL', 'fbL', 'histL'], [R, 'regsR', 'fbR', 'histR']] as const) {
@@ -364,4 +367,8 @@ function onKey(ev: KeyboardEvent, up: boolean): void {
 window.addEventListener('keydown', (e) => onKey(e, false));
 window.addEventListener('keyup', (e) => onKey(e, true));
 
-void load();
+// ?run=1 starts running straight away; ?debug=1 reports the page scroll position in the tab title (for testing the page itself)
+void load().then(() => {
+  if (q.get('run') === '1') { running = 'fwd'; requestAnimationFrame(loop); }
+});
+if (q.get('debug') === '1') setInterval(() => { document.title = `scrollY=${window.scrollY} t=${machines[0]?.vm.instructionCount ?? 0}`; }, 100);
