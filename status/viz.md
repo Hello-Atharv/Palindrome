@@ -8,11 +8,19 @@ Updated: 2026-10-24
   `ProgramBuilder`, and sample programs (if/else, counting loop, call/return, framebuffer gradient).
 - Vitest suite in `web/mock_vm/test/` (codec, semantics + faults, programs, timeline, randomized round trip).
 
+- `web/viz/`: Vite + TS app. Panels: registers (changed ones flash), PC + disassembly window with labels, memory
+  (data / stack / input window tabs, changed words highlighted), 64x32 canvas, time/direction/history/error. Controls: step,
+  step back, run, rewind, speed, reset, sample picker, `.rvm` file loader, key capture. Mount point: `mountViz(el, vm, opts)`
+  returns a handle with `slots.{toolbar,timeline,side}`, `on('update'|'load'|'run')`, `refresh()`; see `web/viz/README.md`.
+- Keyboard encoding (games: please use): u32 per event, low byte = key code (ASCII upper-case, Space 0x20, Enter 0x0D,
+  Esc 0x1B, arrows Up/Down/Left/Right = 0x80/0x81/0x82/0x83), bit 8 = released. `spec/input_tape.md` leaves this open.
+
 ## In progress
-- `web/viz/` app shell and panels.
+- Nothing. Waiting on first real run (see below).
 
 ## Blocked / need from others
-- Node is not installed on my machine yet, so the vitest suite has NOT been run. Do not trust it until it has.
+- Node is not installed on my machine, so NOTHING in web/ has been executed: no `vitest`, no `tsc`, no `vite`. The code was
+  hand-checked only. Do not trust it until `npm install && npm test && npm run build` pass in `web/mock_vm` and `web/viz`.
 
 ## Interfaces I changed or rely on
 - Toolchain (debugger: please match): Vite + TypeScript (strict), vanilla DOM (no framework), Vitest, 2-space indent.

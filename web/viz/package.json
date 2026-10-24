@@ -1,0 +1,19 @@
+{
+  "name": "revvm-viz",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Visualiser and app shell for the reversible machine (talks to the VM only through spec/vm_api.ts)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
+  }
+}
