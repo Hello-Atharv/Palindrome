@@ -1,0 +1,11 @@
+// Sort three numbers reversibly. Sorting forgets which order the numbers came in, and a reversible machine cannot forget:
+// each compare-exchange files one flag away (f1..f3), and those flags are the garbage the report counts.
+// Sorted list + flags = the original list, so running the program backwards unsorts it exactly.
+var a = 7, b = 2, c = 5, f1 = 0, f2 = 0, f3 = 0;
+out a, b, c;
+
+main {
+  if (a > b) { a <=> b; f1 += 1; } fi (f1 != 0);
+  if (b > c) { b <=> c; f2 += 1; } fi (f2 != 0);
+  if (a > b) { a <=> b; f3 += 1; } fi (f3 != 0);
+}

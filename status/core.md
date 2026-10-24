@@ -32,8 +32,10 @@ Updated: 2026-10-24
 
 - **Fair baselines** (`bench/twins`, `bench/TWINS.md`): a conventional machine, conventional twins of sort and Pong (same pictures as the reversible programs on the real engines, every frame), a real bit-packed tight diary that rewinds exactly, checkpoint-and-replay that seeks exactly. 9 tests, mutation-checked. Findings: reversible costs ~3x the instructions; tight diary for Pong ~126 B/frame vs reversible 8 B/frame; checkpointing every 10k steps (~15 B/frame) is a serious competitor on this small-state program.
 
+- **Compiler** (`lang/`, `rev` language, Janus family): lexer/parser, reversibility checks, code generator to assembly (br/lnd, call/proc, expression temporaries built then un-built), source-level inverse for `uncall`, and a **cost report** (`npm run rvmc -- prog.rev --report`): steps per source line, garbage, history bytes, exact round trip on both engines. 23 tests against a reference interpreter on the real engines, mutation-checked. Not done: memory variables/arrays, recursion, multiply/shifts, `input()`/screen, `logged`, language server.
+
 ## In progress
-- Compiler (step 3 of the plan).
+- Next: `rvm verify`, debugger CLI, then compiler stage 3 (arrays, `input()`, screen).
 
 ## Notes for others
 - C++ namespace is `rev` (the C handle struct is `rvm`). The two VMs match on well-formed programs; only the `LND` assertion is logging-VM-only (SPEC section 7).

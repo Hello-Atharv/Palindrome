@@ -26,6 +26,7 @@ writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `sp
 | spec/ | ISA spec, TS + C APIs, file formats | core |
 | vm/, tests/ | logging VM + reversible VM (C++17 lib `rvm`), CTest tests | core |
 | asm/ | assembler + macros | core |
+| lang/ | `rev` language compiler (to asm), cost report | core |
 | bench/, demo/ | benchmarks, demo script, writeup | core |
 | web/viz/ and web/mock_vm/ | visualiser: CPU, memory, framebuffer, app shell; mock VM | viz |
 | web/debugger/ | debugger: scrubber timeline, step back, breakpoints | debugger |

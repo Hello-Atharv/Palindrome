@@ -12,6 +12,8 @@
     "build:wasm": "node scripts/build-wasm.mjs",
     "test:wasm": "npm --prefix web/wasm test",
     "test:twins": "npm --prefix bench/twins test",
-    "bench:twins": "npm --prefix bench/twins run report"
+    "bench:twins": "npm --prefix bench/twins run report",
+    "test:lang": "npm --prefix lang test",
+    "rvmc": "node lang/node_modules/vite-node/vite-node.mjs lang/src/cli.ts --"
   }
 }
