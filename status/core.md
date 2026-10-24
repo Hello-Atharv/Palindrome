@@ -40,6 +40,8 @@ Updated: 2026-10-24
 
 - **`rvm` CLI** (`cli/`): `build`, `run`, `report`, `verify`, `debug`. `verify` checks a program on both engines (assertions, lockstep agreement, 200 random scrubs, full undo/replay, direction -1) and says it is testing, not proof; passes the cipher, sort, Pong and the examples. `debug` is a gdb-style debugger with source-line step **back**, breakpoints, `rwatch` (who last wrote this?) and identical transcripts on both engines. The debugger logic (`cli/src/debugger.ts`) is headless over `spec/vm_api.ts` so `web/debugger` can reuse it; I did not touch `web/debugger`. 14 tests, mutation-checked.
 
+- **Console** (SPEC 11.9): `.print` macro in the assembler (strings, characters, unsigned/signed/hex; 13 instructions per character, each entry appears in one step), a `print` statement in `rev` (undone by `uncall`, counted as garbage by the cost report), `lang/src/console.ts` to read it back for any UI, `rvm run` prints it, the debugger has `console`. 11 assembler tests, 5 engine tests, 14 language tests. A test found that updating the length by moving it through zero showed an empty console mid-print; the length now changes in one step.
+
 ## In progress
 - Benchmark chart for the demo (Atharv's UI), the showpiece, the writeup, and a README that gets a stranger from clone to demo.
 

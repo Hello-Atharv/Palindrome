@@ -35,9 +35,16 @@ export type Stmt =
   | { k: 'swap'; a: LValue; b: LValue; line: number }
   | { k: 'if'; test: Cond; then: Stmt[]; else: Stmt[]; fi: Cond; line: number }
   | { k: 'from'; entry: Cond; body1: Stmt[]; body2: Stmt[]; until: Cond; line: number }
+  | { k: 'print'; items: PrintItem[]; /** set by invert(): remove the entries instead of adding them */ undo?: boolean; line: number }
   | { k: 'call'; name: string; line: number }
   | { k: 'uncall'; name: string; line: number }
   | { k: 'skip'; line: number };
+
+/** One console entry (SPEC 11.9): a format tag (0 char, 1 unsigned, 2 signed, 3 hex) and the value. */
+export interface PrintItem {
+  tag: number;
+  e: Expr;
+}
 
 export interface VarDecl {
   name: string;

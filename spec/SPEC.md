@@ -363,7 +363,8 @@ time**, so stepping back un-prints exactly and no separate output log exists. Th
   in a single step** (XOR in `old xor new`), never by moving it through zero, so an entry appears all at once and the UI never sees a
   half-written console. Nothing is overwritten, so this is reversible; the buffer is the program's **garbage** (it is information the program cannot erase) and the cost report counts it.
 - A program that does not use the buffer shows nothing here; the UI may fall back to listing labelled data.
-- The `rev` language gets a `print` statement for this (see `lang/README.md` once added).
+- The assembler has a `.print` macro for this (`asm_syntax.md`) and the `rev` language a `print` statement (`lang/README.md`); both write
+  entries the way this section describes. `lang/src/console.ts` reads the console back from any `memory` function.
 
 ## 12. Cost model (what "the cost of undoing" means, and how it is counted)
 One definition shared by the benchmarks, the compiler's cost report, the debugger readouts and the writeup. If a

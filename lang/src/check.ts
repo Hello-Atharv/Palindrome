@@ -1,7 +1,7 @@
 // Static checks for rev. These are the rules that keep a program reversible; the code generator relies on them.
 
 import type { Cond, Diagnostic, Expr, LValue, Program, Stmt } from './ast.js';
-import type { VarInfo } from './layout.js';
+import { CONSOLE_START, type VarInfo } from './layout.js';
 
 /** Names (variables and arrays) read by an expression, including inside array indexes. */
 export function reads(e: Expr, into: Set<string> = new Set()): Set<string> {
@@ -79,9 +79,14 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Diagnostic[] {
   };
 
   const calls = new Map<string, Set<string>>();
+  let usesPrint = false;
   const walk = (body: Stmt[], owner: string): void => {
     for (const s of body) {
       switch (s.k) {
+        case 'print':
+          usesPrint = true;
+          for (const it of s.items) exprNames(it.e, s.line);
+          break;
         case 'assign': {
           lvalueNames(s.target, s.line);
           exprNames(s.e, s.line);
@@ -131,6 +136,16 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Diagnostic[] {
   calls.set('main', new Set());
   for (const p of prog.procs) walk(p.body, p.name);
   if (prog.main) walk(prog.main, 'main');
+
+  // the console (SPEC 11.9) occupies data words 0xE000..0xFFFE: nothing else may live there in a program that prints
+  if (usesPrint) {
+    for (const d of prog.vars) {
+      const v = vars.get(d.name);
+      if (v && v.kind === 'mem' && v.addr <= 0xfffe && v.addr + v.size > CONSOLE_START) {
+        err(d.line, `${d.name} overlaps the console (data words 0xE000 to 0xFFFE), which print uses`);
+      }
+    }
+  }
 
   // recursion: the generated inverse procedures and the static stack rules assume none (for now)
   const state = new Map<string, 0 | 1 | 2>();

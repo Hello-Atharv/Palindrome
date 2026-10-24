@@ -2,6 +2,7 @@
 // a script; `repl` wraps it in a prompt.
 import { createInterface } from 'node:readline';
 
+import { consoleText } from '../../lang/src/console.js';
 import { Debugger, type Stop, type Where, type WatchHit } from './debugger.js';
 
 const hex = (x: number): string => (x > 9999 ? '0x' + x.toString(16) : String(x | 0));
@@ -15,6 +16,7 @@ const HELP = `commands (a count may follow s, b, si, bi):
   goto T       jump to machine time T (either way)   where        time, line, next instruction
   p [X]        print variables, or X                 regs         registers          mem A [n]   memory words
   list [N]     source around line N (default: here)  history      history bytes the machine keeps
+  console      what the program has printed up to this moment (step back and it shrinks)
   help, quit
 X is a variable name, r0..r15, or [address].`;
 
@@ -135,6 +137,11 @@ export function runCommand(dbg: Debugger, input: string): { out: string; quit: b
         break;
       }
       case 'list': case 'l': out = listing(dbg, Number(arg) || dbg.where().line || 1); break;
+      case 'console': {
+        const text = consoleText((a, n) => dbg.vm.memory(a, n));
+        out = text ? text + (text.endsWith('\n') ? '' : '\n') : '(nothing printed yet)\n';
+        break;
+      }
       case 'history':
         out = `the ${dbg.vm.kind} engine is keeping ${dbg.vm.historyBytes} bytes of history for ${dbg.t} steps\n`;
         break;

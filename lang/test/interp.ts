@@ -7,13 +7,17 @@ export class AssertionFailed extends Error {}
 /** Final contents of every variable: a scalar is a one-element array. */
 export type State = Map<string, number[]>;
 
-export function interpret(prog: Program, input: number[] = [], maxSteps = 1_000_000): State {
+export interface Printed { tag: number; value: number }
+
+/** Run the program; the variables' final contents and what it printed. */
+export function interpretFull(prog: Program, input: number[] = [], maxSteps = 1_000_000): { vars: State; console: Printed[] } {
   const vars: State = new Map(prog.vars.map((v) => {
     const words = v.size ? Array.from({ length: v.size }, (_, i) => (v.init[i] ?? 0) >>> 0) : [v.init[0] >>> 0];
     return [v.name, words];
   }));
   const procs = new Map(prog.procs.map((p) => [p.name, p.body]));
   let budget = maxSteps;
+  const consoleOut: Printed[] = [];
 
   const cell = (name: string, index: number): { words: number[]; at: number } => {
     const words = vars.get(name)!;
@@ -84,6 +88,17 @@ export function interpret(prog: Program, input: number[] = [], maxSteps = 1_000_
         c.words[c.at] = (op === '+=' ? x + v : op === '-=' ? x - v : x ^ v) >>> 0;
         return;
       }
+      case 'print': {
+        if (!inv) {
+          for (const it of s.items) consoleOut.push({ tag: it.tag, value: ev(it.e) });
+        } else {
+          for (const it of [...s.items].reverse()) { // un-printing removes the same entries, last first
+            const last = consoleOut.pop();
+            if (!last || last.tag !== it.tag || last.value !== ev(it.e)) throw new Error(`line ${s.line}: un-print does not match what was printed`);
+          }
+        }
+        return;
+      }
       case 'call': run(procs.get(s.name)!, inv); return;
       case 'uncall': run(procs.get(s.name)!, !inv); return;
       case 'if': {
@@ -111,5 +126,9 @@ export function interpret(prog: Program, input: number[] = [], maxSteps = 1_000_
     }
   };
   run(prog.main ?? [], false);
-  return vars;
+  return { vars, console: consoleOut };
+}
+
+export function interpret(prog: Program, input: number[] = [], maxSteps = 1_000_000): State {
+  return interpretFull(prog, input, maxSteps).vars;
 }

@@ -7,13 +7,27 @@
 //     if (a < b) { ... } else { ... } fi (a < b);
 //   }
 
-import type { Cond, Diagnostic, Expr, LValue, Operand, Program, RelOp, Stmt } from './ast.js';
+import type { Cond, Diagnostic, Expr, LValue, Operand, PrintItem, Program, RelOp, Stmt } from './ast.js';
 
 interface Token {
-  t: 'id' | 'num' | 'op' | 'eof';
+  t: 'id' | 'num' | 'op' | 'str' | 'eof';
   s: string;
   line: number;
   value?: number;
+  /** a string literal's character codes */
+  str?: number[];
+}
+
+const BS = String.fromCharCode(92); // a backslash
+
+/** Read one possibly escaped character of a string or character literal at src[i]; returns [code, next index]. */
+function litChar(src: string, i: number, line: number): [number, number] {
+  const c = src[i];
+  if (c !== BS) return [c.codePointAt(0)!, i + (c.codePointAt(0)! > 0xffff ? 2 : 1)];
+  const e = src[i + 1];
+  const map: Record<string, number> = { n: 10, t: 9, '0': 0, [BS]: 92, '"': 34, "'": 39 };
+  if (e === undefined || !(e in map)) throw new ParseError(line, `unknown escape ${BS}${e ?? ''}`);
+  return [map[e], i + 2];
 }
 
 const OPS = ['<=>', '+=', '-=', '^=', '==', '!=', '<=', '>=', '<', '>', '+', '-', '^', '&', '|', '~', '(', ')', '{', '}', '[', ']', ',', ';', '=', '@'];
@@ -33,6 +47,28 @@ function lex(src: string): Token[] {
     if (c === '\n') { line++; i++; continue; }
     if (/\s/.test(c)) { i++; continue; }
     if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === '"') { // a string literal: only meaningful after print
+      const codes: number[] = [];
+      let j = i + 1;
+      while (j < src.length && src[j] !== '"') {
+        if (src[j] === '\n') throw new ParseError(line, 'a string must end on the line it starts');
+        const [code, next] = litChar(src, j, line);
+        codes.push(code);
+        j = next;
+      }
+      if (j >= src.length) throw new ParseError(line, 'unterminated string');
+      out.push({ t: 'str', s: src.slice(i, j + 1), line, str: codes });
+      i = j + 1;
+      continue;
+    }
+    if (c === "'") { // a character literal is a number
+      if (i + 1 >= src.length) throw new ParseError(line, 'unterminated character');
+      const [code, next] = litChar(src, i + 1, line);
+      if (src[next] !== "'") throw new ParseError(line, 'a character literal looks like \'A\'');
+      out.push({ t: 'num', s: src.slice(i, next + 1), line, value: code });
+      i = next + 1;
+      continue;
+    }
     if (/[A-Za-z_]/.test(c)) {
       let j = i;
       while (j < src.length && /[\w]/.test(src[j])) j++;
@@ -60,7 +96,7 @@ function lex(src: string): Token[] {
   return out;
 }
 
-const KEYWORDS = new Set(['var', 'out', 'proc', 'main', 'if', 'else', 'fi', 'from', 'do', 'loop', 'until', 'call', 'uncall', 'skip', 'rol', 'events', 'latest']);
+const KEYWORDS = new Set(['var', 'out', 'proc', 'main', 'if', 'else', 'fi', 'from', 'do', 'loop', 'until', 'call', 'uncall', 'skip', 'rol', 'events', 'latest', 'print', 'char', 'unsigned', 'signed', 'hex']);
 
 class Parser {
   private p = 0;
@@ -166,6 +202,24 @@ class Parser {
   private stmt(): Stmt {
     const line = this.cur.line;
     if (this.isKw('skip')) { this.next(); this.expectOp(';'); return { k: 'skip', line }; }
+    if (this.isKw('print')) {
+      this.next();
+      const items: PrintItem[] = [];
+      do {
+        if (this.cur.t === 'str') {
+          const tok = this.next();
+          for (const code of tok.str!) items.push({ tag: 0, e: { k: 'num', value: code, line } });
+        } else {
+          let tag = 1; // unsigned decimal unless a format is given
+          for (const [kw, t] of [['char', 0], ['unsigned', 1], ['signed', 2], ['hex', 3]] as const) {
+            if (this.isKw(kw)) { this.next(); tag = t; break; }
+          }
+          items.push({ tag, e: this.expr() });
+        }
+      } while (this.isOp(',') && this.next());
+      this.expectOp(';');
+      return { k: 'print', items, line };
+    }
     if (this.isKw('call') || this.isKw('uncall')) {
       const k = this.next().s as 'call' | 'uncall';
       const name = this.ident('a procedure name').s;

@@ -6,6 +6,7 @@ import type { Diagnostic, Program } from './ast.js';
 
 export const MAX_REG_VARS = 9;
 export const FRAME_WORD = 0xffff; // reserved by SPEC 11.7
+export const CONSOLE_START = 0xe000; // SPEC 11.9: 0xE000..0xFFFE is the console (buffer and length)
 const DATA_END = 0x10000;
 
 export type VarInfo =
@@ -61,7 +62,7 @@ export function layout(prog: Program): Layout {
   };
   for (const f of floating) {
     const addr = bump(f.size);
-    if (addr + f.size > FRAME_WORD) {
+    if (addr + f.size > CONSOLE_START) {
       err(f.line, `no room in the data region for ${f.name} (${f.size} words)`);
       continue;
     }

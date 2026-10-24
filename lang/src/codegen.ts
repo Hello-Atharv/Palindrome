@@ -11,7 +11,8 @@
 //     loop must be conditions the machine can test directly (see ccOf); the logging VM checks every one at run time.
 //   * `uncall p` calls a generated procedure p__inv, the source-level inverse of p.
 
-import type { Cond, Expr, LValue, Operand, Program, Stmt } from './ast.js';
+import type { Cond, Expr, LValue, Operand, PrintItem, Program, Stmt } from './ast.js';
+import { OUT_BASE, OUT_LEN } from './console.js';
 import { invertBlock } from './invert.js';
 import type { Layout, VarInfo } from './layout.js';
 
@@ -285,12 +286,52 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
     switch (s.k) {
       case 'skip': ins('nop'); return;
       case 'swap': return swap(s.a, s.b);
+      case 'print': return printStmt(s);
       case 'call': ins(`call p_${s.name}`); return;
       case 'uncall': need.add(s.name); ins(`call p_${s.name}__inv`); return;
       case 'assign': return assign(s);
       case 'if': return ifStmt(s);
       case 'from': return fromStmt(s);
     }
+  }
+
+  /**
+   * print appends entries to the console (SPEC 11.9); undo (from `uncall`) removes the same entries, last first. An entry is
+   * written into the two words after the current length, then the length changes by 2 in ONE step (xor in old ^ new), so the
+   * console is never seen half written. Both scratch registers are zero again afterwards.
+   */
+  function printStmt(s: Extract<Stmt, { k: 'print' }>): void {
+    const items = s.undo ? [...s.items].reverse() : s.items;
+    for (const it of items) printEntry(it, !!s.undo);
+  }
+
+  function printEntry(it: PrintItem, undo: boolean): void {
+    const ops: I[] = [];
+    const temps: number[] = [];
+    const v = build(it.e, ops, temps);
+    const tagReg = it.tag ? constReg(it.tag, ops, temps) : 0;
+    const valReg = 'imm' in v && v.imm === 0 ? 0 : inReg(v, ops, temps); // 0: the value word stays zero, nothing to write
+    emitOps(ops);
+    const t1 = alloc();
+    const t2 = alloc();
+    const len = `[r0+${OUT_LEN}]`;
+    const at = OUT_BASE + (undo ? -2 : 0); // the entry's first word: the current length, or two words back when removing
+    const d = undo ? -2 : 2;
+    ins(`xld r${t1}, ${len}`); // t1 = how much has been printed
+    if (it.tag) ins(`xst r${tagReg}, [r${t1}+${at}]`);
+    if (valReg) ins(`xst r${valReg}, [r${t1}+${at + 1}]`);
+    ins(`xor r${t2}, r${t1}`);
+    ins(`addi r${t2}, ${d}`);
+    ins(`xor r${t2}, r${t1}`); // t2 = old length xor new length
+    ins(`xst r${t2}, ${len}`); // the length changes in one step
+    ins(`xor r${t2}, r${t1}`);
+    ins(`addi r${t2}, ${-d}`);
+    ins(`xor r${t2}, r${t1}`); // t2 is zero again
+    ins(`addi r${t1}, ${d}`);
+    ins(`xld r${t1}, ${len}`); // t1 is zero again
+    release([t1, t2]);
+    emitOps(inverse(ops));
+    release(temps);
   }
 
   const isReg = (lv: LValue): boolean => info(lv.name).kind === 'reg';

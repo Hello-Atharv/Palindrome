@@ -10,6 +10,8 @@ export function invertStmt(s: Stmt): Stmt {
     case 'swap':
     case 'skip':
       return s;
+    case 'print':
+      return { ...s, undo: !s.undo }; // the undo of printing is removing the same entries, last first
     case 'call':
       return { k: 'uncall', name: s.name, line: s.line };
     case 'uncall':
