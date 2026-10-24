@@ -33,13 +33,15 @@ export function layout(prog: Program): Layout {
 
   for (const v of prog.vars) {
     if (vars.has(v.name)) continue; // duplicates are reported by check()
-    if (v.size === 0 && v.addr === undefined && regs < MAX_REG_VARS) {
+    if (v.size === 0 && v.addr === undefined && !v.inMemory && regs < MAX_REG_VARS) {
       vars.set(v.name, { kind: 'reg', reg: ++regs, size: 0, init: v.init });
     } else if (v.addr !== undefined) {
       const n = Math.max(1, v.size);
       if (!mapped(v.addr, n)) err(v.line, `${v.name} @ 0x${v.addr.toString(16)} (${n} words) is not in mapped memory`);
       if (v.addr >= DATA_END && v.init.some((x) => x !== 0)) err(v.line, `${v.name} is placed outside the data region, so it cannot have initial values`);
-      if (v.addr <= FRAME_WORD && v.addr + n > FRAME_WORD) err(v.line, `${v.name} overlaps data word 0xFFFF, which is the FRAME counter`);
+      if (v.addr <= FRAME_WORD && v.addr + n > FRAME_WORD && !(v.addr === FRAME_WORD && n === 1)) {
+        err(v.line, `${v.name} overlaps data word 0xFFFF, which is the FRAME counter (declare it alone: var frame @ 0xFFFF)`);
+      }
       vars.set(v.name, { kind: 'mem', addr: v.addr, size: n, isArray: v.size > 0, init: v.init });
       placed.push({ name: v.name, addr: v.addr, size: n, init: v.init, line: v.line });
     } else {

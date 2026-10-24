@@ -316,7 +316,7 @@ describe('compile errors', () => {
   it('rejects bad placements', () => {
     expect(err('var a[4] @ 0x50000; main { }')).toMatch(/not in mapped memory/);
     expect(err('var s[4] @ 0x20000 = {1}; main { }')).toMatch(/cannot have initial values/);
-    expect(err('var f @ 0xFFFF; main { }')).toMatch(/FRAME/);
+    expect(err('var f[2] @ 0xFFFE; main { }')).toMatch(/FRAME/);
   });
 });
 

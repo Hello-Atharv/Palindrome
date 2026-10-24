@@ -47,6 +47,8 @@ export interface VarDecl {
   size: number;
   /** absolute data address (`var screen[2048] @ 0x20000;`); otherwise the compiler places it */
   addr?: number;
+  /** `var x @ mem`: keep this scalar in memory even though a register is free */
+  inMemory?: boolean;
   line: number;
 }
 

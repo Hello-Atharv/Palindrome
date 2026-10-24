@@ -108,7 +108,11 @@ class Parser {
             init = [];
           }
           let addr: number | undefined;
-          if (this.isOp('@')) { this.next(); addr = this.number(); }
+          let inMemory = false;
+          if (this.isOp('@')) {
+            this.next();
+            if (this.isKw('mem')) { this.next(); inMemory = true; } else addr = this.number();
+          }
           if (this.isOp('=')) {
             this.next();
             if (size) {
@@ -122,7 +126,7 @@ class Parser {
               if (init.length > size) throw new ParseError(id.line, `too many initial values for ${id.s}[${size}]`);
             } else init = [this.number()];
           }
-          prog.vars.push({ name: id.s, init, size, addr, line: id.line });
+          prog.vars.push({ name: id.s, init, size, addr, inMemory, line: id.line });
         } while (this.isOp(',') && this.next());
         this.expectOp(';');
       } else if (this.isKw('out')) {

@@ -143,6 +143,20 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
   }
 
   // ---- expressions: built into temporaries, then un-built ----
+  /** Constants already loaded by the instruction list `ops` (equal constants share one temporary). */
+  const loaded = new WeakMap<I[], Map<number, number>>();
+  function constReg(value: number, ops: I[], temps: number[]): number {
+    let m = loaded.get(ops);
+    if (!m) loaded.set(ops, (m = new Map()));
+    const have = m.get(value >>> 0);
+    if (have !== undefined) return have;
+    const t = alloc();
+    temps.push(t);
+    ops.push(...loadConst(t, value));
+    m.set(value >>> 0, t);
+    return t;
+  }
+
   function build(e: Expr, ops: I[], temps: number[]): Val {
     if (e.k === 'num') return { imm: e.value };
     if (e.k === 'var') {
@@ -175,13 +189,7 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
       ops.push({ op: 'xld', a: t, b: tb, imm: 0 });
       return { reg: t };
     }
-    const toReg = (o: Val): number => {
-      if ('reg' in o) return o.reg;
-      const t = alloc();
-      temps.push(t);
-      ops.push(...loadConst(t, o.imm));
-      return t;
-    };
+    const toReg = (o: Val): number => ('reg' in o ? o.reg : constReg(o.imm, ops, temps));
     const xorInto = (t: number, o: Val): void => {
       if ('reg' in o) ops.push({ op: 'xor', a: t, b: o.reg });
       else ops.push(...loadConst(t, o.imm));
@@ -230,11 +238,7 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
 
   /** The register holding the value `o`, loading a constant into a new temporary if needed. */
   function inReg(o: Val, ops: I[], temps: number[]): number {
-    if ('reg' in o) return o.reg;
-    const t = alloc();
-    temps.push(t);
-    ops.push(...loadConst(t, o.imm));
-    return t;
+    return 'reg' in o ? o.reg : constReg(o.imm, ops, temps);
   }
 
   /** Run `use(reg)` with the value of e available in a register; leaves every temporary zero again. */
@@ -251,11 +255,11 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
   // ---- conditions ----
   interface Held { ops: I[]; temps: number[] }
   /** Registers holding a condition's operands; constants and memory cells are loaded into temporaries recorded in `held`. */
-  function operands(c: Cond, held: Held): [number, number] {
+  function operands(c: Cond, held: Held, consts: Held = held): [number, number] {
     const get = (x: Operand): number => {
       if (x.k === 'num') {
         if (x.value === 0) return 0;
-        return inReg({ imm: x.value }, held.ops, held.temps);
+        return constReg(x.value, consts.ops, consts.temps);
       }
       if (x.k === 'var' && info(x.name).kind === 'reg') return regOf(x.name);
       return inReg(build(x, held.ops, held.temps), held.ops, held.temps);
@@ -377,12 +381,13 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
   function ifStmt(s: Extract<Stmt, { k: 'if' }>): void {
     // The test's operands are loaded before the branch and cleared at the start of each body (the bodies may change what they
     // were loaded from). The assertion's operands are variables and constants only, so they can wait until the join.
+    // Constants cannot go stale, so they are shared between the test and the assertion and cleared at the end.
     const test: Held = { ops: [], temps: [] };
     const fiHeld: Held = { ops: [], temps: [] };
-    const ro = operands(s.test, test);
+    const ro = operands(s.test, test, fiHeld);
     const rf = operands(s.fi, fiHeld);
-    emitOps(test.ops);
     emitOps(fiHeld.ops);
+    emitOps(test.ops);
     const clearTest = (): void => emitOps(inverse(test.ops));
     // The entry `br` jumps into one body (X) and falls through into the other (Y). At the join, `lnd cc` asserts that cc holds
     // iff we arrived by the jump edge. Normally Y ends with that jump; when the fi condition cannot be tested the right way

@@ -1,0 +1,95 @@
+// PONG in rev: the same game as programs/pong.s (written in assembly), now in the reversible language.
+// Keys: W / S or Up / Down move the paddle. The court is the left half of the screen; the paddle is cyan on column 0, the ball is
+// white, and each time the ball comes back to the left edge and the paddle is there, a yellow 2 x 2 block lights up on the right.
+// If the paddle is not there the program ends: game over (step back to carry on, which is the point).
+//
+// Why it is reversible (the same ideas as pong.s):
+//  * The ball has no bounce logic. Each axis is an UNFOLDED phase that wraps by itself; the screen position is its triangle-wave
+//    fold, so a bounce is just the fold turning round and nothing is decided or lost.
+//  * Drawing is XOR, so the same line draws and erases.
+//  * fold_x and fold_y XOR their result in, so calling one twice clears what the first call set.
+//  * INPUT IS THE ONE THING THAT MUST BE RECORDED: each frame the latest key event and the event count go into `log` (the program's
+//    garbage, 8 bytes a frame) so the game can be replayed.
+// Variables used by an `fi` or `until` condition must live in registers, so they are declared first; the rest are kept in
+// memory (`@ mem`) to leave registers free for expression temporaries.
+var u = 0, over = 0, lp = 0, ev = 0, qx = 0;
+var px @ mem = 671088640, py @ mem = 536870912, pp @ mem = 1879048192, bx @ mem = 0, by @ mem = 0, d @ mem = 0, hpos @ mem = 96;
+var screen[2048] @ 0x20000;
+var log[2048] @ 0x1000;
+var frame @ 0xFFFF;
+
+// bx ^= fold(px) and qx ^= unfolded(px). u = the top 6 bits of the phase (0..63); the fold is u when u < 32, else 63 - u.
+proc fold_x {
+  u ^= rol(px, 6) & 63;
+  qx ^= u;
+  if (u < 32) { bx ^= u; } else { bx ^= 63 - u; } fi (u < 32);
+  u ^= rol(px, 6) & 63;
+}
+
+proc fold_y {
+  u ^= rol(py, 6) & 63;
+  if (u < 32) { by ^= u; } else { by ^= 63 - u; } fi (u < 32);
+  u ^= rol(py, 6) & 63;
+}
+
+// XOR the four paddle pixels (cyan) in column 0: draws the paddle if it is not there, erases it if it is.
+proc draw_paddle {
+  screen[rol(rol(pp, 5) & 31, 6)] ^= 0xFFFF;
+  screen[rol((rol(pp, 5) + 1) & 31, 6)] ^= 0xFFFF;
+  screen[rol((rol(pp, 5) + 2) & 31, 6)] ^= 0xFFFF;
+  screen[rol((rol(pp, 5) + 3) & 31, 6)] ^= 0xFFFF;
+}
+
+proc draw_ball {
+  screen[rol(by, 6) + bx] ^= 0xFFFFFF;
+}
+
+main {
+  call fold_x;
+  call fold_y;
+  call draw_paddle;
+  call draw_ball;
+
+  from (lp == 0) loop {
+    // ---- the paddle: read the latest key event, record it, move ----
+    call draw_paddle;
+    ev ^= latest;
+    log[lp] ^= latest;
+    log[lp + 1] ^= events;
+    if (ev == 0x57) { pp -= 0x8000000; } else { skip; } fi (ev == 0x57);
+    if (ev == 0x80) { pp -= 0x8000000; } else { skip; } fi (ev == 0x80);
+    if (ev == 0x53) { pp += 0x8000000; } else { skip; } fi (ev == 0x53);
+    if (ev == 0x81) { pp += 0x8000000; } else { skip; } fi (ev == 0x81);
+    ev ^= latest;
+    call draw_paddle;
+
+    // ---- the ball: erase, move, draw ----
+    call draw_ball;
+    call fold_x;
+    call fold_y;
+    px += 0x4000000;
+    py += 0x2D00000;
+    call fold_x;
+    call fold_y;
+    call draw_ball;
+
+    // ---- contact: the ball has just arrived in the paddle column (unfolded x = 63) ----
+    if (qx == 63) {
+      d ^= (by - (rol(pp, 5) & 31)) & 31;
+      if (d > 3) {
+        over += 1;
+      } else {
+        screen[hpos] ^= 0xFFFF00;
+        screen[hpos + 1] ^= 0xFFFF00;
+        screen[hpos + 64] ^= 0xFFFF00;
+        screen[hpos + 65] ^= 0xFFFF00;
+        hpos += 3;
+      } fi (over != 0);
+      d ^= (by - (rol(pp, 5) & 31)) & 31;
+    } else { skip; } fi (qx == 63);
+
+    // ---- next frame ----
+    lp += 2;
+    frame += 1;
+  } until (over != 0);
+}
