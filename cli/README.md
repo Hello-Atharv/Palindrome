@@ -1,6 +1,8 @@
 # rvm: the command line
 
-One command for the whole stack. From the repo root: `npm run rvm -- <command> <program> [options]`. A program is a `.rev` file
+One command for the whole stack. From the repo root: `npm run rvm -- <command> <program> [options]`. The tools are bundled into
+single files (`cli/dist/rvm.mjs`, `rvmc.mjs`) that run with plain `node` on Windows, Linux (WSL) and macOS and need no `node_modules`;
+`npm run setup` builds them, or run `npm run build:cli` after changing the source. `npm run rvm:dev` runs the TypeScript source directly. A program is a `.rev` file
 (compiled by `lang/`) or a `.s` file (assembled by `asm/`).
 
 | command | what it does |

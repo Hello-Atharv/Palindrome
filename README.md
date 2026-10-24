@@ -59,4 +59,4 @@ npm run test:all                            # all 219 tests (about a minute)
 
 ## Layout and rules
 One owner per directory; see `CLAUDE.md` for roles, `spec/SPEC.md` (the contract, including the cost model in section 12) and
-`SPEC_CHANGELOG.md`. Each person keeps a status file in `status/`. Demo script: `demo/DEMO.md`. Writeup: `demo/WRITEUP.md`. **New to all this? Start with `docs/GUIDE.md`**, which explains every idea from zero.
+`SPEC_CHANGELOG.md`. Each person keeps a status file in `status/`. Demo script: `demo/DEMO.md`. Writeup: `demo/WRITEUP.md`. **New to all this? Start with `docs/GUIDE.md`** (and `docs/ARCHITECTURE.md` for how the pieces fit), which explains every idea from zero.
