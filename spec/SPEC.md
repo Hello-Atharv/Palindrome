@@ -269,6 +269,8 @@ status and the actual `instructionCount`. Breakpoints are checked by the UI afte
 directions. While dragging the scrubber, throttle `runTo` calls.
 
 ### 11.4 Should include
+- **Reverse watchpoint** ("what last changed this?"): pick a register or memory word and run backward until it changes,
+  landing on the instruction that wrote it (see 11.8). Works on both engines and needs no extra history.
 - Stack view (from `r14` down to the base), with return addresses labelled as such.
 - A live graph of `historyBytes` against `t` (this is the project's headline claim, drawn live).
 - Garbage highlighting: the sort demo writes a permutation record to a fixed region; the memory view marks it.
@@ -321,6 +323,18 @@ call (for example `runUntil(pc, maxSteps)`); that would be a spec change.
 **Scrubbing.** `runTo(n)` costs about as much as stepping that distance, in either direction. When the
 scrubber moves far, call `runTo` in chunks (at most ~200,000 steps per animation frame) and show progress,
 instead of one blocking call. Throttle while dragging. The scrubber's range is `0 .. maxT` (section 11.3 item 6).
+
+**Reverse watchpoint.** Watch one register or one memory word (`registers()` or `memory(addr, 1)`).
+- Run backward: record the watched value `v`, then `stepBack()` repeatedly, comparing after each step. The first
+  time the value differs from `v`, that `stepBack` just undid the write, so **PC now points at the instruction
+  that wrote it** and `instructionCount` is the time just before that write. Stop there and show both.
+- Run forward is the mirror image: step until the value changes; the instruction that wrote it is the one just
+  executed (PC minus one for straight-line code; use the `t` before the step).
+- Same rules as other multi-step actions: stop at a breakpoint, on `halted`, `at_start` or `fault`, and after the
+  1,000,000-step cap (report "not written in the last N steps"). If the value never changes, say so.
+- It is a plain loop over `stepBack()`, so it works unchanged on both engines. On the reversible engine this
+  needs no stored history, which is the point worth showing.
+- A watch on `r14` (the stack pointer) or on a memory word the program writes through `XST` are good demos.
 
 **Breakpoints and watchpoints.** PC breakpoints are checked by the UI after every single step, in both directions.
 Watchpoints (stop when a register or memory word changes) are the same idea: compare before and after each
