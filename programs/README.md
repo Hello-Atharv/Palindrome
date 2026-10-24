@@ -13,3 +13,12 @@ its garbage. Owner: **games**.
 - Pacing: read `TIME` at `0x30000`; busy-wait loops are fine (they are reversible and just spend steps).
 - Garbage is expected. Note what each program leaves behind; the benchmarks and writeup will report it.
 - Before the assembler exists: write a plain-JS model of the game and fix the register/memory layout first.
+
+## Programs
+- `cipher.s`: **Speck64/128** (a published add-rotate-xor cipher) encrypting a 32-character message in place. Run it
+  forward to encrypt; flip the direction toggle and the same program decrypts. 37 instructions, 1,151 steps, no garbage
+  (every temporary register ends at zero), and it reproduces the official Speck64/128 test vector on the machine.
+  The ciphertext is also drawn as 8 pixels at the top of the screen. Use it as a model for the memory-move idiom
+  (`xld` then `xst` moves a word into a register without overwriting anything) and for nested `.loop` macros.
+  Tested in `web/wasm/test/programs.test.ts`.
+- To run any program: `node asm/dist/cli.js programs/x.s -o x.rvm`, then `build/default/rvm_run x.rvm --engine reversible --rewind`.

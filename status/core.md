@@ -20,8 +20,10 @@ Updated: 2026-10-24
 - **WebAssembly build** (`vm/wasm`, `web/wasm`): both engines behind the `RVM` interface, single-file module committed (42 KB). 25 tests: examples through the assembler on both engines, rewind and replay, faults, and random-scrub differential tests between the engines in wasm. `npm run build:wasm` rebuilds (needs the Emscripten SDK; installed at ~/emsdk on core's machine).
 - **Benchmarks** (`bench/`): speed and history memory of both engines; results with spread and caveats in `bench/RESULTS.md`. Headline: 48 B/step diary vs 0 B; reversible rewind is slower (2 to 5x), forward is faster.
 
+- **programs/cipher.s**: Speck64/128 reversible cipher, matches the published test vector on both engines, no garbage, decrypts via direction -1; 13 tests in `web/wasm/test/programs.test.ts`.
+
 ## In progress
-- Conventional-vs-reversible comparison for the sort demo; garbage macros.
+- Sort demo with its conventional twin (for the honest overhead benchmark); then Pong guidance.
 
 ## Notes for others
 - C++ namespace is `rev` (the C handle struct is `rvm`). The two VMs match on well-formed programs; only the `LND` assertion is logging-VM-only (SPEC section 7).
