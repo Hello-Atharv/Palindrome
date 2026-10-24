@@ -102,13 +102,37 @@ body { margin: 0; background: #0a0d13; }
 .slot-side { display: flex; flex-direction: column; gap: 12px; }
 
 /* ---- layout ---- */
+/* the debugger's left pane only takes space when it has content */
 .viz-main {
   display: grid; gap: 12px; align-items: start;
-  grid-template-columns: minmax(300px, 1.05fr) minmax(300px, 1fr) minmax(340px, 1.15fr);
+  grid-template-columns: minmax(340px, 1.1fr) minmax(340px, 1fr);
 }
+.viz-main:has(> .slot-left:not(:empty)) { grid-template-columns: minmax(280px, 1fr) minmax(320px, 1fr) minmax(320px, 1fr); }
 .viz-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-@media (max-width: 1080px) { .viz-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-@media (max-width: 720px) { .viz-main { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1080px) { .viz-main, .viz-main:has(> .slot-left:not(:empty)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 720px) { .viz-main, .viz-main:has(> .slot-left:not(:empty)) { grid-template-columns: minmax(0, 1fr); } }
+.slot-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.slot-code { min-width: 0; }
+.code-view { min-height: 120px; }
+.slot-code:not(:empty) + .code-empty { display: none; }
+.empty { padding: 16px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--dim); text-align: center; }
+
+/* view and column tab bars */
+.viz > .tabs { margin: 0 0 12px; border-bottom: 1px solid var(--line); }
+.viz-col > .tabs { border-bottom: 1px solid var(--line); }
+.tabs .tab { border-radius: 6px 6px 0 0; padding: 6px 14px; }
+.tabs .tab:disabled { opacity: 0.45; cursor: not-allowed; }
+.viz > .tabs .tab.active, .viz-col > .tabs .tab.active { border-color: var(--line); border-bottom-color: var(--panel); background: var(--panel); margin-bottom: -1px; }
+.tab-panes > .tab-pane { min-width: 0; }
+
+/* built-in controls give way to the debugger's */
+.viz:has(.slot-left:not(:empty)) .transport { display: none; }
+.viz[data-builtin-controls='on'] .transport { display: flex; }
+.viz[data-builtin-controls='off'] .transport { display: none; }
+
+/* screen tab */
+.screen { display: flex; flex-direction: column; gap: 8px; }
+.capture { padding: 0 2px; }
 
 /* ---- panels ---- */
 .panel {
@@ -160,13 +184,27 @@ body { margin: 0; background: #0a0d13; }
 .reg.flash { animation: flash 0.7s ease-out; }
 @keyframes flash { from { background: var(--accent-soft); } to { background: var(--panel-2); } }
 
-/* cpu / disassembly */
-.cpu .panel-body { padding: 6px 0; font: 12.5px/1.65 var(--mono); }
+/* listing: virtualised disassembly with a breakpoint gutter */
+.listing .panel-body { padding: 0; font: 12.5px/22px var(--mono); }
+.listing-scroll { position: relative; overflow-y: auto; overscroll-behavior: contain; }
+.listing-spacer { position: relative; }
+.listing-rows { position: absolute; inset: 0 0 auto 0; will-change: transform; }
+.follow { display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; }
+.follow input { accent-color: var(--accent); }
 .dis-row {
-  display: grid; grid-template-columns: 4ch 8ch minmax(0, 9ch) 6ch 1fr; gap: 10px;
-  padding: 0 12px; border-left: 3px solid transparent; white-space: pre;
+  display: grid; grid-template-columns: 18px 4ch 8ch minmax(0, 9ch) 6ch 1fr; gap: 10px;
+  padding: 0 12px 0 0; border-left: 3px solid transparent; white-space: pre; cursor: default;
 }
+.dis-row:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .dis-row.current { background: var(--accent-soft); border-left-color: var(--accent); }
+.dis-row.culprit { box-shadow: inset 0 0 0 1px var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.dis-gutter { position: relative; cursor: pointer; }
+.dis-gutter::before {
+  content: ''; position: absolute; left: 5px; top: 6px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--err); opacity: 0; transition: opacity 0.1s;
+}
+.dis-row:hover .dis-gutter::before { opacity: 0.25; }
+.dis-row.bp .dis-gutter::before { opacity: 1; }
 .dis-addr { color: var(--dim); text-align: right; }
 .dis-word { color: var(--dim); opacity: 0.7; }
 .dis-label { color: var(--warn); overflow: hidden; text-overflow: ellipsis; }

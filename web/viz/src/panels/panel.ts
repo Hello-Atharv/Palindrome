@@ -9,6 +9,10 @@ export interface Ctx {
   snap: Snapshot;
   prev: Snapshot | null;
   program: ProgramInfo | null;
+  /** Largest t reached on the current branch (reset by host actions and loads). */
+  maxT: number;
+  /** True once a host action discarded part of the timeline (typed or flipped direction after scrubbing back). */
+  branch: boolean;
 }
 
 export interface Panel {

@@ -1,12 +1,13 @@
-import type { RVM, Status } from '../../../spec/vm_api';
+import type { Direction, RVM, Status } from '../../../spec/vm_api';
 import { buildControls } from './controls';
 import { h } from './dom';
-import { attachKeys, describeKey } from './keys';
-import { cpuPanel } from './panels/cpu';
-import { framebufferPanel } from './panels/framebuffer';
+import { attachKeys } from './keys';
+import { listingPanel } from './panels/listing';
+import type { ListingApi } from './panels/listing';
 import { memoryPanel } from './panels/memory';
-import type { Ctx } from './panels/panel';
+import type { Ctx, Panel } from './panels/panel';
 import { registersPanel } from './panels/registers';
+import { screenPanel } from './panels/screen';
 import { statusPanel } from './panels/status';
 import { inspectImage } from './program';
 import type { ProgramEntry, ProgramInfo } from './program';
@@ -14,13 +15,18 @@ import { Runner } from './runner';
 import type { RunMode } from './runner';
 import { takeSnapshot } from './snapshot';
 import type { Snapshot } from './snapshot';
+import { Tabs } from './tabs';
 
 export interface VizOptions {
   /** Sample programs for the picker. The first one is loaded unless `initialProgram` says otherwise. */
   programs?: ProgramEntry[];
   initialProgram?: number;
-  /** Send keyboard events to the machine with pushInput (default true; the user can toggle it). */
-  captureKeys?: boolean;
+}
+
+/** One machine under the shell. Every action is applied to all of them, so they share one clock (Compare view). */
+export interface Machine {
+  label: string;
+  vm: RVM;
 }
 
 /** Empty containers inside the shell for other tools (the debugger) to fill. */
@@ -31,9 +37,19 @@ export interface VizSlots {
   timeline: HTMLElement;
   /** Bottom of the right-hand column: breakpoints, watch lists, ... */
   side: HTMLElement;
+  /** The debugger's left pane (editor, controls, watches). While it has children the built-in controls hide. */
+  left: HTMLElement;
+  /** Body of the Code view (the editor). */
+  code: HTMLElement;
 }
 
 export interface UpdateEvent {
+  t: number;
+  /** Largest t reached on the current branch. */
+  maxT: number;
+  /** True once a host action discarded part of the timeline since the last load. */
+  branch: boolean;
+  direction: Direction;
   snap: Snapshot;
   /** Snapshot before the most recent change of t (null right after a load). */
   prev: Snapshot | null;
@@ -43,20 +59,29 @@ export interface UpdateEvent {
 export interface VizEvents {
   /** After every panel refresh (a step, a run frame, a load, a key press, or `refresh()`). */
   update: UpdateEvent;
-  /** After a program was loaded and the VM reset to t = 0. */
+  /** After a program was loaded and the machines reset to t = 0. */
   load: ProgramInfo;
   /** Run state changed: which way it is running, or null when paused/stopped. */
   run: { mode: RunMode | null };
 }
 
+export type BuiltinControls = 'auto' | 'on' | 'off';
+
 export interface VizHandle {
   readonly root: HTMLElement;
+  /** The primary machine (machines[0]). */
   readonly vm: RVM;
+  readonly machines: readonly Machine[];
   readonly slots: VizSlots;
+  /** Hooks into the code listing: line clicks, breakpoint dots, culprit line. */
+  readonly listing: ListingApi;
   readonly program: ProgramInfo | null;
+  /** Latest snapshot of the primary machine. */
   readonly snapshot: Snapshot;
+  readonly maxT: number;
+  readonly branch: boolean;
   on<K extends keyof VizEvents>(event: K, fn: (e: VizEvents[K]) => void): () => void;
-  /** Re-read the VM and redraw. Call this after driving `vm` directly (runTo, setDirection, ...). */
+  /** Re-read the machines and redraw. Call this after driving a vm directly (runTo, ...). */
   refresh(status?: Status): void;
   step(): Status;
   stepBack(): Status;
@@ -64,6 +89,13 @@ export interface VizHandle {
   pause(): void;
   reset(): Status;
   loadImage(name: string, image: Uint8Array): Status;
+  /** Host actions: apply to every machine, start a new branch (maxT resets), then redraw. Prefer these over calling the vm. */
+  pushInput(value: number): Status;
+  setDirection(d: Direction): Status;
+  /** Call after you did a host action on a vm yourself, so maxT and `branch` stay right. */
+  noteHostAction(): void;
+  /** 'auto' (default): hide the built-in step/run controls while `slots.left` has children. */
+  setBuiltinControls(mode: BuiltinControls): void;
   destroy(): void;
 }
 
@@ -72,17 +104,27 @@ type Listeners = { [K in keyof VizEvents]: Set<(e: VizEvents[K]) => void> };
 /** Build the visualiser into `root` and drive `vm`. This is the debugger's mount point. */
 export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): VizHandle {
   const programs = opts.programs ?? [];
-  let capture = opts.captureKeys ?? true;
+  const machines: Machine[] = [{ label: vm.kind, vm }];
   let program: ProgramInfo | null = null;
   let last: Snapshot = takeSnapshot(vm, 'ok');
   let prev: Snapshot | null = null;
   let status: Status = 'ok';
+  let maxT = 0;
+  let branch = false;
+  let refreshQueued = false;
   const listeners: Listeners = { update: new Set(), load: new Set(), run: new Set() };
   const emit = <K extends keyof VizEvents>(k: K, e: VizEvents[K]): void => listeners[k].forEach((fn) => fn(e));
+  const primary = (): RVM => machines[0].vm;
+  /** Apply an action to every machine; the primary's result is the answer. */
+  const all = (fn: (v: RVM) => Status): Status => machines.map((m) => fn(m.vm))[0];
 
   // ---- panels ----
-  const panels = [framebufferPanel(), statusPanel(), registersPanel(), cpuPanel(), memoryPanel()];
-  const [display, statusP, registers, cpu, memory] = panels;
+  const registers = registersPanel();
+  const listing = listingPanel();
+  const statusP = statusPanel();
+  const memory = memoryPanel();
+  const screen = screenPanel();
+  const panels: Panel[] = [registers, listing, statusP, memory, screen];
 
   // ---- runner and controls ----
   const runner = new Runner(vm, (s, running) => {
@@ -101,7 +143,6 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     setSpeed: (i) => { runner.speedIndex = i; },
     loadSample: (i) => loadSample(i),
     loadFile: (f) => void f.arrayBuffer().then((b) => api.loadImage(f.name, new Uint8Array(b))),
-    setCapture: (on) => { capture = on; },
   });
 
   // ---- DOM ----
@@ -109,10 +150,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     toolbar: h('div', 'slot slot-toolbar'),
     timeline: h('div', 'slot slot-timeline'),
     side: h('div', 'slot slot-side'),
+    left: h('div', 'slot slot-left'),
+    code: h('div', 'slot slot-code'),
   };
-  slots.toolbar.dataset.slot = 'toolbar';
-  slots.timeline.dataset.slot = 'timeline';
-  slots.side.dataset.slot = 'side';
+  for (const [k, e] of Object.entries(slots)) e.dataset.slot = k;
 
   const header = h('header', 'viz-header');
   const brand = h('div', 'brand');
@@ -123,28 +164,61 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const bar = h('div', 'viz-bar');
   bar.append(controls.transport, slots.toolbar);
 
-  const main = h('main', 'viz-main');
-  const col = (...els: HTMLElement[]): HTMLElement => {
-    const c = h('div', 'viz-col');
-    c.append(...els);
-    return c;
-  };
-  main.append(col(display.el, statusP.el), col(registers.el, cpu.el), col(memory.el, slots.side));
+  // right-hand tabs: Memory / Screen / Compare (Compare needs the second engine)
+  const rightTabs = new Tabs(
+    [
+      { id: 'memory', label: 'Memory', el: memory.el },
+      { id: 'screen', label: 'Screen', el: screen.el },
+      { id: 'compare', label: 'Compare', el: h('div', 'empty', 'Compare needs the reversible engine in the browser (WASM build).'), disabled: true, title: 'available once the WASM build lands' },
+    ],
+    'screen',
+  );
+  const right = h('div', 'viz-col');
+  right.append(rightTabs.bar, rightTabs.body, slots.side);
+
+  const centre = h('div', 'viz-col');
+  centre.append(registers.el, listing.el, statusP.el);
+
+  const debugView = h('div', 'viz-main');
+  debugView.append(slots.left, centre, right);
+
+  const codeView = h('div', 'code-view');
+  codeView.append(slots.code, h('p', 'empty code-empty', 'The editor appears here when the debugger is mounted.'));
+
+  const views = new Tabs([
+    { id: 'debug', label: 'Debug', el: debugView },
+    { id: 'code', label: 'Code', el: codeView },
+  ]);
 
   root.classList.add('viz');
-  root.replaceChildren(header, bar, slots.timeline, main);
+  root.replaceChildren(header, bar, slots.timeline, views.bar, views.body);
 
   // ---- state flow ----
   function refresh(s: Status = 'ok'): void {
+    refreshQueued = false;
     status = s;
-    const cur = takeSnapshot(vm, s);
+    const cur = takeSnapshot(primary(), s);
     if (cur.t !== last.t) prev = last;
     last = cur;
+    if (cur.t > maxT) maxT = cur.t;
     root.dataset.dir = cur.direction === 1 ? 'fwd' : 'rev';
     root.dataset.status = s;
-    const ctx: Ctx = { vm, snap: cur, prev, program };
+    const ctx: Ctx = { vm: primary(), snap: cur, prev, program, maxT, branch };
     for (const p of panels) p.update(ctx);
-    emit('update', { snap: cur, prev, status: s });
+    emit('update', { t: cur.t, maxT, branch, direction: cur.direction, snap: cur, prev, status: s });
+  }
+
+  /** Coalesce bursts (key presses) into one redraw per animation frame. */
+  function scheduleRefresh(): void {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    requestAnimationFrame(() => refresh(status));
+  }
+
+  function hostAction(): void {
+    const t = primary().instructionCount;
+    if (t < maxT) branch = true; // the future above t is discarded
+    maxT = t;
   }
 
   function loadSample(i: number): void {
@@ -156,19 +230,22 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
 
   const detachKeys = attachKeys(
     (value) => {
-      vm.pushInput(value);
-      controls.setLastKey(describeKey(value));
-      refresh(status);
+      api.pushInput(value);
+      screen.setLastKey(value);
     },
-    () => capture,
+    () => screen.capturing() && views.active === 'debug' && rightTabs.active === 'screen',
   );
 
   const api: VizHandle = {
     root,
     vm,
+    machines,
     slots,
+    listing: listing.api,
     get program() { return program; },
     get snapshot() { return last; },
+    get maxT() { return maxT; },
+    get branch() { return branch; },
     on(event, fn) {
       const set = listeners[event] as Set<unknown>;
       set.add(fn);
@@ -177,13 +254,13 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     refresh,
     step() {
       api.pause();
-      const s = vm.stepForward();
+      const s = all((v) => v.stepForward());
       refresh(s);
       return s;
     },
     stepBack() {
       api.pause();
-      const s = vm.stepBack();
+      const s = all((v) => v.stepBack());
       refresh(s);
       return s;
     },
@@ -205,17 +282,39 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     loadImage(name, image) {
       runner.stop();
       controls.setRunning(null);
-      const s = vm.loadProgram(image);
+      const s = all((v) => v.loadProgram(image));
       if (s === 'ok') {
         program = inspectImage(name, image);
         prev = null;
-        last = takeSnapshot(vm, 'ok');
+        maxT = 0;
+        branch = false;
+        last = takeSnapshot(primary(), 'ok');
         refresh('ok');
         emit('load', program);
       } else {
         refresh(s);
       }
       return s;
+    },
+    pushInput(value) {
+      const s = all((v) => v.pushInput(value));
+      hostAction();
+      scheduleRefresh();
+      return s;
+    },
+    setDirection(d) {
+      const s = all((v) => v.setDirection(d));
+      hostAction();
+      refresh(status);
+      return s;
+    },
+    noteHostAction() {
+      hostAction();
+      refresh(status);
+    },
+    setBuiltinControls(mode) {
+      if (mode === 'auto') delete root.dataset.builtinControls;
+      else root.dataset.builtinControls = mode;
     },
     destroy() {
       runner.stop();

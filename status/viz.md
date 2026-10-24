@@ -58,3 +58,11 @@ Updated: 2026-10-24
   6. `historyBytes` (logging) = 4 bytes per journal word (changed word = 2 words, plus 1 header per step) + 8 per direction flip;
      it shrinks again on `stepBack`.
   7. A fall-off-the-end PC (>= code length) is a fault, not a halt.
+
+## Milestones (updated 2026-10-24)
+- M0 done: mock matches the C++ logging VM (BR/RET/CALL faults, LND prev tracking, tape persists across load, setInputTape
+  only replaces the tape, 48 B/step + 8 B/flip history). mock_vm 53/53.
+- M1 done: tabs (Debug/Code views; right: Memory/Screen/Compare[disabled]), machines list, virtualised listing with gutter,
+  hooks for the debugger (listing API, slots incl. `left`/`code`, `update` event with t/maxT/branch/direction, host-action
+  helpers). Signatures: web/viz/README.md. Keys only reach the machine while the Screen tab is open. viz 21/21.
+- Decision to confirm: `branch` = true after a host action while t < maxT (a real fork); cleared on load.

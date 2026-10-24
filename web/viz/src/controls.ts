@@ -12,17 +12,15 @@ export interface ControlActions {
   setSpeed(index: number): void;
   loadSample(index: number): void;
   loadFile(file: File): void;
-  setCapture(on: boolean): void;
 }
 
 export interface Controls {
   /** Main transport bar. */
   transport: HTMLElement;
-  /** Program picker, file loader, key capture toggle. */
+  /** Program picker and file loader. */
   program: HTMLElement;
   setRunning(mode: RunMode | null): void;
   setProgramIndex(index: number): void;
-  setLastKey(text: string): void;
 }
 
 const speedLabel = (r: number): string => (r === Infinity ? 'max' : r >= 1000 ? `${r / 1000}k/s` : `${r}/s`);
@@ -87,14 +85,7 @@ export function buildControls(programs: ProgramEntry[], speedIndex: number, a: C
   const load = button('Load .rvm…', 'Load a program image from disk');
   load.addEventListener('click', () => file.click());
 
-  const capture = h('input');
-  capture.type = 'checkbox';
-  capture.checked = true;
-  capture.addEventListener('change', () => a.setCapture(capture.checked));
-  const captureLabel = h('label', 'capture');
-  const lastKey = h('span', 'last-key mono', 'no key yet');
-  captureLabel.append(capture, h('span', '', 'keys → machine'), lastKey);
-  program.append(select, load, file, captureLabel);
+  program.append(select, load, file);
 
   return {
     transport,
@@ -107,9 +98,6 @@ export function buildControls(programs: ProgramEntry[], speedIndex: number, a: C
     },
     setProgramIndex(i) {
       select.value = String(i);
-    },
-    setLastKey(text) {
-      lastKey.textContent = text;
     },
   };
 }
