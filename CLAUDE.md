@@ -44,5 +44,9 @@ Needs CMake >= 3.21, a C++17 compiler (MSVC or Apple clang), Node.
 - `npm run build` configure + build (Release) / `npm test` build + CTest / `npm run dev` Debug build.
 Underlying: `cmake --preset default`, `cmake --build --preset default`, `ctest --preset default`.
 
+## Assembler
+`cd asm && npm install && npm run build`, then `node asm/dist/cli.js prog.s -o prog.rvm`. Run a program with
+`build/default/rvm_run prog.rvm --engine reversible --rewind` (built by `npm run build` at the root). Syntax: `spec/asm_syntax.md`.
+
 ## Git workflow
 Branch from `scaffold` (later `main`): `git checkout -b <role>/<topic>`. Commit small, rebase often. Directories have one owner, so merges should not conflict; if one does, ask. Do not rewrite shared branches. `build/` and `node_modules/` are ignored.

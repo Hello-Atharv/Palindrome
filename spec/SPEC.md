@@ -341,9 +341,9 @@ Watchpoints (stop when a register or memory word changes) are the same idea: com
 step. Both are UI-side.
 
 **Labels and source lines.** `vm_api.ts` has no symbol accessor. For label names, the UI parses the symbol table
-at the end of the `.rvm` file (`program_format.md`). For source lines, the assembler will write a
-`.rvm.map` source map (JSON, code address to file and line). **Its exact format is defined by `asm/` and is
-not final**; until it lands, show disassembly and labels only.
+at the end of the `.rvm` file (`program_format.md`) or reads `labels` from the source map. For source lines, the
+assembler writes a `.rvm.map` source map (version 1, defined in `program_format.md`: code address to file and
+line). The browser assembler (`assemble()` in `asm/`) returns the same data as `sourceMap` and `listing`.
 
 **Reading faults.** After a `fault`, state is unchanged and `lastError` explains why. PC points at the
 instruction that faulted. Stepping back still works.

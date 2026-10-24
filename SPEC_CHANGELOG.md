@@ -16,3 +16,5 @@ One line per change to `spec/`, newest last: `YYYY-MM-DD | file | what changed |
 2026-10-24 | SPEC.md (11.7), input_tape.md | key encoding changed to the viz implementation: value = code | (released ? 0x100 : 0); press is the plain code (ASCII/arrows 0x80-0x83); replaces the earlier (pressed<<8)|code proposal | core
 2026-10-24 | SPEC.md (7), vm_api.h behaviour | reversible VM implemented; oracle contract restated: identical state/status after every action for well-formed programs; only the LND assertion is logging-VM-only | core
 2026-10-24 | SPEC.md | 11.4/11.8: added reverse watchpoint (run backward until a register or memory word changes; lands on the writing instruction); no API change | core
+2026-10-24 | asm_syntax.md, program_format.md, SPEC.md (11.8) | assembler built: asm_syntax.md rewritten to the implemented syntax (expressions, directives, br/lnd forms, rejected cases); source map v1 defined in program_format.md; no ISA change | core
+2026-10-24 | asm_syntax.md | added macros: .if/.else/.fi and .loop/.again (expand to br/lnd; same code as hand-written examples); $ labels reserved for generated code; no ISA change | core

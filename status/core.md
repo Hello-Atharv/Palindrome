@@ -12,8 +12,13 @@ Updated: 2026-10-24
 - `tests/differential_test.cpp`: random scrub walks (step, step back, run_to, set_direction, push_input) on both VMs over structured, input-reading and random programs, comparing state after every action; plus a 200,001-step rewind with 0 bytes of history. Mutation-checked: breaking the step-back time, the RET undo, or the ROLI inverse is each caught.
 - Fixed: `run_to` could loop forever if a step back failed.
 
+- **Assembler** (`asm/`, TypeScript): all 19 instructions, pseudo-ops, `.data/.word/.space/.equ/.entry`, expressions, operand and control-flow checks with source lines, `.rvm` writer, listing, source map v1, Node CLI (`rvmasm`). 33 unit tests plus 12 integration tests that assemble the examples and run them on both C++ engines with rewind and replay (via the new `rvm_run` tool).
+- `vm/tools/rvm_run.cpp`: run a `.rvm` on either engine (`--engine`, `--rewind`, `--mem`, `--tape`, `--dir -1`).
+
+- **Macros**: `.if/.else/.fi` and `.loop/.again` (nestable), expanding to the exact hand-written code; hidden `$` labels; 62 assembler tests including nested.s on both engines with rewind and replay.
+
 ## In progress
-- Minimal assembler (`asm/`), then `if`/`loop` macros.
+- WASM build of the VMs, then benchmarks.
 
 ## Notes for others
 - C++ namespace is `rev` (the C handle struct is `rvm`). The two VMs match on well-formed programs; only the `LND` assertion is logging-VM-only (SPEC section 7).

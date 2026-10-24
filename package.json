@@ -6,6 +6,8 @@
   "scripts": {
     "build": "cmake --preset default && cmake --build --preset default",
     "test": "npm run build && ctest --preset default",
-    "dev": "cmake --preset debug && cmake --build --preset debug"
+    "dev": "cmake --preset debug && cmake --build --preset debug",
+    "test:asm": "npm --prefix asm test",
+    "build:asm": "npm --prefix asm install && npm --prefix asm run build"
   }
 }
