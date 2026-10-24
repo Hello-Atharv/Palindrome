@@ -20,6 +20,8 @@ const ICONS = {
   build: { d: 'M3 13.5h10M8 2.5v8M4.8 7.5L8 10.7l3.2-3.2' },
   halt: { d: 'M3.5 3.5h9v9h-9z' },
   chevronDown: { d: 'M4 6l4 4 4-4' },
+  chevronLeft: { d: 'M10 3.5L5.5 8l4.5 4.5' },
+  chevronRight: { d: 'M6 3.5L10.5 8 6 12.5' },
 } as const satisfies Record<string, Shape>;
 
 export type IconName = keyof typeof ICONS;

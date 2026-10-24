@@ -15,6 +15,7 @@ import type { Ctx, Panel } from './panels/panel';
 import { registersPanel } from './panels/registers';
 import { screenPanel } from './panels/screen';
 import { timelinePanel } from './panels/timeline';
+import { numberInputPanel } from './panels/numberinput';
 import { valuesPanel } from './panels/values';
 import { visualisePanel } from './panels/visualise';
 import { inspectImage, learnVerdict } from './program';
@@ -185,7 +186,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const screen = screenPanel();
   const values = valuesPanel();
   const banners = bannersPanel();
-  const visualise = visualisePanel();
+  // two places to type a number for the machine (the visualisation and the output), both feed the input tape
+  const numberA = numberInputPanel((n) => void api.pushInput(n));
+  const numberB = numberInputPanel((n) => void api.pushInput(n));
+  const visualise = visualisePanel(numberA.el);
   const compare = comparePanel({
     onToggle: (on) => void api.setCompare(on),
     onMismatch: () => api.pause(),
@@ -232,7 +236,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     runner.speedIndex,
   );
   const timeline = timelinePanel(transport, (t) => seek(t));
-  const panels: Panel[] = [registers, editor, memory, screen, values, banners, timeline, compare, visualise];
+  const panels: Panel[] = [registers, editor, memory, screen, values, banners, timeline, compare, visualise, numberA, numberB];
 
   const programBar = buildProgramBar(
     programs,
@@ -251,16 +255,11 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   for (const [k, e] of Object.entries(slots)) e.dataset.slot = k;
   timeline.el.querySelector('.dbg-top')!.insertBefore(slots.toolbar, transport.el.nextSibling);
 
-  // header: sidebar switch, name, engine, program
+  // header: name, engine, program
   const header = h('header', 'viz-header');
-  const sidebarBtn = h('button', 'ibtn sidebar-btn');
-  sidebarBtn.type = 'button';
-  sidebarBtn.title = 'Show or hide the editor and debug controls (Ctrl+B)';
-  sidebarBtn.setAttribute('aria-label', 'Toggle the editor and debug controls');
-  sidebarBtn.append(icon('sidebar'));
   const brand = h('h1', 'brand', 'Reversible machine');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
-  header.append(sidebarBtn, brand, h('span', 'grow'), engineSwitch.el, programBar.el);
+  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el);
 
   // left: the editor with the debug bar at its foot (collapsible)
   const ide = h('aside', 'ide');
@@ -270,7 +269,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   // right: three tabs
   const outputPane = h('div', 'out');
   const outLeft = h('div', 'out-col');
-  outLeft.append(screen.el, registers.el);
+  outLeft.append(screen.el, numberB.el, registers.el);
   const inspector = h('details', 'inspector');
   const summary = h('summary', '', 'Memory inspector');
   inspector.append(summary, memory.el);
@@ -302,19 +301,73 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     refresh(status);
   });
 
+  // the divider: drag it to resize the editor, double-click to reset, and its button collapses or restores the editor
+  const divider = h('div', 'divider');
+  divider.setAttribute('role', 'separator');
+  divider.setAttribute('aria-orientation', 'vertical');
+  divider.setAttribute('aria-label', 'Drag to resize the editor');
+  const dividerBtn = h('button', 'divider-btn');
+  dividerBtn.type = 'button';
+  dividerBtn.title = 'Show or hide the editor (Ctrl+B)';
+  divider.append(dividerBtn);
+
   const split = h('div', 'split');
-  split.append(ide, work);
+  split.append(ide, divider, work);
   root.classList.add('viz');
   root.dataset.ide = 'open';
   root.replaceChildren(header, banners.el, split);
 
+  const MIN_IDE = 260;
+  const store = (key: string, value: string | null): void => {
+    try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* storage can be blocked */ }
+  };
+  const read = (key: string): string | null => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  };
+
   function setSidebar(open: boolean): void {
     root.dataset.ide = open ? 'open' : 'closed';
-    sidebarBtn.setAttribute('aria-pressed', String(open));
-    try { localStorage.setItem('viz.ide', open ? 'open' : 'closed'); } catch { /* storage can be blocked */ }
+    dividerBtn.setAttribute('aria-pressed', String(open));
+    dividerBtn.setAttribute('aria-label', open ? 'Hide the editor' : 'Show the editor');
+    dividerBtn.replaceChildren(icon(open ? 'chevronLeft' : 'chevronRight'));
+    store('viz.ide', open ? 'open' : 'closed');
   }
-  sidebarBtn.addEventListener('click', () => setSidebar(root.dataset.ide !== 'open'));
-  try { if (localStorage.getItem('viz.ide') === 'closed') setSidebar(false); else setSidebar(true); } catch { setSidebar(true); }
+  dividerBtn.addEventListener('click', () => setSidebar(root.dataset.ide !== 'open'));
+  dividerBtn.addEventListener('pointerdown', (ev) => ev.stopPropagation()); // a click on the button is not a drag
+
+  function setEditorWidth(px: number | null): void {
+    if (px === null) {
+      root.style.removeProperty('--ide-w');
+      store('viz.ideW', null);
+      return;
+    }
+    const max = Math.max(MIN_IDE, split.clientWidth * 0.7);
+    const w = Math.round(Math.min(Math.max(px, MIN_IDE), max));
+    root.style.setProperty('--ide-w', `${w}px`);
+    store('viz.ideW', String(w));
+  }
+  divider.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault(); // a drag must not move focus or select text
+    if (root.dataset.ide !== 'open') return;
+    divider.setPointerCapture(ev.pointerId);
+    divider.classList.add('dragging');
+  });
+  divider.addEventListener('pointermove', (ev) => {
+    if (root.dataset.ide === 'open' && divider.hasPointerCapture(ev.pointerId)) setEditorWidth(ev.clientX - split.getBoundingClientRect().left);
+  });
+  const endDrag = (ev: PointerEvent): void => {
+    if (divider.hasPointerCapture(ev.pointerId)) divider.releasePointerCapture(ev.pointerId);
+    divider.classList.remove('dragging');
+  };
+  divider.addEventListener('pointerup', endDrag);
+  divider.addEventListener('pointercancel', endDrag);
+  divider.addEventListener('dblclick', (ev) => {
+    if (ev.target === dividerBtn || dividerBtn.contains(ev.target as Node)) return;
+    setEditorWidth(null);
+  });
+  const savedWidth = Number(read('viz.ideW'));
+  if (savedWidth > 0) root.style.setProperty('--ide-w', `${savedWidth}px`);
+  setSidebar(read('viz.ide') !== 'closed');
 
   // ---- state flow ----
   function updateMode(): void {

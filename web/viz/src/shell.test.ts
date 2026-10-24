@@ -158,7 +158,7 @@ describe('layout', () => {
 
   it('the editor and debug controls collapse completely, with the button and with Ctrl+B', () => {
     expect(root.dataset.ide).toBe('open');
-    root.querySelector<HTMLButtonElement>('.sidebar-btn')!.click();
+    root.querySelector<HTMLButtonElement>('.divider-btn')!.click();
     expect(root.dataset.ide).toBe('closed');
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, bubbles: true }));
     expect(root.dataset.ide).toBe('open');

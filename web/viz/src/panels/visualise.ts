@@ -44,7 +44,7 @@ class Window {
   }
 
   render(words: Uint32Array, fmt: (v: number) => string, mark = -1): void {
-    for (let r = 0; r < this.addrs.length; r++) this.addrs[r].textContent = hex(this.base + r * COLS, 5);
+    for (let r = 0; r < this.addrs.length; r++) this.addrs[r].textContent = String(this.base + r * COLS); // row numbers in decimal
     words.forEach((v, i) => {
       const c = this.cells[i];
       c.textContent = fmt(v);
@@ -75,7 +75,7 @@ export type VisualisePanel = Panel & {
  * All of the machine's memory and registers still exist and run; only 64 data words and 16 stack words are drawn.
  * Only for simple programs (see learnVerdict).
  */
-export function visualisePanel(): VisualisePanel {
+export function visualisePanel(inputBar?: HTMLElement): VisualisePanel {
   const el = h('div', 'vis');
 
   // controls: pace and number format
@@ -109,14 +109,15 @@ export function visualisePanel(): VisualisePanel {
   const stack = new Window(STACK_BASE, STACK_WORDS);
   memBox.append(
     h('h3', 'vis-h', 'Data memory, words 0–63'), data.el,
-    h('h3', 'vis-h', `Stack from ${hex(STACK_BASE, 5)}`), stack.el,
+    h('h3', 'vis-h', `Stack from ${STACK_BASE}`), stack.el,
     h('p', 'caption dim', '80 of the 133,120 writable words are drawn; all of memory still exists and runs.'),
   );
 
   const off = h('div', 'empty vis-off');
   const main = h('div', 'vis-main');
   main.append(dpBox, memBox);
-  el.append(bar, main, off);
+  if (inputBar) el.append(bar, inputBar, main, off);
+  else el.append(bar, main, off);
 
   let fmt = FORMATS.signed;
   let pace: PaceName = 'slow';
@@ -180,6 +181,7 @@ export function visualisePanel(): VisualisePanel {
       off.hidden = verdict.ok;
       main.hidden = !verdict.ok;
       bar.hidden = !verdict.ok;
+      if (inputBar) inputBar.hidden = !verdict.ok;
       off.textContent = verdict.why;
       if (!verdict.ok) {
         program = undefined;

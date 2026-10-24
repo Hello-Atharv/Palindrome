@@ -16,6 +16,7 @@ await server.listen();
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
+await page.addInitScript(() => localStorage.clear()); // every page load starts from the defaults
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => ['error', 'warning'].includes(m.type()) && errors.push(`${m.type()}: ${m.text()}`));
 
@@ -113,8 +114,33 @@ await shot('14-fault');
 
 // 15 the editor and debug controls collapsed
 await load('if / else');
-await page.click('.sidebar-btn');
+await page.click('.divider-btn');
 await shot('15-editor-collapsed');
+
+// 17-19 add two numbers: send 7 and 5 through the box, then watch the machine read them
+await load('add two numbers');
+await shot('17-add-two-empty');
+await page.fill('.vis .numin-field', '7');
+await page.click('.vis .numin .btn');
+await page.fill('.vis .numin-field', '5');
+await page.click('.vis .numin .btn');
+await dev(() => { const v = window.__dev.viz; v.step(); v.step(); v.step(); });
+await page.waitForTimeout(500);
+await dev(() => window.__dev.viz.step());
+await shot('18-add-two-reading-input', 1700);
+await page.waitForTimeout(8000);
+await dev(() => { const v = window.__dev.viz; v.vm.runTo(1000); v.refresh(); });
+await page.click(TAB(2));
+await shot('19-add-two-output');
+
+// 20 the editor resized by dragging the divider
+await load('if / else');
+const box = await page.locator('.divider').boundingBox();
+await page.mouse.move(box.x + 4, box.y + 200);
+await page.mouse.down();
+await page.mouse.move(700, box.y + 200, { steps: 6 });
+await page.mouse.up();
+await shot('20-editor-resized');
 
 // 16 a program too big to animate
 await load('sort');

@@ -22,7 +22,8 @@
 .ibtn.run-back.active { color: var(--back); }
 .ibtn[aria-pressed='true'] { color: var(--back); background: color-mix(in srgb, var(--back) 14%, var(--panel)); }
 .btn:focus-visible, .ibtn:focus-visible, .select:focus-visible, .tab:focus-visible, .seg:focus-visible, .addr-input:focus-visible,
-.strip:focus-visible, .ed-text:focus-visible, .ed-scroll:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+.strip:focus-visible, .ed-scroll:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+.ed-text:focus-visible { outline: none; } /* an editor shows its caret, not a focus box */
 .select {
   height: 30px; padding: 0 var(--s-8); border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--panel-2); color: var(--text); font: inherit;
@@ -78,10 +79,24 @@
 .ed-body { position: relative; }
 .ed-cur { position: absolute; left: 0; right: 0; height: 20px; background: color-mix(in srgb, var(--flash) 16%, transparent); border-left: 2px solid var(--flash); pointer-events: none; }
 .ed-culprit { position: absolute; left: 0; right: 0; height: 20px; background: color-mix(in srgb, var(--branch) 20%, transparent); box-shadow: inset 0 0 0 1px var(--branch); pointer-events: none; }
-.ed-text {
-  position: relative; display: block; margin: 0; padding: 0 var(--s-12); border: 0; outline: 0; resize: none; overflow: hidden;
-  background: transparent; color: var(--text); font: 13.5px/20px var(--mono); white-space: pre; tab-size: 8; caret-color: var(--text);
+/* the textarea is transparent; the coloured copy underneath (.ed-syn) must match it exactly, glyph for glyph */
+.ed-text, .ed-syn {
+  margin: 0; padding: 0 var(--s-12); border: 0; font: 13.5px/20px var(--mono); white-space: pre; tab-size: 8;
 }
+.ed-text {
+  position: relative; display: block; outline: 0; resize: none; overflow: hidden;
+  background: transparent; color: transparent; caret-color: var(--text);
+}
+.ed-text::selection { background: rgb(76 120 190 / 0.45); }
+.ed-syn { position: absolute; inset: 0 auto auto 0; color: var(--text); pointer-events: none; }
+.tok-comment { color: #6a9955; }
+.tok-directive { color: #4ec9b0; }
+.tok-label { color: #dcdcaa; }
+.tok-op { color: #569cd6; }
+.tok-flow { color: #c586c0; }
+.tok-register { color: #9cdcfe; }
+.tok-number { color: #b5cea8; }
+.tok-cond { color: #ce9178; }
 .ed-problems { flex: none; max-height: 110px; overflow: auto; margin: 0; padding: var(--s-4) 0; list-style: none; border-top: 1px solid var(--border); font-size: 13px; }
 .prob { display: flex; align-items: center; gap: var(--s-8); padding: 2px var(--s-12); cursor: pointer; }
 .prob.error { color: var(--fault); }
@@ -168,3 +183,13 @@
 @media (prefers-reduced-motion: reduce) {
   .viz *, .viz *::before, .viz *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---- send a number to the machine ---- */
+.numin { display: flex; align-items: center; gap: var(--s-8); flex-wrap: wrap; }
+.numin-label { display: flex; align-items: center; gap: var(--s-8); font-weight: 600; }
+.numin-field { width: 11ch; height: 30px; padding: 0 var(--s-8); border: 1px solid var(--muted); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 14px; }
+.numin-field:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+.numin-seen { font-size: 13px; }
+.numin-error { color: var(--fault); font-size: 13px; }
+.vis > .numin { flex: none; padding: var(--s-4) var(--s-12); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.out-col > .numin { padding: var(--s-8) var(--s-12); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }

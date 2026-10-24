@@ -136,3 +136,14 @@ Updated: 2026-10-24
   `setSidebar` via UI, `Runner` options `gate` and `stopAt`. Removed: tracker panel, listing/code/learn panels, hero timeline.
 - Tests: viz 55/55 (new: editor hooks, layout, sidebar, measurement), tsc clean, scanner 0. Screenshots 01-16.
 - Compare result on sort (159 steps): forward 9.0 us diary vs 4.6 us reversible; back 4.4 us vs 5.4 us; history 7.5 KiB vs 0 B.
+
+## Workbench changes (2026-10-24, web/viz only)
+- Time bar is now a thin line; assembly is syntax-coloured; the editor resizes by dragging the divider and the collapse button
+  sits on the divider (Ctrl+B still works); the visualisation uses solid, brighter parts and light-gridded memory and stack tables
+  with decimal row numbers; "add two numbers" example plus a "Send a number" box (Visualisation and Output).
+- Not yet "implemented into the system" (the user will say when): nothing outside web/viz changed. The example lives in
+  web/viz/src/examples.ts, not in programs/ or asm/examples/.
+- Reversibility of the example: tested on both engines (logging and reversible), forward 7 steps then back 7 steps restores every
+  register and memory word; the reversible engine holds 0 bytes of history. Caveat (SPEC 7): under direction -1 an input-reading
+  program is not exactly self-inverse, because the input window follows machine time; step back is always exact.
+- viz 70/70 tests (15 new), tsc clean, scanner 0, build ok.

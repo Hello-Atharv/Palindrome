@@ -20,7 +20,14 @@ Toolchain: Vite + TypeScript (strict, vanilla DOM) + Vitest (+ jsdom for the she
 | state, history             |  Compare: forward track and back track measured    |
 +----------------------------+---------------------------------------------------+
 ```
-The left side (editor + debug bar) collapses completely: the header button or **Ctrl+B**, as in VS Code.
+The left side (editor + debug bar) collapses completely: the button on the vertical divider or **Ctrl+B**, as in VS Code.
+Drag the divider to resize the editor (260 px up to 70% of the width, remembered), double-click it to reset. Assembly is
+syntax-coloured (comments, labels, instructions, control flow, registers, numbers, conditions, directives) by `src/highlight.ts`,
+drawn behind a transparent textarea. The time line under the controls is a thin track: click or drag it to move through time.
+**Send a number** (Visualisation and Output) puts a number on the input tape at the current `t`; `src/examples.ts` has
+*add two numbers*, which reads two of them from the input window, adds them and files `first`, `second` and `sum` in memory. It is
+reversible: an input is read by xor into a zeroed register, `add` has an inverse, a store is an xor. Send both numbers before
+stepping: the input is time-gated, so a number sent after the step that reads it is not seen.
 - **Editor.** Assembly source (editable; **Build and load**, or Ctrl+Enter) or, for a program without source, its disassembly.
   Line numbers, a breakpoint gutter, the current instruction highlighted, assembler problems listed under the text.
 - **Debug bar.** Small icon buttons (stop, run back, step back, step, run/pause, reverse program, speed), the instruction count

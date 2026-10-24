@@ -1,6 +1,7 @@
 import type { AsmOutcome } from '../assembler';
 import { disassemble } from '../disasm';
 import { h } from '../dom';
+import { tokenize } from '../highlight';
 import { icon } from '../icons';
 import type { Ctx, Panel } from './panel';
 
@@ -75,11 +76,13 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
   const body = h('div', 'ed-body');
   const cur = h('div', 'ed-cur');
   const culpritBar = h('div', 'ed-culprit');
+  const syn = h('pre', 'ed-syn mono'); // the coloured copy of the text, drawn behind the transparent textarea
+  syn.setAttribute('aria-hidden', 'true');
   const text = h('textarea', 'ed-text mono');
   text.spellcheck = false;
   text.setAttribute('wrap', 'off');
   text.setAttribute('aria-label', 'assembly source');
-  body.append(cur, culpritBar, text);
+  body.append(cur, culpritBar, syn, text);
   inner.append(gutter, body);
   scroll.append(inner);
 
@@ -137,6 +140,18 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
     });
   }
 
+  function paintSyntax(): void {
+    const nodes: Node[] = [];
+    tokenize(text.value).forEach((tokens, i, all) => {
+      for (const t of tokens) {
+        if (t.kind === 'plain') nodes.push(document.createTextNode(t.text));
+        else nodes.push(h('span', `tok-${t.kind}`, t.text));
+      }
+      if (i < all.length - 1) nodes.push(document.createTextNode('\n'));
+    });
+    syn.replaceChildren(...nodes);
+  }
+
   function size(): void {
     const content = text.value.split('\n');
     lines = content.length;
@@ -144,6 +159,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
     const longest = content.reduce((m, l) => Math.max(m, l.length), 0);
     text.style.width = `${Math.max(longest + 6, 40)}ch`;
     inner.style.height = `${lines * LINE_H + 8}px`;
+    paintSyntax();
   }
 
   function setContent(value: string, editable: boolean): void {

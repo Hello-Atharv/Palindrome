@@ -16,6 +16,7 @@ import { createMockVm, gradient } from '../../mock_vm/src/index';
 import { createWasmVm } from '../../wasm/src/index';
 import type { AssembleFn } from './assembler';
 import { formatDiagnostics } from './assembler';
+import { ADD_TWO_NUMBERS } from './examples';
 import { mountViz } from './index';
 import type { ProgramEntry } from './program';
 
@@ -39,6 +40,7 @@ const fromSource = (name: string, blurb: string, source: string): ProgramEntry =
 /** Simple programs first: they open in the Visualisation tab. Sort, cipher and the gradient are too big to animate. */
 const programs: ProgramEntry[] = [
   fromSource('if / else', '.if / .else / .fi macros: watch the data move through the datapath', ifelse),
+  fromSource('add two numbers', 'send two numbers, the machine adds them and files the sum (reversible)', ADD_TWO_NUMBERS),
   fromSource('loop', '.loop / .again macros', loop),
   fromSource('nested loop', 'a loop with an if inside', nested),
   fromSource('call / return', 'CALL, PROC and RET on the stack', call),

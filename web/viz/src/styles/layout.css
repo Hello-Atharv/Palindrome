@@ -1,22 +1,38 @@
-/* Page layout: a header, slim notices, then the editor (collapsible) beside the work area. */
+/* Page layout: a header, slim notices, then the editor (resizable, collapsible) beside the work area. */
 .viz {
   height: 100vh; min-height: 520px; display: flex; flex-direction: column;
   background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans);
 }
-.viz-header { flex: none; height: 44px; display: flex; align-items: center; gap: var(--s-12); padding: 0 var(--s-12); border-bottom: 1px solid var(--border); }
+.viz-header { flex: none; height: 44px; display: flex; align-items: center; gap: var(--s-12); padding: 0 var(--s-16); border-bottom: 1px solid var(--border); }
 .brand { margin: 0; font-size: 15px; font-weight: 650; white-space: nowrap; }
 .viz[data-dir='rev'] .brand { color: var(--back); }
 
 .banners { flex: none; }
 .banners:empty { display: none; }
 
-.split { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ide-w) minmax(0, 1fr); }
-.viz[data-ide='closed'] .split { grid-template-columns: minmax(0, 1fr); }
+/* editor | divider | work area. The divider drags to resize and carries the collapse button. */
+.split { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--ide-w) 8px minmax(0, 1fr); position: relative; }
+.viz[data-ide='closed'] .split { grid-template-columns: 0 8px minmax(0, 1fr); }
 .viz[data-ide='closed'] .ide { display: none; }
+/* fixed columns, so a hidden editor does not shift the other two */
+.ide { grid-column: 1; }
+.divider { grid-column: 2; }
+.work { grid-column: 3; }
 /* direction -1: a frame around the whole work area */
 .viz[data-dir='rev'] .split { box-shadow: inset 0 0 0 2px var(--back); }
 
-.ide { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); background: var(--panel); }
+.divider { position: relative; background: var(--panel); border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: col-resize; touch-action: none; }
+.divider:hover, .divider.dragging { background: color-mix(in srgb, var(--text) 14%, var(--panel)); }
+.viz[data-ide='closed'] .divider { cursor: default; }
+.divider-btn {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 44px; padding: 0;
+  display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--panel-2); color: var(--text); cursor: pointer; z-index: 3;
+}
+.divider-btn:hover { border-color: var(--text); }
+.divider-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+
+.ide { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
 .ide > .slot-left { flex: none; max-height: 40%; overflow: auto; border-top: 1px solid var(--border); padding: var(--s-8); }
 .ide > .slot-timeline { flex: none; }
 .slot { min-width: 0; }
@@ -28,7 +44,7 @@
 .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .work > .tab-panes { flex: 1; min-height: 0; overflow: auto; }
 .work > .slot-side { flex: none; border-top: 1px solid var(--border); padding: var(--s-8) var(--s-12); }
-.empty { padding: var(--s-16); border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); }
+.empty { padding: var(--s-16); border: 1px dashed var(--muted); border-radius: var(--radius); color: var(--muted); }
 
 /* the debugger's own controls replace the built-in ones */
 .viz:has(.ide > .slot-left:not(:empty)) .transport { display: none; }
@@ -38,5 +54,6 @@
 @media (max-width: 860px) {
   .viz { height: auto; }
   .split { grid-template-columns: minmax(0, 1fr); }
-  .ide { border-right: 0; border-bottom: 1px solid var(--border); max-height: 70vh; }
+  .divider { display: none; }
+  .ide { border-bottom: 1px solid var(--border); max-height: 70vh; }
 }
