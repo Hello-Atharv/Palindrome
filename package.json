@@ -14,6 +14,8 @@
     "test:twins": "npm --prefix bench/twins test",
     "bench:twins": "npm --prefix bench/twins run report",
     "test:lang": "npm --prefix lang test",
-    "rvmc": "node lang/node_modules/vite-node/vite-node.mjs lang/src/cli.ts --"
+    "rvmc": "node lang/node_modules/vite-node/vite-node.mjs lang/src/cli.ts --",
+    "rvm": "node cli/node_modules/vite-node/vite-node.mjs cli/src/rvm.ts --",
+    "test:cli": "npm --prefix cli test"
   }
 }

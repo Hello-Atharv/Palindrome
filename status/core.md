@@ -34,8 +34,10 @@ Updated: 2026-10-24
 
 - **Compiler** (`lang/`, `rev` language, Janus family): lexer/parser, reversibility checks, code generator to assembly (br/lnd, call/proc, expression temporaries built then un-built), source-level inverse for `uncall`, and a **cost report** (`npm run rvmc -- prog.rev --report`): steps per source line, garbage, history bytes, exact round trip on both engines. 23 tests against a reference interpreter on the real engines, mutation-checked. Not done: memory variables/arrays, recursion, multiply/shifts, `input()`/screen, `logged`, language server.
 
+- **`rvm` CLI** (`cli/`): `build`, `run`, `report`, `verify`, `debug`. `verify` checks a program on both engines (assertions, lockstep agreement, 200 random scrubs, full undo/replay, direction -1) and says it is testing, not proof; passes the cipher, sort, Pong and the examples. `debug` is a gdb-style debugger with source-line step **back**, breakpoints, `rwatch` (who last wrote this?) and identical transcripts on both engines. The debugger logic (`cli/src/debugger.ts`) is headless over `spec/vm_api.ts` so `web/debugger` can reuse it; I did not touch `web/debugger`. 14 tests, mutation-checked.
+
 ## In progress
-- Next: `rvm verify`, debugger CLI, then compiler stage 3 (arrays, `input()`, screen).
+- Compiler stage 3: memory variables and arrays, reversible `input()`, screen, so Pong and the sort can be written in `rev`.
 
 ## Notes for others
 - C++ namespace is `rev` (the C handle struct is `rvm`). The two VMs match on well-formed programs; only the `LND` assertion is logging-VM-only (SPEC section 7).
