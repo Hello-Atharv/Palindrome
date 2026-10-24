@@ -61,14 +61,19 @@ Analogy: **a Rubik's cube.** Every move has an exact undo move (turn the same fa
 did; if I hand you the scrambled cube and tell you the last move, you can undo it. Our machine is a Rubik's cube whose moves are
 instructions.
 
-### The trick that makes it possible: "add in place" and XOR
+### The one rule that makes it possible: never overwrite, only update in place
 - **Not allowed:** `x = 5` (destroys the old x).
-- **Allowed:** `x += 5` ("add 5 to x"). This is reversible: to undo, subtract 5. No information lost.
-- **Allowed:** `x ^= y` (XOR). XOR is a bit operation with a magic property: **doing it twice cancels out**. `x ^= y; x ^= y` leaves
-  x unchanged. So XOR is its own undo.
+- **Allowed:** `x += 5` ("add 5 to x"). Reversible: to undo, subtract 5. No information lost.
+- **Also allowed:** `x ^= y` (XOR). Reversible too: doing it twice cancels out, so it is its own undo.
 
-How do you **copy** a value without overwriting? XOR it into a box that is zero: `0 ^ y = y`. And you can **clear** a copy later by
-XORing again. Everything in this project is built from "add in place", "xor", and "swap two things".
+The principle is the same for both: **change a value by combining it with something, using an operation you can undo, and never
+discard the old value.** To **copy** a value without overwriting, combine it into a box that is zero (`0 + y = y`, and `0 ^ y = y`).
+To **clear** a copy later, undo what you did.
+
+**XOR is not special.** Add would do almost everything XOR does here. We use XOR for memory writes, drawing pixels and the logic
+gates mostly by convention (it is its own undo, so one instruction covers both directions, and it is the textbook form of the
+reversible gates). Its few real advantages: it can flip a chosen bit without knowing the bit's current state, and it never carries
+into neighbouring bits. Everything in this project is built from "update in place with something undoable" and "swap two things".
 
 One rule you will see: you can't do `x += x` (add a thing to itself). Why? Because `x + x` doubles it, and doubling loses the top bit
 (two different starting values can double to the same result), so it is not reversible. The assembler refuses it.
@@ -92,7 +97,7 @@ A tiny processor, defined in `spec/SPEC.md`:
 | Logic gates | `cswap`, `toff` | "swap if this is non-zero" and "xor in the AND of two things": the famous reversible gates of Fredkin and Toffoli |
 | Control | `br`, `lnd`, `call`, `proc`, `ret`, `hlt`, `nop` | jumps, landing markers, procedure calls (explained in section 6) |
 
-**Why memory is xor-only:** writing a word normally overwrites it. Instead, to put a value `v` into a zeroed memory word you xor it in;
+**Why memory is xor-only:** writing a word normally overwrites it. Instead (and by convention: an add-based memory would also work), to put a value `v` into a zeroed memory word you xor it in;
 to *move* a word into a register you do `xld` then `xst` (which leaves the memory word zero and the value in the register). We call this
 the **move idiom**, and the compiler uses it constantly.
 
