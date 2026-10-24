@@ -198,6 +198,18 @@ Visualisation budget: a hex grid shows about 256 words at once (16 rows x 16 col
 **minimap**: one pixel per word, 512 x 260, colour = zero / non-zero / changed this step. Copying all 520 KiB
 per refresh is cheap, so a minimap is realistic; per-cell text for everything is not.
 
+**Refresh and limits**
+- Read only what is visible, once per animation frame, not after every step while running fast. Per refresh the UI
+  needs: 16 registers + PC, the framebuffer (2,048 words), the visible memory window (about 256 words), and
+  `historyBytes`. Read the whole 520 KiB (minimap, change counts) at most a few times per second.
+- Default memory window: the stack and data near address 0, where small programs live.
+- "Program memory in use" (tracker, 11.2) is the count of non-zero writable words. It needs a full scan, so
+  compute it at most a few times per second, never on every step.
+- The logging VM's history is **48 bytes per step** (measured), so 1 million steps is about 48 MB and 10 million
+  about 480 MB. In Compare view, warn when it passes 256 MiB (about 5.5 million steps) and let the user
+  continue or reload. The reversible VM stays at 0 per step. A hard cap in the VM itself is not implemented;
+  if the browser runs out of memory, ask core to add one (it would be a spec change).
+
 ### 11.2 Views
 One app, three views selected by tabs. All use the same panels and the same `RVM` interface.
 

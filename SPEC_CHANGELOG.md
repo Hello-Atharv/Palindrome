@@ -12,3 +12,4 @@ One line per change to `spec/`, newest last: `YYYY-MM-DD | file | what changed |
 2026-10-24 | SPEC.md | section 11: added 11.2 Views (Debug, Code, Compare), Compare rules, tracker strip, benchmark note; compare mode moved from "could" to "should" via Compare view; subsections renumbered 11.3-11.7 | core
 2026-10-24 | SPEC.md, input_tape.md | adopted: key event encoding (pressed<<8 | code), optional FRAME counter at data address 0xFFFF, assembler in TypeScript; section 11.7 now lists conventions (was open questions); section 5 notes 0xFFFF reserved | core
 2026-10-24 | SPEC.md | added 11.8 Debugger notes (step over/out definitions, step by frame, run loop, scrubbing chunks, watchpoints, labels and source-map status); no API change | core
+2026-10-24 | SPEC.md | 11.1: added "Refresh and limits" (what to read per refresh, default window, scan frequency, measured 48 bytes/step logging history and 256 MiB warning) | core
