@@ -1,21 +1,28 @@
 import type { Direction, RVM, Status } from '../../../spec/vm_api';
-import { buildControls } from './controls';
+import { FRAME_ADDR } from './constants';
+import { buildEngineSwitch, buildProgramBar, buildTransport } from './controls';
 import { h } from './dom';
 import { attachKeys } from './keys';
+import { bannersPanel } from './panels/banners';
 import { listingPanel } from './panels/listing';
 import type { ListingApi } from './panels/listing';
 import { memoryPanel } from './panels/memory';
 import type { Ctx, Panel } from './panels/panel';
 import { registersPanel } from './panels/registers';
 import { screenPanel } from './panels/screen';
-import { statusPanel } from './panels/status';
+import { timelinePanel } from './panels/timeline';
+import { trackerPanel } from './panels/tracker';
 import { inspectImage } from './program';
 import type { ProgramEntry, ProgramInfo } from './program';
-import { Runner } from './runner';
+import { Runner, SPEEDS } from './runner';
 import type { RunMode } from './runner';
+import { attachShortcuts } from './shortcuts';
 import { takeSnapshot } from './snapshot';
 import type { Snapshot } from './snapshot';
 import { Tabs } from './tabs';
+
+/** Above this many steps per second the page switches from flashes to a heat map. */
+const FLASH_MAX_RATE = 20;
 
 export interface VizOptions {
   /** Sample programs for the picker. The first one is loaded unless `initialProgram` says otherwise. */
@@ -31,11 +38,11 @@ export interface Machine {
 
 /** Empty containers inside the shell for other tools (the debugger) to fill. */
 export interface VizSlots {
-  /** Right of the transport buttons. */
+  /** Right of the timeline's transport buttons (inside the timeline hero). */
   toolbar: HTMLElement;
-  /** Full-width strip under the toolbar: put the scrubber timeline here. */
+  /** Full-width strip above the timeline hero. */
   timeline: HTMLElement;
-  /** Bottom of the right-hand column: breakpoints, watch lists, ... */
+  /** Bottom of the right-hand column: breakpoint list, watches. */
   side: HTMLElement;
   /** The debugger's left pane (editor, controls, watches). While it has children the built-in controls hide. */
   left: HTMLElement;
@@ -67,6 +74,15 @@ export interface VizEvents {
 
 export type BuiltinControls = 'auto' | 'on' | 'off';
 
+/** The tape strip in the timeline hero. */
+export interface TimelineApi {
+  /**
+   * Called with the target t while the user drags on the strip. If nobody is listening the shell does a plain
+   * throttled `runTo` itself (a fallback); a listener (the debugger) takes over completely and must move the machines.
+   */
+  onSeek(fn: (t: number) => void): () => void;
+}
+
 export interface VizHandle {
   readonly root: HTMLElement;
   /** The primary machine (machines[0]). */
@@ -75,6 +91,7 @@ export interface VizHandle {
   readonly slots: VizSlots;
   /** Hooks into the code listing: line clicks, breakpoint dots, culprit line. */
   readonly listing: ListingApi;
+  readonly timeline: TimelineApi;
   readonly program: ProgramInfo | null;
   /** Latest snapshot of the primary machine. */
   readonly snapshot: Snapshot;
@@ -94,7 +111,7 @@ export interface VizHandle {
   setDirection(d: Direction): Status;
   /** Call after you did a host action on a vm yourself, so maxT and `branch` stay right. */
   noteHostAction(): void;
-  /** 'auto' (default): hide the built-in step/run controls while `slots.left` has children. */
+  /** 'auto' (default): hide the built-in transport while `slots.left` has children. */
   setBuiltinControls(mode: BuiltinControls): void;
   destroy(): void;
 }
@@ -111,8 +128,16 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   let status: Status = 'ok';
   let maxT = 0;
   let branch = false;
+  let branchAt: number | null = null;
+  let lostTo: number | null = null;
+  let runState: 'fwd' | 'back' | 'paused' = 'paused';
+  let rate: number | null = null;
+  let rateT = 0;
+  let rateMs = 0;
   let refreshQueued = false;
+  let seekQueued: number | null = null;
   const listeners: Listeners = { update: new Set(), load: new Set(), run: new Set() };
+  const seekListeners = new Set<(t: number) => void>();
   const emit = <K extends keyof VizEvents>(k: K, e: VizEvents[K]): void => listeners[k].forEach((fn) => fn(e));
   const primary = (): RVM => machines[0].vm;
   /** Apply an action to every machine; the primary's result is the answer. */
@@ -121,29 +146,36 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   // ---- panels ----
   const registers = registersPanel();
   const listing = listingPanel();
-  const statusP = statusPanel();
   const memory = memoryPanel();
   const screen = screenPanel();
-  const panels: Panel[] = [registers, listing, statusP, memory, screen];
+  const tracker = trackerPanel();
+  const banners = bannersPanel();
 
-  // ---- runner and controls ----
+  // ---- runner and transport ----
   const runner = new Runner(vm, (s, running) => {
     refresh(s);
-    if (!running) {
-      controls.setRunning(null);
-      emit('run', { mode: null });
-    }
+    if (!running) setRun('paused');
   });
-  const controls = buildControls(programs, runner.speedIndex, {
-    step: () => api.step(),
-    stepBack: () => api.stepBack(),
-    run: (m) => api.run(m),
-    pause: () => api.pause(),
-    reset: () => api.reset(),
-    setSpeed: (i) => { runner.speedIndex = i; },
-    loadSample: (i) => loadSample(i),
-    loadFile: (f) => void f.arrayBuffer().then((b) => api.loadImage(f.name, new Uint8Array(b))),
-  });
+  const transport = buildTransport(
+    {
+      step: () => api.step(),
+      stepBack: () => api.stepBack(),
+      run: (m) => api.run(m),
+      pause: () => api.pause(),
+      stop: () => void api.reset(),
+      setSpeed: (i) => { runner.speedIndex = i; updateMode(); },
+      setDirection: (d) => void api.setDirection(d),
+    },
+    runner.speedIndex,
+  );
+  const timeline = timelinePanel(transport, (t) => seek(t));
+  const panels: Panel[] = [registers, listing, memory, screen, tracker, banners, timeline];
+
+  const programBar = buildProgramBar(
+    programs,
+    (i) => loadSample(i),
+    (f) => void f.arrayBuffer().then((b) => api.loadImage(f.name, new Uint8Array(b))),
+  );
 
   // ---- DOM ----
   const slots: VizSlots = {
@@ -154,30 +186,33 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     code: h('div', 'slot slot-code'),
   };
   for (const [k, e] of Object.entries(slots)) e.dataset.slot = k;
+  timeline.el.querySelector('.timeline-top')!.insertBefore(slots.toolbar, transport.el);
 
   const header = h('header', 'viz-header');
   const brand = h('div', 'brand');
-  brand.append(h('span', 'brand-mark', '⇄'), h('h1', '', 'Reversible machine'), h('span', 'brand-sub', 'every instruction is a bijection'));
-  const engine = h('span', 'badge mono', vm.kind);
-  header.append(brand, engine, controls.program);
+  brand.append(h('span', 'brand-mark', '⇄'), h('h1', '', 'Reversible machine'), h('span', 'brand-sub', 'time runs both ways'));
+  const engine = h('span', 'badge engine-badge', vm.kind === 'logging' ? 'Diary: keeps history' : 'Reversible: no history');
+  engine.dataset.engine = vm.kind;
+  const branchBadge = h('span', 'badge branch-badge', '⑂ New timeline');
+  branchBadge.title = 'A key press or direction flip while scrubbed back discarded the rest of the old timeline';
+  branchBadge.hidden = true;
+  header.append(brand, branchBadge, engine, buildEngineSwitch(vm.kind), programBar.el);
 
-  const bar = h('div', 'viz-bar');
-  bar.append(controls.transport, slots.toolbar);
-
-  // right-hand tabs: Memory / Screen / Compare (Compare needs the second engine)
+  // right-hand tabs: Screen / Memory / Compare (Compare needs the second engine in the browser)
   const rightTabs = new Tabs(
     [
-      { id: 'memory', label: 'Memory', el: memory.el },
       { id: 'screen', label: 'Screen', el: screen.el },
+      { id: 'memory', label: 'Memory', el: memory.el },
       { id: 'compare', label: 'Compare', el: h('div', 'empty', 'Compare needs the reversible engine in the browser (WASM build).'), disabled: true, title: 'available once the WASM build lands' },
     ],
     'screen',
   );
   const right = h('div', 'viz-col');
-  right.append(rightTabs.bar, rightTabs.body, slots.side);
+  right.append(rightTabs.bar, rightTabs.body, tracker.el, slots.side);
+  rightTabs.body.classList.add('grow');
 
   const centre = h('div', 'viz-col');
-  centre.append(registers.el, listing.el, statusP.el);
+  centre.append(registers.el, listing.el);
 
   const debugView = h('div', 'viz-main');
   debugView.append(slots.left, centre, right);
@@ -189,21 +224,57 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     { id: 'debug', label: 'Debug', el: debugView },
     { id: 'code', label: 'Code', el: codeView },
   ]);
+  header.append(views.bar);
+  views.body.classList.add('viz-body');
 
   root.classList.add('viz');
-  root.replaceChildren(header, bar, slots.timeline, views.bar, views.body);
+  root.replaceChildren(header, banners.el, slots.timeline, views.body, timeline.el);
 
   // ---- state flow ----
+  function updateMode(): void {
+    const fast = runState !== 'paused' && SPEEDS[runner.speedIndex] > FLASH_MAX_RATE;
+    root.dataset.mode = fast ? 'heat' : 'flash';
+  }
+
+  function setRun(next: 'fwd' | 'back' | 'paused'): void {
+    runState = next;
+    root.dataset.run = next;
+    transport.setRun(next === 'fwd' ? 'forward' : next === 'back' ? 'back' : null);
+    rate = null;
+    rateT = primary().instructionCount;
+    rateMs = performance.now();
+    updateMode();
+    emit('run', { mode: next === 'fwd' ? 'forward' : next === 'back' ? 'back' : null });
+  }
+
+  function measureRate(t: number): void {
+    if (runState === 'paused') return;
+    const now = performance.now();
+    if (now - rateMs >= 250) {
+      rate = (Math.abs(t - rateT) / (now - rateMs)) * 1000;
+      rateT = t;
+      rateMs = now;
+    }
+  }
+
   function refresh(s: Status = 'ok'): void {
     refreshQueued = false;
     status = s;
-    const cur = takeSnapshot(primary(), s);
-    if (cur.t !== last.t) prev = last;
+    const vmNow = primary();
+    const cur = takeSnapshot(vmNow, s);
+    if (cur.t !== last.t) {
+      prev = last;
+      root.dataset.motion = cur.t < last.t ? 'back' : 'fwd';
+    }
     last = cur;
     if (cur.t > maxT) maxT = cur.t;
+    measureRate(cur.t);
     root.dataset.dir = cur.direction === 1 ? 'fwd' : 'rev';
     root.dataset.status = s;
-    const ctx: Ctx = { vm: primary(), snap: cur, prev, program, maxT, branch };
+    branchBadge.hidden = !branch;
+    transport.setDirection(cur.direction);
+    const frame = vmNow.memory(FRAME_ADDR, 1)[0];
+    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame };
     for (const p of panels) p.update(ctx);
     emit('update', { t: cur.t, maxT, branch, direction: cur.direction, snap: cur, prev, status: s });
   }
@@ -215,16 +286,37 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     requestAnimationFrame(() => refresh(status));
   }
 
+  /** A host action at t discards the future above t: that is a fork if there was a future. */
   function hostAction(): void {
     const t = primary().instructionCount;
-    if (t < maxT) branch = true; // the future above t is discarded
+    if (t < maxT) {
+      branch = true;
+      branchAt = t;
+      lostTo = maxT;
+    }
     maxT = t;
+  }
+
+  function seek(t: number): void {
+    if (seekListeners.size) {
+      seekListeners.forEach((fn) => fn(t));
+      return;
+    }
+    const first = seekQueued === null;
+    seekQueued = Math.min(t, maxT); // fallback: a plain runTo, throttled to one per frame
+    if (!first) return;
+    requestAnimationFrame(() => {
+      const target = seekQueued!;
+      seekQueued = null;
+      api.pause();
+      refresh(all((v) => v.runTo(target)));
+    });
   }
 
   function loadSample(i: number): void {
     const p = programs[i];
     if (!p) return;
-    controls.setProgramIndex(i);
+    programBar.setIndex(i);
     api.loadImage(p.name, p.load());
   }
 
@@ -235,6 +327,12 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     },
     () => screen.capturing() && views.active === 'debug' && rightTabs.active === 'screen',
   );
+  const detachShortcuts = attachShortcuts({
+    step: () => void api.step(),
+    stepBack: () => void api.stepBack(),
+    toggleRun: () => (runState === 'fwd' ? api.pause() : api.run('forward')),
+    stop: () => void api.reset(),
+  });
 
   const api: VizHandle = {
     root,
@@ -242,6 +340,12 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     machines,
     slots,
     listing: listing.api,
+    timeline: {
+      onSeek(fn) {
+        seekListeners.add(fn);
+        return () => void seekListeners.delete(fn);
+      },
+    },
     get program() { return program; },
     get snapshot() { return last; },
     get maxT() { return maxT; },
@@ -266,14 +370,12 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     },
     run(mode = 'forward') {
       runner.start(mode);
-      controls.setRunning(mode);
-      emit('run', { mode });
+      setRun(mode === 'forward' ? 'fwd' : 'back');
     },
     pause() {
       if (!runner.running) return;
       runner.stop();
-      controls.setRunning(null);
-      emit('run', { mode: null });
+      setRun('paused');
       refresh(status);
     },
     reset() {
@@ -281,14 +383,17 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     },
     loadImage(name, image) {
       runner.stop();
-      controls.setRunning(null);
+      if (runState !== 'paused') setRun('paused');
       const s = all((v) => v.loadProgram(image));
       if (s === 'ok') {
         program = inspectImage(name, image);
         prev = null;
         maxT = 0;
         branch = false;
+        branchAt = null;
+        lostTo = null;
         last = takeSnapshot(primary(), 'ok');
+        root.dataset.motion = 'fwd';
         refresh('ok');
         emit('load', program);
       } else {
@@ -319,6 +424,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     destroy() {
       runner.stop();
       detachKeys();
+      detachShortcuts();
       listeners.update.clear();
       listeners.load.clear();
       listeners.run.clear();
@@ -327,6 +433,9 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     },
   };
 
+  root.dataset.run = 'paused';
+  root.dataset.motion = 'fwd';
+  updateMode();
   if (programs.length) loadSample(Math.min(opts.initialProgram ?? 0, programs.length - 1));
   else refresh();
   return api;

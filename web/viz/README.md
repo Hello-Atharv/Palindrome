@@ -77,3 +77,18 @@ and its **Screen** tab are open, and the "send keys" box is ticked.
 disassembly); `src/tabs.ts`; `src/runner.ts` rAF run loop (many steps per frame, one redraw); `src/disasm.ts`,
 `src/snapshot.ts`, `src/keys.ts`, `src/program.ts` pure helpers. `src/main.ts` is the dev entry and the only file that
 imports the mock VM. Plan and milestones: `UI_PLAN.md`.
+
+## Timeline hero (bottom bar)
+Big `t`, a state chip (running forward / running back / paused / halted / at start / fault), the transport, and a tape strip
+with ticks every 1-2-5 steps, a `maxT` marker, the branch point and the discarded future. Dragging the strip calls
+`viz.timeline.onSeek(fn: (t: number) => void)` listeners; **with none registered the shell falls back to a plain throttled
+`runTo`** (no chunking or progress: that is the debugger's job, so register a listener and move the machines yourself, then
+call `viz.refresh()`). `viz.slots.toolbar` sits inside the hero, left of the transport; `viz.slots.timeline` is a strip above it.
+
+## Look and states
+Tokens are in `src/styles/tokens.css` (dark only): amber = time moving forward, cyan = time moving back, violet = new branch.
+A change flashes in the colour of the time it moved through; above 20 steps/s the page switches to a heat map. Direction -1
+shows a full-width banner and a tinted frame; stepping back never does. Alt+`,` step back, Alt+`.` step, Alt+Space run/pause,
+Alt+0 stop (Alt combinations never reach the machine).
+`node scripts/screenshots.mjs` drives the real mock VM through every state at 1280x720 into `screenshots/` (git-ignored;
+open `screenshots/index.html`) and reports if the page scrolls.

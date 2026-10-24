@@ -66,3 +66,13 @@ Updated: 2026-10-24
   hooks for the debugger (listing API, slots incl. `left`/`code`, `update` event with t/maxT/branch/direction, host-action
   helpers). Signatures: web/viz/README.md. Keys only reach the machine while the Screen tab is open. viz 21/21.
 - Decision to confirm: `branch` = true after a host action while t < maxT (a real fork); cleared on load.
+- Design pass done (brief: time machine's control room): tokens + layout + panels + timeline hero (web/viz/src/styles/*), history
+  tile with sparkline ("VM history", 48 B/step for the logging engine), tracker strip, direction -1 banner + frame, fault/halted/
+  at-start banners, new-timeline badge + strip marker + discarded future, engine switch (Reversible disabled until WASM), Alt
+  shortcuts, integer-scaled screen. 14 state screenshots at 1280x720 via `node scripts/screenshots.mjs`; no page scroll.
+  viz 24/24, tsc clean, vite build ok.
+- NOT done yet: CPU datapath diagram with travelling arrows (M3), Pong tab (M4), assembler hook (M6 uses asm/src/index.ts),
+  real engine toggle. The "static state-switchable views with sample data" step was skipped: screenshots drive the real mock VM.
+- Not measured: colour contrast ratios (palette chosen to be high contrast); native `title` tooltips on disabled controls do not
+  show in screenshots.
+- Fallback seek on the tape strip is a plain throttled runTo; the debugger should register `viz.timeline.onSeek`.

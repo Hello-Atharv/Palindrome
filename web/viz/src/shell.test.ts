@@ -135,10 +135,10 @@ describe('listing hooks', () => {
 describe('keys', () => {
   it('only reach the machine while the Screen tab is open', () => {
     const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-    root.querySelectorAll<HTMLButtonElement>('.viz-col > .tabs .tab')[1].click(); // Screen
+    root.querySelectorAll<HTMLButtonElement>('.viz-col > .tabs .tab')[0].click(); // Screen
     press();
     expect(vm.memory(0x30001, 1)[0]).toBe(1); // COUNT
-    root.querySelectorAll<HTMLButtonElement>('.viz-col > .tabs .tab')[0].click(); // Memory
+    root.querySelectorAll<HTMLButtonElement>('.viz-col > .tabs .tab')[1].click(); // Memory
     press();
     expect(vm.memory(0x30001, 1)[0]).toBe(1); // unchanged
   });

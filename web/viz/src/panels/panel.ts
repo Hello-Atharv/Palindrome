@@ -13,6 +13,15 @@ export interface Ctx {
   maxT: number;
   /** True once a host action discarded part of the timeline (typed or flipped direction after scrubbing back). */
   branch: boolean;
+  /** t where the timeline forked, and how far the discarded future reached (both null before any fork). */
+  branchAt: number | null;
+  lostTo: number | null;
+  /** What the machine is doing right now. */
+  run: 'fwd' | 'back' | 'paused';
+  /** Measured steps per second while running, else null. */
+  rate: number | null;
+  /** The optional FRAME word (data address 0xFFFF). */
+  frame: number;
 }
 
 export interface Panel {

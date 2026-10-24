@@ -1,0 +1,41 @@
+/* Design tokens. Dark theme only. Amber = time moving forward, cyan = time moving back, violet = a new branch.
+   Colour is never the only signal: every state also has an arrow or a text label. */
+.viz {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c232c;
+  --border: #2a3139;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --fwd: #ffb454;
+  --back: #4cc9f0;
+  --branch: #c77dff;
+  --ok: #3fb950;
+  --fault: #ff6b6b;
+  --halted: #8b949e;
+
+  --s-4: 4px;
+  --s-8: 8px;
+  --s-12: 12px;
+  --s-16: 16px;
+  --s-24: 24px;
+  --radius: 6px;
+
+  --mono: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+  --sans: system-ui, sans-serif;
+
+  /* what a "change" flashes in: forward time amber, backward time cyan */
+  --flash: var(--fwd);
+  /* the accent of the moving parts: arrows, scrubber fill */
+  --motion: var(--muted);
+}
+.viz[data-motion='fwd'] { --flash: var(--fwd); }
+.viz[data-motion='back'], .viz[data-dir='rev'] { --flash: var(--back); }
+.viz[data-run='fwd'] { --motion: var(--fwd); }
+.viz[data-run='back'] { --motion: var(--back); }
+
+body { margin: 0; background: #0d1117; }
+.viz, .viz *, .viz *::before, .viz *::after { box-sizing: border-box; }
+.viz [hidden] { display: none !important; }
+.viz .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.viz .dim { color: var(--muted); }

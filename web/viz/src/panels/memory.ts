@@ -1,16 +1,16 @@
 import { DATA_BASE, IN_BASE, SP_REG, STACK_BASE } from '../../../../spec/vm_api';
 import { h, hex } from '../dom';
 import { changedWords } from '../snapshot';
-import { frame } from './panel';
 import type { Ctx, Panel } from './panel';
 
-const COLS = 8;
-const ROWS = 12;
+const COLS = 4;
+const ROWS = 10;
 const WORDS = COLS * ROWS;
+const DATA_LAST = 0xffff;
 
-type Tab = 'data' | 'stack' | 'input';
+type Region = 'data' | 'stack' | 'input';
 
-/** A fixed grid of hex words. Highlights words that changed since the previous distinct t. */
+/** A fixed grid of hex words. Words that changed since the previous distinct t glow in the colour of the time moved. */
 class HexGrid {
   readonly el = h('div', 'hexgrid');
   private readonly addr: HTMLElement[] = [];
@@ -53,63 +53,66 @@ class HexGrid {
   }
 }
 
-/** Data / stack / input-window tabs over one hex grid. */
+/**
+ * Memory view: region tabs (data, stack, input window), a paged hex grid, a changed-word glow.
+ * It reads only the words on screen (SPEC 11.1), and never an unmapped address.
+ */
 export function memoryPanel(): Panel {
-  const { el, body, head } = frame('Memory', 'memory');
-  const tabs = h('div', 'tabs');
-  const grid = new HexGrid();
-  const caption = h('div', 'caption');
+  const el = h('div', 'memory');
+  const bar = h('div', 'memory-bar');
+  const tabs = h('div', 'region-tabs');
   const pager = h('div', 'pager');
   const prevBtn = h('button', 'btn small', '‹');
   const nextBtn = h('button', 'btn small', '›');
   const baseInput = h('input', 'addr-input mono');
-  baseInput.value = '00000';
   baseInput.size = 6;
   baseInput.spellcheck = false;
   baseInput.setAttribute('aria-label', 'data address (hex)');
+  prevBtn.title = 'previous page';
+  nextBtn.title = 'next page';
   pager.append(prevBtn, baseInput, nextBtn);
-  head.append(tabs);
-  body.append(pager, grid.el, caption);
+  bar.append(tabs, pager);
+  const grid = new HexGrid();
+  const caption = h('div', 'caption');
+  el.append(bar, grid.el, caption);
 
-  let tab: Tab = 'data';
+  let region: Region = 'data';
   let dataBase = DATA_BASE;
   let latest: Ctx | null = null;
+  const clampBase = (v: number): number => Math.max(0, Math.min(DATA_LAST - WORDS + 1, v));
 
-  const tabButtons = (['data', 'stack', 'input'] as const).map((name) => {
+  const buttons = (['data', 'stack', 'input'] as const).map((name) => {
     const b = h('button', 'tab', name);
-    b.addEventListener('click', () => { tab = name; draw(); });
+    b.type = 'button';
+    b.addEventListener('click', () => { region = name; draw(); });
     tabs.append(b);
     return { name, b };
   });
-
-  const page = (dir: number): void => {
-    dataBase = Math.max(0, Math.min(0xffff - WORDS + 1, dataBase + dir * WORDS));
-    draw();
-  };
-  prevBtn.addEventListener('click', () => page(-1));
-  nextBtn.addEventListener('click', () => page(1));
+  for (const b of [prevBtn, nextBtn]) b.type = 'button';
+  prevBtn.addEventListener('click', () => { dataBase = clampBase(dataBase - WORDS); draw(); });
+  nextBtn.addEventListener('click', () => { dataBase = clampBase(dataBase + WORDS); draw(); });
   baseInput.addEventListener('change', () => {
     const v = parseInt(baseInput.value, 16);
-    if (Number.isFinite(v)) dataBase = Math.max(0, Math.min(0xffff - WORDS + 1, v & ~(COLS - 1)));
+    if (Number.isFinite(v)) dataBase = clampBase(v & ~(COLS - 1));
     draw();
   });
 
   function draw(): void {
-    tabButtons.forEach(({ name, b }) => b.classList.toggle('active', name === tab));
-    pager.hidden = tab !== 'data';
+    for (const { name, b } of buttons) b.classList.toggle('active', name === region);
+    pager.hidden = region !== 'data';
     if (!latest) return;
     const { vm, snap } = latest;
-    if (tab === 'data') {
+    if (region === 'data') {
       baseInput.value = hex(dataBase, 5);
       grid.render(dataBase, vm.memory(dataBase, WORDS), snap.t);
-      caption.textContent = 'RW data space 0x00000-0x0FFFF';
-    } else if (tab === 'stack') {
+      caption.textContent = 'data space 0x00000–0x0FFFF, read-write';
+    } else if (region === 'stack') {
       const sp = snap.regs[SP_REG];
       grid.render(STACK_BASE, vm.memory(STACK_BASE, WORDS), snap.t, sp);
-      caption.textContent = `stack from ${hex(STACK_BASE, 5)}; sp = ${hex(sp, 5)} (outlined), slots at or above sp stay zero`;
+      caption.textContent = `stack from ${hex(STACK_BASE, 5)}; sp = ${hex(sp, 5)} (outlined). Slots at or above sp stay zero.`;
     } else {
       grid.render(IN_BASE, vm.memory(IN_BASE, WORDS), snap.t);
-      caption.textContent = 'input window (read-only): word 0 = TIME, word 1 = COUNT, then event values';
+      caption.textContent = 'input window, read-only: word 0 = TIME, word 1 = COUNT, then event values';
     }
   }
 

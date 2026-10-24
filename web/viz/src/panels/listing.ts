@@ -4,9 +4,8 @@ import { h, hex } from '../dom';
 import { frame } from './panel';
 import type { Ctx, Panel } from './panel';
 
-const ROW_H = 22;
-const VISIBLE_ROWS = 18;
-const POOL = VISIBLE_ROWS + 4;
+const ROW_H = 24;
+const POOL = 48; // rows in the DOM; enough for a tall window
 
 const KIND: Partial<Record<Op, string>> = {
   [Op.BR]: 'flow', [Op.LND]: 'flow', [Op.CALL]: 'flow', [Op.PROC]: 'flow', [Op.RET]: 'flow',
@@ -51,16 +50,14 @@ interface Row {
  */
 export function listingPanel(): Panel & { api: ListingApi } {
   const { el, body, head } = frame('Listing', 'listing');
-  const current = h('span', 'badge mono');
   const followBox = h('input');
   followBox.type = 'checkbox';
   followBox.checked = true;
   const followLabel = h('label', 'follow');
   followLabel.append(followBox, h('span', '', 'follow pc'));
-  head.append(current, followLabel);
+  head.append(followLabel);
 
   const scroller = h('div', 'listing-scroll');
-  scroller.style.height = `${VISIBLE_ROWS * ROW_H}px`;
   scroller.tabIndex = 0;
   scroller.setAttribute('aria-label', 'code listing');
   const spacer = h('div', 'listing-spacer');
@@ -121,6 +118,13 @@ export function listingPanel(): Panel & { api: ListingApi } {
     }
   };
   scroller.addEventListener('scroll', schedule, { passive: true });
+  // the panel resizes when a banner appears or the window changes: keep the PC in view
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => {
+      if (followBox.checked && pc < code.length) reveal(pc, false);
+      schedule();
+    }).observe(scroller);
+  }
 
   scroller.addEventListener('click', (ev) => {
     const target = ev.target as HTMLElement;
@@ -132,7 +136,7 @@ export function listingPanel(): Panel & { api: ListingApi } {
 
   function reveal(addr: number, centre: boolean): void {
     const top = addr * ROW_H;
-    const view = VISIBLE_ROWS * ROW_H;
+    const view = scroller.clientHeight || 10 * ROW_H;
     if (centre || top < scroller.scrollTop + ROW_H || top > scroller.scrollTop + view - 3 * ROW_H) {
       scroller.scrollTop = Math.max(0, top - view / 2);
     }
@@ -173,9 +177,6 @@ export function listingPanel(): Panel & { api: ListingApi } {
         lastT = -1;
       }
       pc = snap.pc;
-      const word = pc < code.length ? code[pc] : 0;
-      const d = disassemble(word, labels);
-      current.textContent = pc < code.length ? `pc ${pc} · ${d.mnemonic} ${d.operands}`.trim() : `pc ${pc}`;
       if (snap.t !== lastT) {
         lastT = snap.t;
         if (followBox.checked) reveal(pc, false);
