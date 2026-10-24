@@ -32,8 +32,7 @@ npm run test:lang                                    # 35 tests, run on the real
   (`0x30000`, read only). Memory is only ever changed by XOR or by moving a cell through a register, so nothing is overwritten.
 - **Input**: the expressions `events` (how many key events so far) and `latest` (the most recent, or 0). They depend on machine
   time, so running such a program with direction -1 is not exact (step back is always exact), as for `programs/pong.s`.
-- **Printing**: `print "fib(", n, ") = ", hex a, "
-";` appends to the console (SPEC 11.9). Items are separated by commas: a string,
+- **Printing**: `print "fib(", n, ") = ", hex a, "\n";` appends to the console (SPEC 11.9). Items are separated by commas: a string,
   or an expression with an optional format (`unsigned` is the default, then `signed`, `hex`, `char`). `'A'` is a character literal.
   The console is memory, so it un-prints when time goes backwards and when you `uncall` a procedure that printed, and the cost
   report counts it as garbage. About 13 machine instructions per character. `print`, `char`, `unsigned`, `signed` and `hex` are
