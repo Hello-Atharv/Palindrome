@@ -80,7 +80,7 @@
     <button id="pause">⏸ Pause</button>
     <label>Speed <select id="speed">
       <option value="1">1 / frame</option><option value="4">4 / frame</option><option value="20" selected>20 / frame</option>
-      <option value="200">200 / frame</option><option value="2000">2000 / frame</option>
+      <option value="100">100 / frame</option><option value="200">200 / frame</option><option value="500">500 / frame</option><option value="2000">2000 / frame</option>
     </select></label>
     <button id="dir" title="Run the program as its own inverse (decrypt / unsort)">Direction: +1</button>
   </header>
@@ -93,6 +93,7 @@
       <span class="stat"><b>state</b> <span id="status">ready</span></span>
       <span class="stat" id="histwrap"><b>VM history</b> <span id="hist">0 B</span></span>
       <span class="stat" id="branch"></span>
+      <span class="stat"><b>last key</b> <span id="lastkey">none</span></span>
     </section>
 
     <div id="single">
@@ -117,9 +118,11 @@
       <div id="cmpcols">
         <div class="card" id="colL"><div class="engine">Diary engine <span class="mono" style="color:var(--muted)">(normal rewind: keeps a log)</span></div>
           <div>VM history <span class="big" id="histL">0 B</span></div>
+          <div class="mono" style="color:var(--muted); margin:2px 0 8px">program data written (non-zero words): <span id="pmemL">0</span></div>
           <div class="small"><div class="regs" id="regsL"></div></div><h2 style="margin-top:8px">Screen</h2><canvas class="screen" id="fbL"></canvas></div>
         <div class="card" id="colR"><div class="engine">Reversible engine <span class="mono" style="color:var(--muted)">(no history)</span></div>
           <div>VM history <span class="big" id="histR">0 B</span></div>
+          <div class="mono" style="color:var(--muted); margin:2px 0 8px">program data written (non-zero words): <span id="pmemR">0</span></div>
           <div class="small"><div class="regs" id="regsR"></div></div><h2 style="margin-top:8px">Screen</h2><canvas class="screen" id="fbR"></canvas></div>
       </div>
       <section>

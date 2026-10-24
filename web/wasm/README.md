@@ -26,7 +26,8 @@ differential test between them, and a long rewind).
 ## Playground (see the real engines run)
 `cd web/wasm && npm install && npm run playground` opens a small page at http://localhost:5173. It is not the product UI
 (that is `web/viz`); it is a working reference for `createWasmVm` and `assemble()` in a Vite page, and a way to watch a program.
-- The demo programs (cipher, sort, examples), each with a one-line explanation of what to look at.
+- The demo programs (cipher, sort, **Pong**, examples), each with a one-line explanation of what to look at. **The keyboard is wired
+  to the machine** (W/S/arrows etc., encoded as in SPEC 11.7), so Pong can be played: pick it, press Run, use W/S or the arrows.
 - **Compare engines**: the diary engine and the reversible engine side by side on the same program, driven by the same actions.
   Shows each engine's VM history as a big number, both screens and registers, a "states match" badge (registers, PC, memory and
   screen compared after every action), and a chart of history against time: the diary climbs, the reversible line stays at zero.

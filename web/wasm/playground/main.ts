@@ -3,6 +3,7 @@
 import { assemble, type ListingRow } from '../../../asm/src/index.js';
 import cipher from '../../../programs/cipher.s?raw';
 import sort from '../../../programs/sort.s?raw';
+import pong from '../../../programs/pong.s?raw';
 import call from '../../../asm/examples/call.s?raw';
 import ifelse from '../../../asm/examples/ifelse_macro.s?raw';
 import memory from '../../../asm/examples/memory.s?raw';
@@ -10,13 +11,15 @@ import nested from '../../../asm/examples/nested.s?raw';
 import { createWasmVm, type WasmVm } from '../src/index.js';
 
 type Kind = 'logging' | 'reversible';
-interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string }
+interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string }
 
 const PROGRAMS: Program[] = [
   { name: 'cipher.s: Speck64/128 (decrypt = direction −1)', src: cipher, crop: 'top', mem: '0x20000',
     note: '<b>The screen is the message.</b> Row 0 first shows 8 dull grey-blue pixels (the plaintext), which turn into 8 random colours (the ciphertext) as it runs. Flip <b>Direction</b> and run: the same program decrypts. The memory panel is on the screen words.' },
   { name: 'sort.s: sort that exposes its garbage', src: sort, crop: 'top', mem: '0x20000',
     note: '<b>The screen is the list.</b> Row 0 is the list (small = green, large = red): watch the compared pair vanish into registers and return swapped, ending as a gradient. Row 1 is the <b>garbage</b>: one pixel per comparison (cyan = swapped). Flip <b>Direction</b> to unsort.' },
+  { name: 'pong.s: Pong (W/S or ↑/↓)', src: pong, crop: 'full', mem: '0x1000', speed: '100',
+    note: '<b>Click this page, press Run, then use W / S or ↑ / ↓</b> to move the paddle (cyan, left edge). Each time the ball returns to the left edge, a paddle there is a hit (a yellow score pixel lights, right half); otherwise the program halts: game over. <b>◀ Back and the scrubber rewind the game exactly</b> (keys pressed are replayed). The memory panel shows the <b>input log</b>, the only garbage this program keeps (8 bytes a frame). The Direction toggle is exact only for programs that read no input, so use Back for Pong. Try <b>Compare engines</b>.' },
   { name: 'nested.s: loop with an if inside', src: nested, crop: 'full', mem: '0',
     note: 'A loop (r2 counts 1 to 5) with an if inside. Result: r2 = 5, r5 = 1, r6 = 4.' },
   { name: 'ifelse_macro.s', src: ifelse, crop: 'full', mem: '0', note: 'If / else with the macros. Result: r3 = 7.' },
@@ -136,6 +139,11 @@ function regsHtml(m: Machine, regs: Uint32Array, pc: number): string {
   return html;
 }
 
+/** Data words the program has written (non-zero words in the data region): memory the program itself uses, on either engine. */
+function programWords(vm: WasmVm): number {
+  return vm.memory(0, 0x10000).reduce((n, w) => n + (w !== 0 ? 1 : 0), 0);
+}
+
 function drawChart(): void {
   const c = $<HTMLCanvasElement>('chart');
   const g = c.getContext('2d')!;
@@ -227,6 +235,7 @@ function render(): void {
       drawScreen($<HTMLCanvasElement>(fbId), m.vm);
       $(histId).textContent = human(m.vm.historyBytes);
       $(histId).className = 'big ' + (m.vm.historyBytes === 0 ? 'good' : '');
+      $(histId === 'histL' ? 'pmemL' : 'pmemR').textContent = String(programWords(m.vm));
     }
     samples.set(t, [L.vm.historyBytes, R.vm.historyBytes]);
     const same = snapshot(L.vm) === snapshot(R.vm);
@@ -279,6 +288,7 @@ const applyProgramDefaults = (): void => {
   const p = PROGRAMS[PROGRAM_SELECT.selectedIndex];
   $<HTMLSelectElement>('crop').value = p.crop;
   $<HTMLInputElement>('memstart').value = q.get('mem') ?? p.mem;
+  $<HTMLSelectElement>('speed').value = q.get('speed') ?? p.speed ?? '20';
 };
 applyProgramDefaults();
 
@@ -324,5 +334,34 @@ $<HTMLSelectElement>('crop').onchange = () => render();
 document.querySelectorAll<HTMLButtonElement>('button[data-jump]').forEach((b) => {
   b.onclick = () => { $<HTMLInputElement>('memstart').value = b.dataset.jump!; machines.forEach((m) => (m.prevMem = [])); render(); };
 });
+
+// Keyboard: sent to the machine as input events (SPEC 11.7: a press is the plain code, bit 8 marks a release).
+const NAMED: Record<string, number> = { ArrowUp: 0x80, ArrowDown: 0x81, ArrowLeft: 0x82, ArrowRight: 0x83, ' ': 0x20, Enter: 0x0d, Escape: 0x1b };
+function keyCode(key: string): number | null {
+  if (key in NAMED) return NAMED[key];
+  if (key.length === 1) {
+    const c = key.toUpperCase().charCodeAt(0);
+    return c < 0x80 ? c : null;
+  }
+  return null;
+}
+function onKey(ev: KeyboardEvent, up: boolean): void {
+  const target = ev.target as HTMLElement | null;
+  if (ev.repeat || ev.ctrlKey || ev.metaKey || ev.altKey || machines.length === 0) return;
+  if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
+  const code = keyCode(ev.key);
+  if (code === null) return;
+  ev.preventDefault();
+  const value = code | (up ? 0x100 : 0);
+  machines.forEach((m) => m.vm.pushInput(value));
+  if (primary().vm.instructionCount < maxT) { // pressing a key after scrubbing back starts a new timeline
+    maxT = primary().vm.instructionCount;
+    samples = new Map([[0, [0, 0]]]);
+    $('branch').textContent = 'new timeline';
+  }
+  $('lastkey').textContent = `${ev.key === ' ' ? 'Space' : ev.key} ${up ? 'up' : 'down'}  (0x${value.toString(16)})`;
+}
+window.addEventListener('keydown', (e) => onKey(e, false));
+window.addEventListener('keyup', (e) => onKey(e, true));
 
 void load();

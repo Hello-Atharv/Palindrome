@@ -40,3 +40,11 @@ on the reversible engine, with 0 bytes of history (`web/wasm`, test "rewinds a l
 - Not measured here: what reversible programs cost compared with conventional ones (extra instructions, garbage
   bytes). That needs a conventional version of each demo program. TODO: sort.
 - The MSVC and GCC differences are compiler code generation on this machine, not a property of the design.
+
+## A real program: Pong (`programs/pong.s`)
+Measured by `web/wasm/test/pong.test.ts` (200 frames, a paddle that chases the ball, 105 key events):
+- about **300 steps per frame** (487 instructions of code);
+- diary engine history **14,413 bytes per frame** (48 bytes x 300 steps), reversible engine history **0**;
+- the program's own garbage is its input log: **8 bytes per frame** (two words), and the words are zero while nobody presses a key.
+Caveats: the diary figure is our straightforward 48-byte-per-step diary (a tighter one would be smaller but still linear); the reversible
+program's extra instructions compared with a conventional Pong are not measured (there is no conventional version yet).
