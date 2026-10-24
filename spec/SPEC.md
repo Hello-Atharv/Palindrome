@@ -279,3 +279,37 @@ nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SP
    Programs must not use `0xFFFF` for anything else.
 3. **Assembler.** Written in TypeScript (`asm/`): a Node command line tool that also runs in the browser, so the
    Code view can assemble live. It emits the same `.rvm` files either way.
+
+### 11.8 Debugger notes
+Everything here is done in the UI with the existing `RVM` calls. None of it changes the API.
+
+**Stepping.** Single step = one `stepForward()` or `stepBack()`. All the following stop early at a breakpoint,
+on `halted`, `at_start` or `fault`, and after a cap of 1,000,000 steps (then show "gave up", so nothing hangs).
+- **Step over** (forward): if the instruction at PC is `CALL`, record `sp = r14` and `ret = PC + 1`, then step until
+  `PC == ret` and `r14 == sp`. Otherwise it is a single step.
+- **Step out** (forward, inside a procedure): record `sp = r14`, then step until `r14 < sp` (the `RET` has run).
+- **Step over** (backward): if the instruction at `PC - 1` is `CALL` (we are just after a call), record `sp = r14`,
+  then `stepBack()` until `PC == (the CALL's address)` and `r14 == sp`. Otherwise a single `stepBack()`.
+- **Step by frame**: single steps until `memory(0xFFFF, 1)` changes (section 11.7).
+- Under direction -1 the same rules apply to whichever way the program is running; use the stack depth (`r14`),
+  not the direction, to decide when a call has finished.
+
+**Run loop.** Run N steps per animation frame (the speed control), check breakpoints after each step, and
+yield to the browser between frames. If profiling shows one call per step is too slow, ask core for a batch
+call (for example `runUntil(pc, maxSteps)`); that would be a spec change.
+
+**Scrubbing.** `runTo(n)` costs about as much as stepping that distance, in either direction. When the
+scrubber moves far, call `runTo` in chunks (at most ~200,000 steps per animation frame) and show progress,
+instead of one blocking call. Throttle while dragging. The scrubber's range is `0 .. maxT` (section 11.3 item 6).
+
+**Breakpoints and watchpoints.** PC breakpoints are checked by the UI after every single step, in both directions.
+Watchpoints (stop when a register or memory word changes) are the same idea: compare before and after each
+step. Both are UI-side.
+
+**Labels and source lines.** `vm_api.ts` has no symbol accessor. For label names, the UI parses the symbol table
+at the end of the `.rvm` file (`program_format.md`). For source lines, the assembler will write a
+`.rvm.map` source map (JSON, code address to file and line). **Its exact format is defined by `asm/` and is
+not final**; until it lands, show disassembly and labels only.
+
+**Reading faults.** After a `fault`, state is unchanged and `lastError` explains why. PC points at the
+instruction that faulted. Stepping back still works.
