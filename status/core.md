@@ -30,8 +30,10 @@ Updated: 2026-10-24
 
 - **Cost model** (SPEC section 12, logged in `SPEC_CHANGELOG.md`) and **demo script** (`demo/DEMO.md`): one definition of history, garbage, bits erased and overhead; fair-baseline rules; planned vs built labelled.
 
+- **Fair baselines** (`bench/twins`, `bench/TWINS.md`): a conventional machine, conventional twins of sort and Pong (same pictures as the reversible programs on the real engines, every frame), a real bit-packed tight diary that rewinds exactly, checkpoint-and-replay that seeks exactly. 9 tests, mutation-checked. Findings: reversible costs ~3x the instructions; tight diary for Pong ~126 B/frame vs reversible 8 B/frame; checkpointing every 10k steps (~15 B/frame) is a serious competitor on this small-state program.
+
 ## In progress
-- Conventional twin of the sort and of Pong for the honest overhead benchmark.
+- Compiler (step 3 of the plan).
 
 ## Notes for others
 - C++ namespace is `rev` (the C handle struct is `rvm`). The two VMs match on well-formed programs; only the `LND` assertion is logging-VM-only (SPEC section 7).

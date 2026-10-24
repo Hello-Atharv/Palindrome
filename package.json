@@ -10,6 +10,8 @@
     "test:asm": "npm --prefix asm test",
     "build:asm": "npm --prefix asm install && npm --prefix asm run build",
     "build:wasm": "node scripts/build-wasm.mjs",
-    "test:wasm": "npm --prefix web/wasm test"
+    "test:wasm": "npm --prefix web/wasm test",
+    "test:twins": "npm --prefix bench/twins test",
+    "bench:twins": "npm --prefix bench/twins run report"
   }
 }
