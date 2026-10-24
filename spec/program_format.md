@@ -21,5 +21,14 @@ Loader checks (else `RVM_BAD_PROGRAM`): magic/version, sizes fit the file, `code
 `data_len <= 65536`, `entry < code_len`, every opcode defined. The assembler additionally
 checks the BR/LND and CALL/PROC/RET pairing rules (SPEC.md).
 
-A source map (`.rvm.map`, JSON, code address -> file:line) may sit beside the image. Its
-format is owned by asm and consumed by web; keep it out of the binary.
+A source map (`.rvm.map`, JSON) may sit beside the image; the assembler writes it with `--map`. Version 1:
+
+```json
+{ "version": 1,
+  "files": ["pong.s"],
+  "code": [[0, 0, 12], [1, 0, 13]],
+  "labels": [{ "name": "start", "kind": "code", "addr": 0 }] }
+```
+`code` has one `[codeAddress, fileIndex, line]` entry per code word (lines are 1-based; a `neg` produces two
+entries with the same line). `labels` mirrors the symbol table. The map is separate from the binary so the VM
+never needs it.

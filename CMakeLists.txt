@@ -25,6 +25,10 @@ target_include_directories(rvm PUBLIC spec vm/include)
 target_include_directories(rvm PRIVATE vm/src)
 target_link_libraries(rvm PRIVATE rvm_warnings)
 
+# Command line runner for .rvm programs (used by the assembler's integration tests).
+add_executable(rvm_run vm/tools/rvm_run.cpp)
+target_link_libraries(rvm_run PRIVATE rvm rvm_warnings)
+
 enable_testing()
 add_subdirectory(tests)
 # add_subdirectory(bench)   # enable when bench/CMakeLists.txt exists
