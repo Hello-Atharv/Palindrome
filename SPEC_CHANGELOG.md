@@ -8,3 +8,4 @@ One line per change to `spec/`, newest last: `YYYY-MM-DD | file | what changed |
 2026-10-24 | input_tape.md | window read time defined (value of t before the step); d=-1 caveat | core
 2026-10-24 | vm_api.ts | new file: canonical TypeScript API + constants + opcodes for web; SPEC section 8 now points to it (JS binding block removed); vm_api.h stays as C ABI | core
 2026-10-24 | SPEC.md | backward() pseudocode: boundary is `q == entry -> HALTED` (was `t == 0`); added strict-check rule 4 (what the logging VM faults on) | core
+2026-10-24 | SPEC.md | added section 11 UI requirements (sizes, must/should/could, behaviours, open key-encoding and frame questions) | core

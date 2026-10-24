@@ -177,3 +177,68 @@ and is what the two C++ VMs implement. The two files must stay in step.
 2. Pong collision with little garbage; the cipher key schedule without multiply.
 3. Garbage macros (`compute/copy/uncompute`) after basic `if`/`loop` macros.
 4. Framebuffer fixed at 64x32 for now.
+
+## 11. UI requirements (web/viz, web/debugger)
+The UI is one page of panels over one `RVM` (`vm_api.ts`). Tech stack is open: the viz owner picks it and
+records it in their status file. Words below: **must** = required for the demo, **should** = wanted,
+**could** = only if time allows.
+
+### 11.1 Sizes (what there is to show)
+| Thing | Size |
+|---|---|
+| Registers | 16 words + PC |
+| Code | up to 64K words (a demo program is a few hundred) |
+| Writable data memory | `0x20800` words = 133,120 words = 520 KiB: data 64K words, stack 64K words, framebuffer 2048 words |
+| Input window | read-only, 64K words of address space, but only `2 + COUNT` words are meaningful |
+| Framebuffer | 64 x 32 pixels, one word each (`0x00RRGGBB`) |
+
+Visualisation budget: a hex grid shows about 256 words at once (16 rows x 16 columns), so it must be a
+**scrollable window with jump-to-region** (data, stack, framebuffer, input). The whole writable memory fits as a
+**minimap**: one pixel per word, 512 x 260, colour = zero / non-zero / changed this step. Copying all 520 KiB
+per refresh is cheap, so a minimap is realistic; per-cell text for everything is not.
+
+### 11.2 Must include
+1. **Machine view:** 16 registers and PC in hex and decimal; the instruction at PC, disassembled; registers and
+   memory words changed by the last step visibly highlighted.
+2. **Code view:** listing with disassembly (decode per SPEC section 3, labels from the .rvm symbol table when
+   present), a marker at PC, and clickable PC breakpoints.
+3. **Memory view:** windowed hex grid with region jump (data, stack, framebuffer, input window) and changed-word
+   highlight.
+4. **Screen:** the framebuffer drawn from `framebuffer()` after every refresh; keyboard events are sent with
+   `pushInput`.
+5. **Controls:** load program, step forward, step back, run, pause, run speed (steps per animation frame).
+6. **Timeline:** shows instruction count `t` and a scrubber that calls `runTo`. Its range is `0 .. maxT`, where
+   `maxT` is the largest `t` reached on the current branch. A host action (`pushInput`, `setDirection`) starts
+   a new branch, so after one the UI must reset `maxT` to the current `t`.
+7. **Direction toggle** via `setDirection`, showing the current `direction`.
+8. **Status:** `historyBytes` readout, and a clear message for `halted`, `at_start` and `fault` (show `lastError`
+   for a fault). A fault leaves state unchanged, so stepping back stays possible.
+
+Behaviours the UI must respect: `stepForward` at HLT returns `halted` and changes nothing; with direction -1
+a program halts when PC reaches the entry. `runTo(n)` stops early on halt or fault, so check the returned
+status and the actual `instructionCount`. Breakpoints are checked by the UI after each single step, in both
+directions. While dragging the scrubber, throttle `runTo` calls.
+
+### 11.3 Should include
+- Stack view (from `r14` down to the base), with return addresses labelled as such.
+- A live graph of `historyBytes` against `t` (this is the project's headline claim, drawn live).
+- Garbage highlighting: the sort demo writes a permutation record to a fixed region; the memory view marks it.
+- In-browser editor with an Assemble button (needs the assembler, `asm/`).
+- Indication when the user is on a new branch (typed a key or flipped direction after scrubbing back).
+
+### 11.4 Could include
+- **Compare mode:** run the logging VM and the reversible VM side by side on one program, with a live
+  "states match" indicator (state = registers, PC, writable memory).
+- Memory minimap (11.1), watch lists, tape recorder and save/load of input tapes.
+
+### 11.5 Structure (recommended, not mandatory)
+After every action call one `refresh()` that reads registers, memory, framebuffer and stats into a single
+snapshot; each panel is a function of (snapshot, previous snapshot). Panels do not talk to each other. Import
+nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SPEC section 3) are not in
+`vm_api.ts`; the viz owner writes them.
+
+### 11.6 Open
+1. **Key encoding for `pushInput`.** Proposed: bit 8 = key pressed (1) or released (0); low byte = code
+   (1 up, 2 down, 3 left, 4 right, 5 space, otherwise ASCII). Games and viz must agree before building on it.
+2. **Frame boundary.** Proposed: the program increments a reserved word `FRAME` at data address `0xFFFF` once per
+   frame, and the debugger offers "step by frame". Not adopted yet; it changes the memory contract.

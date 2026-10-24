@@ -13,7 +13,7 @@ exposes its garbage), web UI (visualiser + debugger with step back), benchmarks,
 writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `sponsors_notes.txt`.
 
 ## Rules (read first)
-1. **Before any task, read `spec/SPEC.md`, `DECISIONS.md` and every file in `status/`.** (`DECISIONS.md` separates settled decisions from proposals.)
+1. **Before any task, read `spec/SPEC.md` and every file in `status/`.**
 2. **Any change to `spec/` must add a line to `SPEC_CHANGELOG.md` and be flagged to the user.** Only `core` edits `spec/`; others request changes through their status file or the user.
 3. **Update your own `status/` file when you finish a task; never edit someone else's.**
 4. Stay in your own directory. Need something elsewhere? Say so in your status file.
