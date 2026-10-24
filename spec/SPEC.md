@@ -197,7 +197,37 @@ Visualisation budget: a hex grid shows about 256 words at once (16 rows x 16 col
 **minimap**: one pixel per word, 512 x 260, colour = zero / non-zero / changed this step. Copying all 520 KiB
 per refresh is cheap, so a minimap is realistic; per-cell text for everything is not.
 
-### 11.2 Must include
+### 11.2 Views
+One app, three views selected by tabs. All use the same panels and the same `RVM` interface.
+
+| View | Purpose | Priority |
+|---|---|---|
+| **Debug** | One machine. Registers, code listing with breakpoints, memory window, game screen, timeline, controls. The everyday view. | must |
+| **Code** | The "scripting layer" on its own: editor, Assemble button, assembled listing, assembler errors, and a small run/step control. For writing and fixing programs. Needs `asm/`; until it lands, programs load as `.rvm` files. | must |
+| **Compare** | Vertical split. Left: logging VM (label: "Normal rewind, keeps a diary"). Right: reversible VM ("No history"). Same program, same input, one shared clock. | should |
+
+**Compare view rules**
+- Two machines in a list (`[left, right]`); every action (step, step back, run, scrub, key press, direction flip)
+  is applied to both, so they are always at the same `t`. Do not write the UI around a single `vm` variable.
+- Both load the same `.rvm` file and receive the same input events at the same `t`.
+- After every action compare registers, PC and framebuffer, and the whole writable memory at least every
+  N steps. Show a **state match** badge (green); on a difference stop and show the first `t` that differs.
+- Until the reversible VM exists, the right side may be a second logging VM or the mock; the swap is one line.
+- Labels must be honest: both sides run the same program on the same instruction set. The comparison proves
+  "rewinding needs no history memory". It does not prove reversible programs are cheaper overall (they carry
+  garbage and extra instructions); that comparison is a separate benchmark (below).
+
+**Tracker strip** (shown in Compare, optional in Debug): current `t` (shared); state match badge; `historyBytes`
+for each side; program memory in use (count of non-zero writable words) for each side, so garbage is visible;
+steps per second for each side, so the time cost of the reversible side is not hidden.
+
+**Normal-style vs reversible-style benchmark (not a live view).** To measure what reversibility costs overall,
+a normal-style version and a reversible version of a program (the sort first) are different programs and take
+different numbers of steps, so they cannot run in lockstep by `t`. They are compared in `bench/` (instruction
+count, code size, diary growth, garbage bytes) and, if ever shown live, aligned by frame (needs the `FRAME`
+word, 11.7).
+
+### 11.3 Must include
 1. **Machine view:** 16 registers and PC in hex and decimal; the instruction at PC, disassembled; registers and
    memory words changed by the last step visibly highlighted.
 2. **Code view:** listing with disassembly (decode per SPEC section 3, labels from the .rvm symbol table when
@@ -219,25 +249,23 @@ a program halts when PC reaches the entry. `runTo(n)` stops early on halt or fau
 status and the actual `instructionCount`. Breakpoints are checked by the UI after each single step, in both
 directions. While dragging the scrubber, throttle `runTo` calls.
 
-### 11.3 Should include
+### 11.4 Should include
 - Stack view (from `r14` down to the base), with return addresses labelled as such.
 - A live graph of `historyBytes` against `t` (this is the project's headline claim, drawn live).
 - Garbage highlighting: the sort demo writes a permutation record to a fixed region; the memory view marks it.
 - In-browser editor with an Assemble button (needs the assembler, `asm/`).
 - Indication when the user is on a new branch (typed a key or flipped direction after scrubbing back).
 
-### 11.4 Could include
-- **Compare mode:** run the logging VM and the reversible VM side by side on one program, with a live
-  "states match" indicator (state = registers, PC, writable memory).
+### 11.5 Could include
 - Memory minimap (11.1), watch lists, tape recorder and save/load of input tapes.
 
-### 11.5 Structure (recommended, not mandatory)
-After every action call one `refresh()` that reads registers, memory, framebuffer and stats into a single
+### 11.6 Structure (recommended, not mandatory)
+Hold machines in a list (one in Debug and Code, two in Compare) and apply every action to each. After every action call one `refresh()` that reads registers, memory, framebuffer and stats into a single
 snapshot; each panel is a function of (snapshot, previous snapshot). Panels do not talk to each other. Import
 nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SPEC section 3) are not in
 `vm_api.ts`; the viz owner writes them.
 
-### 11.6 Open
+### 11.7 Open
 1. **Key encoding for `pushInput`.** Proposed: bit 8 = key pressed (1) or released (0); low byte = code
    (1 up, 2 down, 3 left, 4 right, 5 space, otherwise ASCII). Games and viz must agree before building on it.
 2. **Frame boundary.** Proposed: the program increments a reserved word `FRAME` at data address `0xFFFF` once per
