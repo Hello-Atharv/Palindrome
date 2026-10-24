@@ -15,8 +15,26 @@ Updated: 2026-10-24
 - Keyboard encoding (games: please use): u32 per event, low byte = key code (ASCII upper-case, Space 0x20, Enter 0x0D,
   Esc 0x1B, arrows Up/Down/Left/Right = 0x80/0x81/0x82/0x83), bit 8 = released. `spec/input_tape.md` leaves this open.
 
+## Merge 2026-10-24
+- Merged origin/scaffold (12 commits: C++ logging + reversible VM, differential tests, SPEC section 11 UI requirements,
+  key encoding now = keys.ts). Conflicts were only in spec/ and status/core.md (scaffold version taken). After the merge:
+  mock_vm 47/47, viz 10/10, tsc clean, vite build ok.
+- Corrected UI plan with milestones: `web/viz/UI_PLAN.md` (the old REVERSIBLE_COMPUTER_UI_PLAN.md could not be found).
+
 ## In progress
-- Nothing. Not yet looked at in a real browser (only built and unit-tested); needs an eyeball pass on layout.
+- Waiting for the user's go. Next: mock catch-up (below), then milestone 1 (tabs + machines list). Not yet looked at in a
+  real browser; needs an eyeball pass on layout.
+
+## Mock differs from the C++ logging VM (to fix, mock_vm)
+- `loadProgram` clears the tape; C++ keeps it across `load_program` (core's note in status/core.md).
+- Missing logging-VM faults from SPEC 6 rule 4: taken BR must land on an LND naming that BR; RET must be the PROC's declared
+  exit and follow a CALL; stack slot above SP must be zero at CALL; RET to address 0 faults.
+- CALL/RET stack check: mock requires the stack region, C++ requires any writable RAM word. Pick one (core to confirm).
+- `historyBytes` is ~12 B/step in the mock vs ~48 B/step measured in C++; any "256 MiB" warning maths must not use the mock's number.
+
+## Spec questions for core
+- Who owns web/debugger: CLAUDE.md says a separate debugger role; there is no status file for them. Is it core?
+- Viz currently has transport controls (step/run/speed). If the debugger brings its own, should viz hide its own?
 
 ## Verified (Node 24, 2026-10-24)
 - `web/mock_vm`: `tsc` clean, 47/47 vitest tests pass (incl. 300 random programs round-trip and the d=-1 retrace).
