@@ -1,0 +1,96 @@
+{
+  "name": "rvm-rev",
+  "displayName": "Reversible machine: rev and assembly",
+  "description": "Syntax, diagnostics and a per-line cost report for the rev language and the reversible machine assembly (OxHack 2026)",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "oxhack26",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:rev",
+    "onLanguage:rvm-asm"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "rev",
+        "aliases": [
+          "rev",
+          "Rev (reversible)"
+        ],
+        "extensions": [
+          ".rev"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "rvm-asm",
+        "aliases": [
+          "RVM assembly"
+        ],
+        "extensions": [
+          ".s"
+        ],
+        "configuration": "./asm-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rev",
+        "scopeName": "source.rev",
+        "path": "./syntaxes/rev.tmLanguage.json"
+      },
+      {
+        "language": "rvm-asm",
+        "scopeName": "source.rvm-asm",
+        "path": "./syntaxes/rvm-asm.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "rev.showReport",
+        "title": "rev: Show cost report"
+      },
+      {
+        "command": "rev.debug",
+        "title": "rev: Debug with step back (terminal)"
+      }
+    ],
+    "configuration": {
+      "title": "rev",
+      "properties": {
+        "rev.costOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run the program and show steps beside each line when a .rev file is saved."
+        },
+        "rev.maxSteps": {
+          "type": "number",
+          "default": 400000,
+          "description": "Stop the cost run after this many steps."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.0.0"
+  }
+}

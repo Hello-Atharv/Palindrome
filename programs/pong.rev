@@ -1,0 +1,148 @@
+// PONG in rev: the same game as programs/pong.s (written in assembly), now in the reversible language.
+// Keys: W / S or Up / Down move the paddle. The court is the left half of the screen; the paddle is cyan on column 0, the ball is
+// white, and each time the ball comes back to the left edge and the paddle is there, your score goes up: the number on the right.
+// If the paddle is not there the program ends: game over (step back to carry on, which is the point).
+//
+// Why it is reversible (the same ideas as pong.s):
+//  * The ball has no bounce logic. Each axis is an UNFOLDED phase that wraps by itself; the screen position is its triangle-wave
+//    fold, so a bounce is just the fold turning round and nothing is decided or lost.
+//  * Drawing is XOR, so the same line draws and erases.
+//  * fold_x and fold_y XOR their result in, so calling one twice clears what the first call set.
+//  * INPUT IS THE ONE THING THAT MUST BE RECORDED: each frame the latest key event and the event count go into `log` (the program's
+//    garbage, 8 bytes a frame) so the game can be replayed.
+// Variables used by an `fi` or `until` condition must live in registers, so they are declared first; the rest are kept in
+// memory (`@ mem`) to leave registers free for expression temporaries.
+var u = 0, over = 0, lp = 0, ev = 0, qx = 0, ri = 0, dig0 = 0;
+var px @ mem = 671088640, py @ mem = 536870912, pp @ mem = 1879048192, bx @ mem = 0, by @ mem = 0, d @ mem = 0;
+var row @ mem = 0, dig1 @ mem = 0, dv @ mem = 0, dx @ mem = 0, g @ mem = 0, pb @ mem = 0;
+// the digit font: 10 digits of 3 x 5 pixels, one word per pixel (0 or yellow); digit n starts at glyph[15 * n]
+var glyph[150] = {
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00,
+  0, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0, 0, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00,
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00,
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00,
+  0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0, 0, 0xFFFF00,
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00,
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00,
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0, 0, 0xFFFF00, 0, 0, 0xFFFF00, 0, 0, 0xFFFF00,
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00,
+  0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0, 0, 0xFFFF00, 0xFFFF00, 0xFFFF00, 0xFFFF00
+};
+var screen[2048] @ 0x20000;
+var log[2048] @ 0x1000;
+var frame @ 0xFFFF;
+
+// bx ^= fold(px) and qx ^= unfolded(px). u = the top 6 bits of the phase (0..63); the fold is u when u < 32, else 63 - u.
+proc fold_x {
+  u ^= rol(px, 6) & 63;
+  qx ^= u;
+  if (u < 32) { bx ^= u; } else { bx ^= 63 - u; } fi (u < 32);
+  u ^= rol(px, 6) & 63;
+}
+
+proc fold_y {
+  u ^= rol(py, 6) & 63;
+  if (u < 32) { by ^= u; } else { by ^= 63 - u; } fi (u < 32);
+  u ^= rol(py, 6) & 63;
+}
+
+// XOR the four paddle pixels (cyan) in column 0: draws the paddle if it is not there, erases it if it is.
+proc draw_paddle {
+  row ^= rol(pp, 5) & 31;
+  screen[rol(row, 6)] ^= 0xFFFF;
+  screen[rol((row + 1) & 31, 6)] ^= 0xFFFF;
+  screen[rol((row + 2) & 31, 6)] ^= 0xFFFF;
+  screen[rol((row + 3) & 31, 6)] ^= 0xFFFF;
+  row ^= rol(pp, 5) & 31;
+}
+
+proc draw_ball {
+  screen[rol(by, 6) + bx] ^= 0xFFFFFF;
+}
+
+// XOR one digit (dv, 0..9) onto the screen with its top-left pixel at screen index dx. Calling it twice erases it.
+proc draw_digit {
+  g ^= rol(dv, 4) - dv;
+  pb ^= dx;
+  from (ri == 0) loop {
+    screen[pb] ^= glyph[g];
+    screen[pb + 1] ^= glyph[g + 1];
+    screen[pb + 2] ^= glyph[g + 2];
+    pb += 64;
+    g += 3;
+    ri += 1;
+  } until (ri == 5);
+  ri -= 5;
+  pb -= 320;
+  pb ^= dx;
+  g -= 15;
+  g ^= rol(dv, 4) - dv;
+}
+
+// The score as two digits (tens, ones) on the right half of the screen. Drawing is XOR, so calling this again erases it.
+proc draw_score {
+  dv ^= dig1; dx ^= 164; call draw_digit; dx -= 164; dv ^= dig1;
+  dv ^= dig0; dx ^= 168; call draw_digit; dx -= 168; dv ^= dig0;
+}
+
+// The wall: a permanent grey line down column 32, between the court and the scoreboard. It is drawn once and never erased,
+// so nothing in the game touches it (the ball only moves in columns 0 to 31).
+proc draw_wall {
+  from (ri == 0) loop {
+    screen[rol(ri, 6) + 32] ^= 0x606060;
+    ri += 1;
+  } until (ri == 32);
+  ri -= 32;
+}
+
+main {
+  call draw_wall;
+  call draw_score;
+  call fold_x;
+  call fold_y;
+  call draw_paddle;
+  call draw_ball;
+
+  from (lp == 0) loop {
+    // ---- the paddle: read the latest key event, record it, move ----
+    call draw_paddle;
+    ev ^= latest;
+    log[lp] ^= latest;
+    log[lp + 1] ^= events;
+    if (ev == 0x57) { pp -= 0x8000000; } else { skip; } fi (ev == 0x57);
+    if (ev == 0x80) { pp -= 0x8000000; } else { skip; } fi (ev == 0x80);
+    if (ev == 0x53) { pp += 0x8000000; } else { skip; } fi (ev == 0x53);
+    if (ev == 0x81) { pp += 0x8000000; } else { skip; } fi (ev == 0x81);
+    ev ^= latest;
+    call draw_paddle;
+
+    // ---- the ball: erase, move, draw ----
+    call draw_ball;
+    call fold_x;
+    call fold_y;
+    px += 0x4000000;
+    py += 0x2D00000;
+    call fold_x;
+    call fold_y;
+    call draw_ball;
+
+    // ---- contact: the ball has just arrived in the paddle column (unfolded x = 63) ----
+    if (qx == 63) {
+      row ^= rol(pp, 5) & 31;
+      d ^= (by - row) & 31;
+      if (d > 3) {
+        over += 1;
+      } else {
+        call draw_score;
+        if (dig0 == 9) { dig0 -= 9; dig1 += 1; } else { dig0 += 1; } fi (dig0 == 0);
+        call draw_score;
+      } fi (over != 0);
+      d ^= (by - row) & 31;
+      row ^= rol(pp, 5) & 31;
+    } else { skip; } fi (qx == 63);
+
+    // ---- next frame ----
+    lp += 2;
+    frame += 1;
+  } until (over != 0);
+}

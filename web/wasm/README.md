@@ -24,10 +24,24 @@ Tests: `cd web/wasm && npm install && npm test` (runs the assembler's examples o
 differential test between them, and a long rewind).
 
 ## Playground (see the real engines run)
-`cd web/wasm && npm install && npm run playground` opens a small page at http://localhost:5173 with the demo programs
-(cipher, sort, examples), an engine switch (reversible / diary), step, step back, run, run back, a time scrubber, the
-direction toggle with a "running in reverse" banner, registers, a memory window with an ASCII column, the screen, and the
-code listing. It is not the product UI (that is `web/viz`); it is a working reference for using `createWasmVm` and
-`assemble()` in a Vite page, and a way to watch a program before the shell uses it. URL options:
-`?p=<program index>&e=reversible|logging&t=<steps to run>&mem=<memory start>&dir=-1&after=<steps in reverse>`.
-Example: `?p=0&t=1151&mem=27` shows the encrypted cipher; add `&dir=-1&after=600` to watch it decrypt.
+`cd web/wasm && npm install && npm run playground` opens a small page at http://localhost:5173. It is not the product UI
+(that is `web/viz`); it is a working reference for `createWasmVm` and `assemble()` in a Vite page, and a way to watch a program.
+- The demo programs (cipher, sort, **Pong**, examples), each with a one-line explanation of what to look at. **The keyboard is wired
+  to the machine** (W/S/arrows etc., encoded as in SPEC 11.7), so Pong can be played: pick it, press Run, use W/S or the arrows.
+- **Compare engines**: the diary engine and the reversible engine side by side on the same program, driven by the same actions.
+  Shows each engine's VM history as a big number, both screens and registers, a "states match" badge (registers, PC, memory and
+  screen compared after every action), and a chart of history against time: the diary climbs, the reversible line stays at zero.
+- Step, step back, run, run back, a time scrubber, the direction toggle with a "running in reverse" banner, changed values
+  flashing amber (forward) or cyan (backward), a code listing with the PC marked, a memory window (jump to data / stack / screen,
+  ASCII column), and a zoom for the small screen.
+- URL options: `?p=<program index>&e=reversible|logging&cmp=1&t=<steps to run>&mem=<memory start>&dir=-1&after=<steps in reverse>`.
+  Testing options: `run=1` starts running at once; `speed=<steps per frame>`; `debug=1` shows the page's scroll position and the fewest paddle
+  pixels visible in any redraw in the tab title; `selftest=<n>` drives n iterations of the run loop synchronously (no animation frames) and
+  reports in the title; `frames=0` turns off frame-synced drawing.
+- **Frame-synced drawing.** XOR drawing erases before it redraws, so a screen sampled in the middle of a frame is half-erased (Pong's
+  paddle would flicker). For programs that increment the FRAME word (SPEC 11.7), Run stops exactly when it ticks and redraws only then.
+  Measured with `?selftest=300&p=2&debug=1`: the fewest paddle pixels visible in any redraw is 0 without it and 4 with it.
+  Examples: `?p=0&t=800` the cipher part-way through; `?p=1&cmp=1&t=200` the sort on both engines; `?p=0&t=1203&dir=-1&after=600`
+  the cipher decrypting.
+
+**rev programs in the playground.** The programs ending in `.rev` (indexes 6 to 9: pong.rev, sort8.rev, sort3.rev, fib.rev) show a source editor and a cost report above the machine. Edit the source and press *Compile & load*: it compiles in the browser (`lang/`), loads the result into the engine, and prints the per-line cost report (steps per source line, garbage, history bytes, exact round trip). The Code panel shows the assembly the compiler wrote. Program indexes for `?p=`: 0 cipher, 1 sort, 2 pong, 3 nested, 4 ifelse_macro, 5 call, 6 pong.rev, 7 sort8.rev, 8 sort3.rev, 9 fib.rev, 10 memory.

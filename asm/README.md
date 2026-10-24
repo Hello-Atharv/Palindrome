@@ -12,5 +12,5 @@ npm test            # unit tests + integration tests (needs rvm_run: run `npm ru
 - `src/assemble.ts` two-pass assembler, `src/checks.ts` control-flow rules, `src/image.ts` .rvm writer,
   `src/expr.ts` constant expressions, `src/parser.ts` lines, `src/cli.ts` command line (Node only).
 - `examples/` runnable programs from the spec; the integration tests run them on both engines and rewind them.
-`src/macros.ts`: `.if/.else/.fi` and `.loop/.again` expand to br/lnd before assembly (see `spec/asm_syntax.md`).
-Later: `compute/copy/uncompute` macros.
+`src/macros.ts`: `.if/.else/.fi`, `.loop/.again`, `.with/.endwith` (constants), `.compute/.use/.uncompute` (the undo is written for you)
+and `.plot` (XOR a pixel) expand to plain instructions before assembly (see `spec/asm_syntax.md`).

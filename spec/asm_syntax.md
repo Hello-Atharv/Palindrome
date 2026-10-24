@@ -97,4 +97,55 @@ hand-written `ifelse.s` and `loop.s`.
 - Generated labels start with `$` and are hidden from the symbol table; user labels may not start with `$`. A label
   on a macro line attaches to the first instruction it generates. Listing lines for generated code carry the line
   number of the macro line that produced them.
-- Not yet: `compute/copy/uncompute` (Bennett-style) macros.
+
+### Constants: `.with` / `.endwith`
+```
+        .with  r11, 0xFFFFFF        ; r11 = white while the block runs, zero afterwards
+        .plot  r11, r6, r7, r10
+        .endwith
+```
+Builds the value in a zero register (the assembler picks the shortest sequence: one `xori`, an `xori` + `roli`, or three
+instructions for any 32-bit value), runs the body, then clears the register with the exact inverse. The value is a number or
+earlier `.equ` constants. The body must not change the register (it is an error if it does). The register must be zero on entry.
+
+### Temporaries without writing the undo: `.compute` / `.use` / `.uncompute`
+```
+        .compute                    ; build a temporary (straight-line code only)
+        xor    r2, r1
+        roli   r2, 3
+        addi   r2, 7
+        .use
+        xst    r2, [r0+0x100]       ; use it
+        .uncompute                  ; the assembler writes the exact inverse of the .compute block here
+```
+This is Bennett's trick: compute, use, then undo the computation so no garbage is left. The compute block must be straight-line
+(no branches, no labels, and `roli` counts must be constants); the use block may contain anything, including `.if` and `hlt`.
+Blocks nest (a `.compute` may sit inside another block's `.use`). The assembler checks the classic mistake: the use block must not
+change a register the compute block only reads (an input), or the undo could not clear the temporaries. Take care that a compute
+block that reads the input window (`xld` from 0x30000) would read it again when undone, and the window can change in between.
+
+### Drawing: `.plot`
+`.plot colour, x, y, tmp` XORs the pixel (x, y) of the 64-wide screen with the colour register; `tmp` is a zero scratch register
+that is zero again afterwards; the four registers must differ (use `r0` for column 0). The same line draws and erases.
+
+### Procedures
+`call` / `proc` / `ret` are ordinary and reversible (SPEC 4.2); `programs/pong.s` uses them. A procedure that only XORs its
+results into registers computed from unchanged inputs is **its own inverse**: calling it twice clears what the first call set.
+
+### Console: `.print`
+`.print` appends text or numbers to the console buffer (SPEC 11.9), which the UI draws from memory at the current time, so stepping back
+un-prints. It expands to ordinary instructions (about 13 per character), so nothing in the machine changes.
+```
+        .print "Hello, world", r10, r11      ; a string, one entry per character
+        .print 'H', r10, r11                 ; one character (or any constant: it is printed as a character)
+        .print 10, r10, r11                  ; a newline (character 10)
+        .print r1, unsigned, r10, r11        ; a register or constant with a format: char | unsigned | signed | hex
+        .print -7, signed, r10, r11
+```
+- The last two operands are **zero scratch registers**: different from each other, from `r0` and from the value register. Both are
+  zero again afterwards (like `.plot`'s scratch register).
+- Strings are written between double quotes and may contain commas and semicolons. Escapes: backslash-n (newline), backslash-t (tab),
+  backslash-backslash, and backslash-double-quote.
+- Each entry appears in a single step (the length word is updated in one XOR), so the console is never seen half written.
+- The console is **garbage** in the cost-model sense: the program cannot erase it, only step back. Capacity is 4,095 entries; nothing
+  checks for overflow.

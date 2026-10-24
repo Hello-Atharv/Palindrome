@@ -10,6 +10,16 @@
     "test:asm": "npm --prefix asm test",
     "build:asm": "npm --prefix asm install && npm --prefix asm run build",
     "build:wasm": "node scripts/build-wasm.mjs",
-    "test:wasm": "npm --prefix web/wasm test"
+    "test:wasm": "npm --prefix web/wasm test",
+    "test:twins": "npm --prefix bench/twins test",
+    "bench:twins": "npm --prefix bench/twins run report",
+    "test:lang": "npm --prefix lang test",
+    "rvmc": "node lang/node_modules/vite-node/vite-node.mjs lang/src/cli.ts --",
+    "rvm": "node cli/node_modules/vite-node/vite-node.mjs cli/src/rvm.ts --",
+    "test:cli": "npm --prefix cli test",
+    "test:vscode": "npm --prefix vscode test",
+    "build:vscode": "npm --prefix vscode run build",
+    "setup": "npm --prefix asm install && npm --prefix web/wasm install && npm --prefix lang install && npm --prefix cli install && npm --prefix bench/twins install && npm --prefix vscode install && npm run build:asm",
+    "test:all": "npm test && npm run test:asm && npm run test:wasm && npm run test:lang && npm run test:cli && npm run test:twins && npm run test:vscode"
   }
 }

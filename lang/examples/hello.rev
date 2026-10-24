@@ -1,0 +1,13 @@
+// Fibonacci that prints. The console is a buffer in memory (SPEC 11.9), so what has been printed depends on the time:
+// step back and the text un-prints exactly. A normal computer cannot un-print; here the text is just information the program
+// could not erase, so the cost report counts it as garbage.
+var n = 10, i = 0, a = 0, b = 1;
+out a, b;
+
+proc step { a += b; a <=> b; }
+
+main {
+  print "computing fib(", n, ")...\n";
+  from (i == 0) loop { call step; i += 1; } until (i == n);
+  print "fib(", n, ") = ", a, " (hex ", hex a, ")\n";
+}

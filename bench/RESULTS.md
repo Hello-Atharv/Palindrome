@@ -37,6 +37,16 @@ on the reversible engine, with 0 bytes of history (`web/wasm`, test "rewinds a l
 - Going forward the reversible engine is faster only because the diary engine pays to record every step.
 - The 48 bytes per step is our straightforward diary. A tighter diary would store less per step; it would still grow
   linearly. Do not quote 48 as "what a diary must cost".
-- Not measured here: what reversible programs cost compared with conventional ones (extra instructions, garbage
-  bytes). That needs a conventional version of each demo program. TODO: sort.
+- Reversible-versus-conventional program costs (extra instructions, garbage, fair diaries, checkpointing) are in `bench/TWINS.md`.
+  Read that file before quoting the 48 bytes per step above as a comparison.
 - The MSVC and GCC differences are compiler code generation on this machine, not a property of the design.
+
+## A real program: Pong (`programs/pong.s`)
+Measured by `web/wasm/test/pong.test.ts` (200 frames, a paddle that chases the ball, 105 key events):
+- about **400 steps per frame** (275 instructions of code);
+- diary engine history **19,145 bytes per frame** (48 bytes x 399 steps), reversible engine history **0**;
+- the program's own garbage is its input log: **8 bytes per frame** (two words), and the words are zero while nobody presses a key.
+An earlier version of the same game, written without the new macros, was 487 instructions and about 300 steps per frame (14,413 bytes
+of diary history per frame): smaller code costs more steps per frame here.
+Caveats: the diary figure is our straightforward 48-byte-per-step diary (a tighter one would be smaller but still linear); the reversible
+program's extra instructions compared with a conventional Pong are measured in `bench/TWINS.md` (about 3.3x).

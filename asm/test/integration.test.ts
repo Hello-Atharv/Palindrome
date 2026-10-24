@@ -111,6 +111,15 @@ describe.skipIf(!rvmRun).each(['logging', 'reversible'] as const)('assembled pro
     expect([r.regs[2], r.regs[5], r.regs[6]]).toEqual([5, 1, 4]);
     expect([r.rewind, r.replay]).toEqual(['ok', 'ok']);
   });
+  it('bennett.s: .compute/.uncompute, .with and .plot leave every temporary at zero', () => {
+    const r = run(example('bennett.s'), engine, [0x100, 0x20000 + 2 * 64 + 3, 0x20000 + 2 * 64 + 2]);
+    expect(r.status).toBe('HALTED');
+    expect([r.regs[1], r.regs[2], r.regs[3], r.regs[5], r.regs[6], r.regs[7]]).toEqual([5, 0, 3, 0, 2, 0]);
+    expect(r.mem.get('0x100')).toBe(47); // (5 rotated left by 3) + 7
+    expect(r.mem.get('0x20083')).toBe(0xffffff); // pixel (3, 2) of the screen
+    expect(r.mem.get('0x20082')).toBe(0);
+    expect([r.rewind, r.replay]).toEqual(['ok', 'ok']);
+  });
   it('history is 48 bytes per step on the logging engine and none on the reversible one', () => {
     const r = run(example('loop.s'), engine);
     expect(r.historyBytes).toBe(engine === 'logging' ? 48 * r.t : 0);

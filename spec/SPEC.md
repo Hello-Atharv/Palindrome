@@ -297,7 +297,10 @@ nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SP
 2. **Frame counter (optional).** Data address `0xFFFF` (last word of the data region) is reserved as `FRAME`.
    A program that has frames adds 1 to it once per frame (`ADDI` + `XST` through a register, or `XLD`/`ADDI`/`XST`).
    The VM treats it as ordinary memory. The debugger's "step by frame" runs single steps until `memory(0xFFFF, 1)`
-   changes, and gives up with a message after 1,000,000 steps (so programs that never touch it are not hung).
+   equals its starting value plus 1, and gives up with a message after 1,000,000 steps (so programs that never touch it
+   are not hung). It waits for "plus 1", not for "changed", because a program that updates the word by moving it through a
+   register (`xld`, `xst`, add, `xst`, as `programs/pong.s` and the `rev` compiler do) passes through zero halfway through
+   its own update.
    Programs must not use `0xFFFF` for anything else.
 3. **Assembler.** Written in TypeScript (`asm/`): a Node command line tool that also runs in the browser, so the
    Code view can assemble live. It emits the same `.rvm` files either way.
@@ -312,7 +315,7 @@ on `halted`, `at_start` or `fault`, and after a cap of 1,000,000 steps (then sho
 - **Step out** (forward, inside a procedure): record `sp = r14`, then step until `r14 < sp` (the `RET` has run).
 - **Step over** (backward): if the instruction at `PC - 1` is `CALL` (we are just after a call), record `sp = r14`,
   then `stepBack()` until `PC == (the CALL's address)` and `r14 == sp`. Otherwise a single `stepBack()`.
-- **Step by frame**: single steps until `memory(0xFFFF, 1)` changes (section 11.7).
+- **Step by frame**: single steps until `memory(0xFFFF, 1)` equals its starting value plus 1 (section 11.7).
 - Under direction -1 the same rules apply to whichever way the program is running; use the stack depth (`r14`),
   not the direction, to decide when a call has finished.
 
@@ -347,3 +350,82 @@ line). The browser assembler (`assemble()` in `asm/`) returns the same data as `
 
 **Reading faults.** After a `fault`, state is unchanged and `lastError` explains why. PC points at the
 instruction that faulted. Stepping back still works.
+
+### 11.9 Console (optional convention)
+A program that prints text writes entries into a buffer in data memory; the UI draws the lines from that memory **at the current
+time**, so stepping back un-prints exactly and no separate output log exists. This is the one convention for text output.
+- `OUT_BASE = 0xE000`: the buffer, `0x1FFE` words (4,095 entries). `OUT_LEN = 0xFFFE`: the number of words used so far, always even.
+  Data word `0xFFFF` stays the FRAME counter (11.7). Programs must not use `0xE000..0xFFFE` for anything else.
+- An entry is **two words**, stored at `OUT_BASE + OUT_LEN`: `[tag, value]`. Tags: `0` a character (`value` is its code, `10` ends the
+  line), `1` an unsigned decimal number, `2` a signed decimal number, `3` hexadecimal (shown as `0x` and the digits). The UI formats
+  numbers, so a program never has to print digits.
+- A program prints by XORing the tag and the value into the two zero words and then adding 2 to `OUT_LEN`. **`OUT_LEN` must change
+  in a single step** (XOR in `old xor new`), never by moving it through zero, so an entry appears all at once and the UI never sees a
+  half-written console. Nothing is overwritten, so this is reversible; the buffer is the program's **garbage** (it is information the program cannot erase) and the cost report counts it.
+- A program that does not use the buffer shows nothing here; the UI may fall back to listing labelled data.
+- The assembler has a `.print` macro for this (`asm_syntax.md`) and the `rev` language a `print` statement (`lang/README.md`); both write
+  entries the way this section describes. `lang/src/console.ts` reads the console back from any `memory` function.
+
+## 12. Cost model (what "the cost of undoing" means, and how it is counted)
+One definition shared by the benchmarks, the compiler's cost report, the debugger readouts and the writeup. If a
+number is shown anywhere, it is one of the quantities below, measured the way described here.
+
+Status key: **built** = measured today; **planned** = defined here, not yet implemented. Do not show a planned
+number as if it were measured.
+
+### 12.1 Quantities
+| Name | Unit | Definition | Status |
+|---|---|---|---|
+| `steps` | instructions | Machine time `t` after running a program to completion, forward. | built |
+| `undo_steps(k)` | instructions | Instructions executed to move from `t` to `t-k` (step back k times). | built (timed) |
+| `seek_steps(a,b)` | instructions | Instructions executed to move from any `t=a` to any `t=b`. | built (`bench/twins`) |
+| `history_bytes` | bytes | Bytes the **machine** keeps so that it can step back (`rvm_history_bytes`). Diary: grows with `t`. Reversible: 8 per direction flip. | built |
+| `garbage_bits` | bits | Bits the **program** keeps only because it cannot erase them. Upper bound: 32 x (non-zero words in the program's declared garbage region). Declared by label `garbage_*` or by the compiler's report. | built for sort (by hand); planned in general |
+| `bits_erased` | bits | What a conventional machine destroys running the same computation (12.2). | built (`bench/twins`) |
+| `overhead_steps` | ratio | `steps(reversible program) / steps(conventional twin)` for the same task and input. | built (sort, Pong) |
+| `overhead_code` | ratio | Same, for program size in instructions. | built (sort, Pong) |
+
+`history_bytes` and `garbage_bits` are different things and are reported separately: the first is paid by the machine
+for every program, the second is paid by a particular program. The reversible engine has no `history_bytes` per step
+but a reversible program can have `garbage_bits`. Total cost of undoing = `history_bytes*8 + garbage_bits`.
+
+### 12.2 Bits erased, and the tight diary
+For one step of a **conventional** instruction set (the same operations, but destinations may be overwritten), a step is
+**destroying** if it overwrites a value that the new state does not determine:
+- `mov rd,rs`, `add rd,rs,rt` with `rd` distinct from the sources, a load into `rd`, a store over a memory word, `and`,
+  `or`, shifts, `movi`: **destroying**;
+- `add rd,rd,rs`, `sub rd,rd,rs`, `xor`, `addi rd,rd,k`, `xori rd,rd,k`: **bijective** (not destroying);
+- a branch join (an instruction reachable from `n` predecessors) costs `ceil(log2 n)` bits each time it is entered.
+`bits_erased` of a run = 32 per destroying step + the join bits. It is a **worst-case** count (the overwritten value is
+assumed to be a full 32 bits of information).
+
+The **tight diary** is an actual bit-packed history that rewinds exactly (`bench/twins/src/conv.ts`, tested): per destroying
+step the old value's significant bits followed by a 6-bit length, per join the index of the predecessor. Its size is
+measured, not derived from `bits_erased`; it is usually smaller than `bits_erased/8` because many overwritten values are
+small or zero. It is the strongest simple diary we know, **not a proven lower bound**: a compressing diary could do better.
+The 48 bytes per step of our logging VM is a naive diary and must not be quoted as "what a diary costs"
+(see `bench/RESULTS.md`).
+
+### 12.3 The strategies that get compared
+All four undo the same computation; they differ in what they pay.
+
+| Strategy | Memory held at time `t` | Cost to go back 1 step | Cost to seek to arbitrary `t'` | Forward cost |
+|---|---|---|---|---|
+| **Naive diary** (our logging VM) | 48 B x `t` | O(1) | O(\|t - t'\|) | 1x, plus the cost of recording |
+| **Tight diary** | measured, 12.2 | O(1) | O(\|t - t'\|) | 1x on the conventional twin |
+| **Checkpoint and replay** (interval `K`) | `state_size x t/K` | up to `K` steps of replay | up to `K` steps from the nearest checkpoint | 1x on the conventional twin |
+| **Reversible** (this project) | 0 per step, plus the program's `garbage_bits` | 1 inverse step | O(\|t - t'\|) | `overhead_steps` x on the reversible twin |
+`state_size` is the registers, the pc and every word the program ever writes (its footprint), not the whole 520 KiB, so a
+checkpoint is small for small programs and grows with the program's footprint; memory falls as `K` grows, and the benchmark
+sweeps `K` to show the trade between memory and replay time. Rows 2 and 3 run the **conventional twin** of each demo program (sort, Pong), which is what
+makes the comparison honest: the reversible program is allowed to be bigger and slower, and that is measured
+(`overhead_steps`, `overhead_code`), not hidden.
+
+### 12.4 Rules for reporting
+1. Always report memory (history plus garbage) **and** time (steps to undo, steps forward) together. Never one alone.
+2. Quote naive and tight diaries as separate rows. The headline ratio uses the tight diary.
+3. State the program, the input and the number of steps. Conventional twins must be checked to produce the same
+   output as the reversible program before any ratio is quoted.
+4. Anything planned in 12.1 is labelled "planned" in the UI and the writeup until `bench/` produces it.
+5. Do not claim reversible computing, or time-travel debugging, as invented here. The claim is the measured
+   comparison and the verified, browser-based toolchain.

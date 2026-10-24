@@ -13,16 +13,18 @@ export interface Stmt {
 
 const LABEL = /^\s*([A-Za-z_.$][\w.$]*)\s*:/;
 
-/** Split on commas that are not inside [] or () or a character literal. */
+/** Split on commas that are not inside [] or () or a character or string literal. */
 function splitOperands(s: string): string[] {
   const out: string[] = [];
   let depth = 0;
   let inChar = false;
+  let inStr = false;
   let cur = '';
   for (let k = 0; k < s.length; k++) {
     const c = s[k];
-    if (c === "'" && s[k - 1] !== '\\') inChar = !inChar;
-    if (!inChar) {
+    if (c === "'" && !inStr && s[k - 1] !== '\\') inChar = !inChar;
+    if (c === '"' && !inChar && s[k - 1] !== '\\') inStr = !inStr;
+    if (!inChar && !inStr) {
       if (c === '[' || c === '(') depth++;
       if (c === ']' || c === ')') depth--;
       if (c === ',' && depth === 0) {
@@ -39,9 +41,11 @@ function splitOperands(s: string): string[] {
 
 function stripComment(s: string): string {
   let inChar = false;
+  let inStr = false;
   for (let k = 0; k < s.length; k++) {
-    if (s[k] === "'" && s[k - 1] !== '\\') inChar = !inChar;
-    if (s[k] === ';' && !inChar) return s.slice(0, k);
+    if (s[k] === "'" && !inStr && s[k - 1] !== '\\') inChar = !inChar;
+    if (s[k] === '"' && !inChar && s[k - 1] !== '\\') inStr = !inStr;
+    if (s[k] === ';' && !inChar && !inStr) return s.slice(0, k);
   }
   return s;
 }

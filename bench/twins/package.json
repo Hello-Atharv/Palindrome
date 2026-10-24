@@ -1,0 +1,18 @@
+{
+  "name": "revvm-bench-twins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Conventional twins of the demo programs and fair rewind baselines (tight diary, checkpoint and replay), measured against the reversible engine",
+  "scripts": {
+    "test": "vitest run",
+    "report": "vite-node src/report.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vite-node": "^2.1.0",
+    "vitest": "^2.1.0"
+  }
+}

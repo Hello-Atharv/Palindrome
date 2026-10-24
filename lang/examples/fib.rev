@@ -1,0 +1,16 @@
+// Fibonacci, reversibly. After n steps (a, b) = (fib(n), fib(n+1)).
+// Nothing is thrown away, so the same program run backwards turns (fib(n), fib(n+1)) into (0, 1) again.
+var n = 10, i = 0, a = 0, b = 1;
+out a, b;
+
+proc step {
+  a += b;
+  a <=> b;
+}
+
+main {
+  from (i == 0) loop {
+    call step;
+    i += 1;
+  } until (i == n);
+}

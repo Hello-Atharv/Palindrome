@@ -13,7 +13,12 @@ const NETWORK = [
   [1, 2], [3, 4], [5, 6],
 ];
 const N = 8;
-const INPUT = [42, 7, 19, 3, 88, 7, 55, 1];
+// The values are colours, because the array LIVES ON THE SCREEN (framebuffer words are pixels): the red channel is the
+// value, so sorted order is a gradient from green (small) to red (large). The program draws nothing.
+const colour = (r) => ((r << 16) | ((255 - r) << 8) | 0x40) >>> 0;
+const INPUT_R = [0xb0, 0x30, 0x70, 0x20, 0xf0, 0x30, 0xc0, 0x10];
+const INPUT = INPUT_R.map(colour);
+const hex = (v) => '0x' + v.toString(16).padStart(6, '0');
 
 for (let bits = 0; bits < 1 << N; bits++) {
   const a = Array.from({ length: N }, (_, i) => (bits >> i) & 1);
@@ -21,63 +26,71 @@ for (let bits = 0; bits < 1 << N; bits++) {
   for (let i = 1; i < N; i++) if (a[i - 1] > a[i]) throw new Error(`network fails on 0/1 input ${bits.toString(2)}`);
 }
 
-const reg = (i) => `r${i + 1}`; // value i lives in r1..r8; r9 is the swap bit, r10 the garbage pointer, r11 the array pointer
 const lines = [];
 const emit = (s = '') => lines.push(s);
 
-emit(`; Reversible sort of 8 numbers that EXPOSES ITS GARBAGE.
+emit(`; Reversible sort of 8 numbers that EXPOSES ITS GARBAGE, drawn on the screen.
 ;
-; Sorting destroys information: [3,1,2] and [1,2,3] both become [1,2,3]. A reversible machine cannot do that
-; silently, so this sort keeps a record of what it did. It is a fixed network of ${NETWORK.length} compare-exchange steps; each
-; step compares two values, swaps them if they are out of order, and files one bit away: 1 = swapped, 0 = not.
-; Those ${NETWORK.length} bits (one per word, at "garbage") are the garbage. Sorted array + garbage = the original,
-; so running the program backwards (direction -1) unsorts it exactly. Look at the garbage words in the memory panel
-; while you step: they fill in as the sort proceeds, and empty again when you step back.
+; THE LIST IS ON THE SCREEN. The 8 values are colours (the red channel is the value) and they live in the framebuffer,
+; so the screen itself is the visualisation: row 0 is the list, row 1 is the garbage. The program draws nothing.
+; Small values are green, large ones red: when it is sorted, row 0 is a gradient. Step through and watch the
+; compared pair vanish into registers and come back swapped.
 ;
-; No other garbage: every temporary register ends at zero.
+; Sorting destroys information: [3,1,2] and [1,2,3] both become [1,2,3]. A reversible machine cannot do that silently,
+; so this sort keeps a record. It is a fixed network of ${NETWORK.length} compare-exchange steps; each compares two values, swaps them if
+; they are out of order, and files one bit away on screen row 1: cyan = swapped, black = not. Those ${NETWORK.length} pixels are the
+; garbage. Sorted list + garbage = the original, so running the program backwards (direction -1) unsorts it exactly and
+; clears the garbage. No other garbage: every temporary register ends at zero.
 ;
-; One compare-exchange (values in ri, rj with i < j; r9 is the swap bit):
-;     .if  lt, rj, ri       out of order?
-;     swap ri, rj           yes: swap them
-;     xori r9, 1            ... and remember that we did
-;     .fi  eq, r9, r0       the bit is 0 iff we came from the "no swap" side (this is the exit assertion)
-;     xst r9, [garbage+k]   file the bit away in memory ...
-;     xld r9, [garbage+k]   ... and clear r9 (mem ^= r9 then r9 ^= mem leaves r9 = 0)
+; One compare-exchange (list entries i < j live at screen words i and j; r9 is the swap flag):
+;     xld r1,[r11+i] / xst r1,[r11+i]    move entry i off the screen into r1 (a move: nothing is overwritten)
+;     xld r2,[r11+j] / xst r2,[r11+j]    same for entry j
+;     .if  lt, r2, r1       out of order?
+;     swap r1, r2           yes: swap them
+;     xori r9, 0xFFFF       ... and set the flag
+;     .fi  eq, r9, r0       flag = 0 iff we came from the "no swap" side (this is the exit assertion)
+;     xst r1,[r11+i] / xld r1,[r11+i]    put them back on the screen and clear the registers
+;     xst r2,[r11+j] / xld r2,[r11+j]
+;     xst r9,[r10+k] / xld r9,[r10+k]    file the flag on screen row 1 and clear r9
 ;
-; Values are moved between memory and registers with xld then xst (no overwriting), as in cipher.s.
-; Registers: r1..r8 the values, r9 swap bit, r10 garbage pointer, r11 array pointer.
+; The input colours start in the data region (programs are loaded there) and are moved onto the screen first.
+; Registers: r1, r2 the pair, r9 swap flag, r10 screen row 1 (garbage), r11 screen row 0 (the list).
+        .equ   FB, 0x20000
         .data
-arr:    .word  ${INPUT.join(', ')}
-garbage: .space ${NETWORK.length}
+arr:    .word  ${INPUT.map(hex).join(', ')}
 
         .code
-start:  addi   r10, garbage
-        addi   r11, arr
+start:  xori   r11, FB              ; r11 = screen row 0
+        xori   r10, FB+64           ; r10 = screen row 1
 `);
-emit('        ; load: move each value from memory into a register (memory becomes 0)');
+emit('        ; move the input from the data region onto the screen (data becomes 0)');
 for (let i = 0; i < N; i++) {
-  emit(`        xld    ${reg(i)}, [r11+${i}]`);
-  emit(`        xst    ${reg(i)}, [r11+${i}]`);
+  emit(`        xld    r1, [r0+${i}]`);
+  emit(`        xst    r1, [r0+${i}]`);
+  emit(`        xst    r1, [r11+${i}]`);
+  emit(`        xld    r1, [r11+${i}]`);
 }
 emit('');
-emit('        ; the sorting network');
+emit('        ; the sorting network, working directly on the screen');
 NETWORK.forEach(([i, j], k) => {
-  emit(`        .if    lt, ${reg(j)}, ${reg(i)}            ; step ${k + 1}: compare-exchange (${i},${j})`);
-  emit(`        swap   ${reg(i)}, ${reg(j)}`);
-  emit('        xori   r9, 1');
+  emit(`        xld    r1, [r11+${i}]               ; step ${k + 1}: compare-exchange (${i},${j})`);
+  emit(`        xst    r1, [r11+${i}]`);
+  emit(`        xld    r2, [r11+${j}]`);
+  emit(`        xst    r2, [r11+${j}]`);
+  emit('        .if    lt, r2, r1');
+  emit('        swap   r1, r2');
+  emit('        xori   r9, 0xFFFF');
   emit('        .fi    eq, r9, r0');
+  emit(`        xst    r1, [r11+${i}]`);
+  emit(`        xld    r1, [r11+${i}]`);
+  emit(`        xst    r2, [r11+${j}]`);
+  emit(`        xld    r2, [r11+${j}]`);
   emit(`        xst    r9, [r10+${k}]`);
   emit(`        xld    r9, [r10+${k}]`);
 });
 emit('');
-emit('        ; store: move each sorted value back into memory (registers become 0)');
-for (let i = 0; i < N; i++) {
-  emit(`        xst    ${reg(i)}, [r11+${i}]`);
-  emit(`        xld    ${reg(i)}, [r11+${i}]`);
-}
-emit('');
-emit('        subi   r10, garbage');
-emit('        subi   r11, arr');
+emit('        xori   r10, FB+64           ; clean up the two screen pointers');
+emit('        xori   r11, FB');
 emit('        hlt');
 
 const out = fileURLToPath(new URL('../sort.s', import.meta.url));
