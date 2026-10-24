@@ -4,5 +4,7 @@ Owner: **core**.
 
 - `include/rvm/`: shared pieces (`isa.h` constants/encoding, `program.h` image parse/serialize, `timeline.h` input tape + direction log).
 - `src/logging_vm.*`: the logging VM (oracle). Records per-step deltas; asserts the control-flow rules.
-- `src/api.cpp`: the C API. `RVM_KIND_REVERSIBLE` is not implemented yet (create returns NULL).
+- `src/machine.*`: shared state and non-stepping API (load, tape, direction log, memory reads).
+- `src/reversible_vm.*`: the reversible VM. No per-step history; step_back computes the inverse.
+- `src/api.cpp`: the C API over both VMs (`RVM_KIND_LOGGING`, `RVM_KIND_REVERSIBLE`).
 Add new .cpp files to the `rvm` target in the root `CMakeLists.txt`.

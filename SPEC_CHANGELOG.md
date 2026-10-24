@@ -14,3 +14,4 @@ One line per change to `spec/`, newest last: `YYYY-MM-DD | file | what changed |
 2026-10-24 | SPEC.md | added 11.8 Debugger notes (step over/out definitions, step by frame, run loop, scrubbing chunks, watchpoints, labels and source-map status); no API change | core
 2026-10-24 | SPEC.md | 11.1: added "Refresh and limits" (what to read per refresh, default window, scan frequency, measured 48 bytes/step logging history and 256 MiB warning) | core
 2026-10-24 | SPEC.md (11.7), input_tape.md | key encoding changed to the viz implementation: value = code | (released ? 0x100 : 0); press is the plain code (ASCII/arrows 0x80-0x83); replaces the earlier (pressed<<8)|code proposal | core
+2026-10-24 | SPEC.md (7), vm_api.h behaviour | reversible VM implemented; oracle contract restated: identical state/status after every action for well-formed programs; only the LND assertion is logging-VM-only | core

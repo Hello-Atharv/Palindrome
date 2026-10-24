@@ -3,38 +3,23 @@
 // control-flow rules of spec/SPEC.md section 6 (which the reversible VM can only trust).
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <string>
 #include <vector>
 
-#include "rvm/isa.h"
-#include "rvm/program.h"
-#include "rvm/timeline.h"
-#include "vm_api.h"
+#include "machine.h"
 
 namespace rev {
 
-class LoggingVm {
+class LoggingVm : public Machine {
 public:
-    rvm_status load(const uint8_t* image, size_t len);
-    rvm_status set_input_tape(const uint8_t* tape, size_t len);
-    rvm_status push_input(uint32_t value);
+    rvm_status step_forward() override;
+    rvm_status step_back() override;
+    size_t history_bytes() const override { return deltas_.size() * sizeof(Delta) + dirlog_.bytes(); }
 
-    rvm_status step_forward();
-    rvm_status step_back();
-    rvm_status run_to(uint64_t n);
-
-    rvm_status get_registers(uint32_t* regs, uint32_t* pc) const;
-    rvm_status get_memory(uint32_t addr, uint32_t nwords, uint32_t* out) const;
-    rvm_status get_code(uint32_t addr, uint32_t nwords, uint32_t* out) const;
-
-    int direction() const { return dirlog_.at(t_); }
-    rvm_status set_direction(int dir);
-
-    uint64_t instruction_count() const { return t_; }
-    size_t history_bytes() const { return deltas_.size() * sizeof(Delta) + dirlog_.bytes(); }
-    const char* last_error() const { return err_.c_str(); }
+protected:
+    void reset_extra() override {
+        prev_ = Prev{};
+        deltas_.clear();
+    }
 
 private:
     // How the previous d=+1 step arrived at pc_; lets us check LND assertions.
@@ -55,9 +40,6 @@ private:
     };
     static constexpr uint32_t kMemFlag = 0x80000000u;
 
-    rvm_status fault(const std::string& msg) const;
-    bool read_word(uint32_t addr, uint32_t* out) const;
-    bool cond(const Instr& i) const;
     void set_reg(uint32_t r, uint32_t v);
     void set_mem(uint32_t addr, uint32_t v);
     void undo(const Delta& d);
@@ -66,18 +48,9 @@ private:
     rvm_status exec_forward();  // one step of the program run forward (d = +1)
     rvm_status exec_inverse();  // one step of the program run as its own inverse (d = -1)
 
-    bool loaded_ = false;
-    Program prog_;
-    uint32_t regs_[kNumRegs] = {};
-    uint32_t pc_ = 0;
-    std::vector<uint32_t> ram_;
-    uint64_t t_ = 0;
     Prev prev_;
     std::vector<Delta> deltas_;
     Delta* cur_ = nullptr;
-    InputTape tape_;
-    DirLog dirlog_;
-    mutable std::string err_;
 };
 
 }  // namespace rev

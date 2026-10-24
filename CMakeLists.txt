@@ -17,7 +17,9 @@ endif()
 add_library(rvm STATIC
     vm/src/api.cpp
     vm/src/logging_vm.cpp
+    vm/src/machine.cpp
     vm/src/program.cpp
+    vm/src/reversible_vm.cpp
 )
 target_include_directories(rvm PUBLIC spec vm/include)
 target_include_directories(rvm PRIVATE vm/src)

@@ -2,47 +2,7 @@
 
 namespace rev {
 
-namespace {
-
-uint32_t rotl(uint32_t v, uint32_t k) {
-    k &= 31;
-    return k == 0 ? v : (v << k) | (v >> (32 - k));
-}
-
-}  // namespace
-
-rvm_status LoggingVm::fault(const std::string& msg) const {
-    err_ = msg;
-    return RVM_FAULT;
-}
-
-// ---- state access -------------------------------------------------------------------------
-
-bool LoggingVm::read_word(uint32_t addr, uint32_t* out) const {
-    if (addr < kRamWords) {
-        *out = ram_[addr];
-        return true;
-    }
-    if (addr >= kInBase && addr < kInEnd) {
-        const uint32_t off = addr - kInBase;
-        const uint32_t count = tape_.count_at(t_);
-        if (off == 0) *out = static_cast<uint32_t>(t_);
-        else if (off == 1) *out = count;
-        else *out = (off - 2 < count) ? tape_.value(off - 2) : 0;
-        return true;
-    }
-    return false;
-}
-
-bool LoggingVm::cond(const Instr& i) const {
-    const uint32_t a = regs_[i.ra], b = regs_[i.rb];
-    switch (i.cc) {
-        case kAl: return true;
-        case kEq: return a == b;
-        case kNe: return a != b;
-        default: return static_cast<int32_t>(a) < static_cast<int32_t>(b);
-    }
-}
+// ---- change log ---------------------------------------------------------------------------
 
 void LoggingVm::set_reg(uint32_t r, uint32_t v) {
     cur_->ch[cur_->n++] = {r, regs_[r]};
@@ -62,54 +22,6 @@ void LoggingVm::undo(const Delta& d) {
     }
     pc_ = d.pc_before;
     prev_ = d.prev_before;
-}
-
-// ---- loading and host actions -------------------------------------------------------------
-
-rvm_status LoggingVm::load(const uint8_t* image, size_t len) {
-    Program p;
-    std::string e;
-    if (!parse_program(image, len, p, e)) {
-        err_ = e;
-        return RVM_BAD_PROGRAM;
-    }
-    prog_ = std::move(p);
-    ram_.assign(kRamWords, 0);
-    std::copy(prog_.data.begin(), prog_.data.end(), ram_.begin());
-    for (uint32_t& r : regs_) r = 0;
-    regs_[kSpReg] = kStackBase;
-    pc_ = prog_.entry;
-    t_ = 0;
-    prev_ = Prev{};
-    deltas_.clear();
-    dirlog_.clear();  // the input tape deliberately survives a reload
-    loaded_ = true;
-    return RVM_OK;
-}
-
-rvm_status LoggingVm::set_input_tape(const uint8_t* tape, size_t len) {
-    std::string e;
-    if (!tape_.parse(tape, len, e)) {
-        err_ = e;
-        return RVM_BAD_ARG;
-    }
-    return RVM_OK;
-}
-
-rvm_status LoggingVm::push_input(uint32_t value) {
-    tape_.push(t_, value);
-    dirlog_.drop_after(t_);  // a host action starts a new branch
-    return RVM_OK;
-}
-
-rvm_status LoggingVm::set_direction(int dir) {
-    if (dir != 1 && dir != -1) {
-        err_ = "direction must be +1 or -1";
-        return RVM_BAD_ARG;
-    }
-    tape_.drop_after(t_);  // a host action starts a new branch
-    dirlog_.set(t_, dir);
-    return RVM_OK;
 }
 
 // ---- stepping -----------------------------------------------------------------------------
@@ -143,42 +55,6 @@ rvm_status LoggingVm::step_back() {
     undo(deltas_.back());
     deltas_.pop_back();
     --t_;
-    return RVM_OK;
-}
-
-rvm_status LoggingVm::run_to(uint64_t n) {
-    while (t_ < n) {
-        const rvm_status s = step_forward();
-        if (s != RVM_OK) return s;
-    }
-    while (t_ > n) step_back();
-    return RVM_OK;
-}
-
-// ---- reading state ------------------------------------------------------------------------
-
-rvm_status LoggingVm::get_registers(uint32_t* regs, uint32_t* pc) const {
-    for (uint32_t i = 0; i < kNumRegs; ++i) regs[i] = regs_[i];
-    if (pc != nullptr) *pc = pc_;
-    return RVM_OK;
-}
-
-rvm_status LoggingVm::get_memory(uint32_t addr, uint32_t nwords, uint32_t* out) const {
-    for (uint32_t i = 0; i < nwords; ++i) {
-        if (!read_word(addr + i, &out[i]) || addr + i < addr) {
-            err_ = "address not mapped";
-            return RVM_BAD_ARG;
-        }
-    }
-    return RVM_OK;
-}
-
-rvm_status LoggingVm::get_code(uint32_t addr, uint32_t nwords, uint32_t* out) const {
-    if (static_cast<uint64_t>(addr) + nwords > prog_.code.size()) {
-        err_ = "code range out of bounds";
-        return RVM_BAD_ARG;
-    }
-    for (uint32_t i = 0; i < nwords; ++i) out[i] = prog_.code[addr + i];
     return RVM_OK;
 }
 
@@ -223,7 +99,7 @@ rvm_status LoggingVm::apply_data(const Instr& i, bool inverse) {
         case Op::XLD: {
             if (a == b) return fault("XLD operands must differ");
             uint32_t w;
-            if (!read_word(regs_[b] + i.simm, &w)) return fault("XLD from unmapped address");
+            if (!read_word(regs_[b] + i.simm, t_, &w)) return fault("XLD from unmapped address");
             set_reg(a, regs_[a] ^ w);
             break;
         }

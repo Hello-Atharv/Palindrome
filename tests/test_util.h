@@ -63,8 +63,9 @@ inline uint32_t ret() { return rev::enc_r(Op::RET, 0, 0, 0); }
 struct Vm {
     rvm_t* h = nullptr;
     explicit Vm(const std::vector<uint32_t>& code, const std::vector<uint32_t>& data = {},
-                uint32_t entry = 0) {
-        h = rvm_create(RVM_KIND_LOGGING);
+                uint32_t entry = 0, rvm_kind kind = RVM_KIND_LOGGING) {
+        h = rvm_create(kind);
+        CHECK(h != nullptr);
         rev::Program p;
         p.entry = entry;
         p.code = code;

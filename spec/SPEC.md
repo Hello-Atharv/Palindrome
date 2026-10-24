@@ -153,8 +153,14 @@ f_end:  ret
   flips and later input events are discarded.** Stepping back and forward with no host action is lossless.
 - Logging VM: stores per-step deltas, so `rvm_history_bytes` grows with t. Reversible VM:
   `rvm_history_bytes` = 8 bytes per direction flip, nothing per step.
-- **Oracle contract:** for the same program, tape and direction schedule, `(R[0..15], PC, RW memory)` and
-  the returned status are identical in both VMs at every t, and a fault leaves state unchanged.
+- **Oracle contract:** for the same program, tape and direction schedule, `(R[0..15], PC, RW memory)`, the
+  instruction count, the direction and the returned status are identical in both VMs after every action
+  (step, step back, run_to, set_direction, push_input), and a fault leaves state unchanged. This holds for
+  **well-formed programs** (those that satisfy the control-flow rules in section 6). The one check the
+  reversible VM cannot make is the `LND` assertion (it has no history to compare against), so a program that
+  violates it faults in the logging VM and is undefined in the reversible VM. Every other fault check (operand
+  rules, addresses, `BR` target, `CALL`/`RET` pairing, stack slot) depends only on state and code, so both
+  VMs fault identically. Tested by `tests/differential_test.cpp`.
 
 ## 8. API
 **Web code is written against `spec/vm_api.ts`** (TypeScript interface `RVM`, constants, opcodes). It is
