@@ -10,7 +10,16 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "allowJs": false,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src", "test", "lib/*.d.ts", "../../spec/vm_api.ts", "../../asm/src"]
+  "include": [
+    "src",
+    "test",
+    "playground",
+    "lib/*.d.ts",
+    "../../spec/vm_api.ts",
+    "../../asm/src"
+  ]
 }
