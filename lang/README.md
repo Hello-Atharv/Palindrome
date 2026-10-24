@@ -19,13 +19,19 @@ main {
 ```
 npm run rvmc -- lang/examples/fib.rev --report       # compile, run on both engines, print the cost report
 npm run rvmc -- prog.rev -o prog.rvm --asm prog.s    # write the image and the generated assembly
-npm run test:lang                                    # 23 tests, run on the real engines
+npm run test:lang                                    # 35 tests, run on the real engines
 ```
 
 ## The language
-- **Variables** are 32-bit words kept in registers `r1`..`r9` (nine at most; memory variables are not supported yet).
-  `var x = 5, y;` declares them, initial values are constants. `out x, y;` says which variables are the program's results
-  (used by the garbage report).
+- **Variables** are 32-bit words. The first nine scalars live in registers `r1`..`r9`; further scalars live in data memory
+  (the compiler handles that for you). `var x = 5, y;` declares them; `out x, y;` says which are the results (used by the
+  garbage report).
+- **Arrays** live in data memory: `var a[8] = {3, 1, 2};` (the rest zero). Elements are read and updated like variables:
+  `x += a[i];  a[i + 1] ^= x;  a[i] <=> a[j];`. An index is any expression and is not bounds-checked. `var screen[2048] @ 0x20000;`
+  places an array at an absolute address: that is how a program reaches the framebuffer (`0x20000`) or reads the input window
+  (`0x30000`, read only). Memory is only ever changed by XOR or by moving a cell through a register, so nothing is overwritten.
+- **Input**: the expressions `events` (how many key events so far) and `latest` (the most recent, or 0). They depend on machine
+  time, so running such a program with direction -1 is not exact (step back is always exact), as for `programs/pong.s`.
 - **Statements** (there is no `=`; assignment would destroy the old value):
   `x += e;`  `x -= e;`  `x ^= e;`  (`e` must not mention `x`)  `x <=> y;`  `skip;`  `call p;`  `uncall p;`
 - **Expressions**: constants (decimal, `0x`, `0b`), variables, `+ - ^ & |`, unary `~` and `-`, `rol(e, k)`. All 32-bit
@@ -36,7 +42,9 @@ npm run test:lang                                    # 23 tests, run on the real
 - **`from (entry) do { S1 } loop { S2 } until (exit);`** The entry condition is true on the first pass and false on every
   later pass; the loop ends when `exit` is true. Both bodies are optional.
 - **`proc p { ... }`** acts on the global variables; `uncall p` runs its inverse (the compiler generates it). No recursion yet.
-- **Conditions** compare two variables or constants with `== != < > <= >=` (signed). The machine tests `==`, `!=`, `<` and
+- **Conditions** compare two variables, constants or array elements with `== != < > <= >=` (signed). In an `if` test an
+  operand may be an array element; in an `fi` assertion and in a loop's `from`/`until`, operands must be register variables or
+  constants (the machine tests them after the bodies have run). The machine tests `==`, `!=`, `<` and
   `>` directly and `<=`, `>=` only as false, so the compiler picks a layout that works (an `if` may cost two extra steps
   on one path). A loop's `from` condition must be testable as false: `==`, `!=`, `<=`, `>=`.
 - Errors you will meet: a variable on both sides (`x += x + 1` is not reversible), plain `=`, unknown names, recursion, a
@@ -61,6 +69,10 @@ reported as an internal error). `src/invert.ts` is the source-level inverse used
 report. `test/interp.ts` is a separate, direct interpreter of the language, used as the reference the compiled code is
 compared against on both engines, forwards and backwards.
 
+## What the language costs
+Measured against hand-written assembly doing the same job (`lang/examples/sort8.rev`, 36 lines, against `programs/sort.s`,
+about 340 lines): 438 instructions and 335 steps against 341 and 311, with the same 14 bits of garbage. So the compiler costs
+about 28 percent more code and 8 percent more steps than careful hand assembly on this program. One program; do not extrapolate.
+
 ## Not done yet
-Memory variables and arrays, recursion, multiply and shifts, reversible `input()` and the screen, a `logged` escape hatch
-with a cost report, a language server. See `status/core.md`.
+Recursion, multiply and shifts, a `logged` escape hatch with a cost report, a language server. See `status/core.md`.

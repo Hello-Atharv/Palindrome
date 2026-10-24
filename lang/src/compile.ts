@@ -4,12 +4,20 @@ import { assemble, type AssembleResult } from '../../asm/src/index.js';
 import type { Diagnostic, Program } from './ast.js';
 import { check } from './check.js';
 import { CompileError, generate } from './codegen.js';
+import { layout } from './layout.js';
 import { parse } from './parser.js';
 
+/** A declared variable and where it lives. A scalar in a register has `reg > 0`; anything in memory has `addr`. */
 export interface Variable {
   name: string;
+  /** register number, or 0 when the variable lives in memory */
   reg: number;
-  init: number;
+  /** data address when it lives in memory */
+  addr?: number;
+  /** words: 1 for a scalar */
+  size: number;
+  isArray: boolean;
+  init: number[];
   isOut: boolean;
   line: number;
 }
@@ -30,13 +38,21 @@ export function compile(source: string): CompileResult {
   const parsed = parse(source);
   if (!parsed.program) return { ok: false, diagnostics: parsed.diagnostics, vars: [] };
   const program = parsed.program;
-  const diagnostics = check(program);
+  const lay = layout(program);
   const outs = new Set(program.outs.map((o) => o.name));
-  const vars: Variable[] = program.vars.map((v, i) => ({ name: v.name, reg: i + 1, init: v.init, isOut: outs.has(v.name), line: v.line }));
+  const vars: Variable[] = [];
+  for (const d of program.vars) {
+    const v = lay.vars.get(d.name);
+    if (!v || vars.some((x) => x.name === d.name)) continue;
+    vars.push(v.kind === 'reg'
+      ? { name: d.name, reg: v.reg, size: 1, isArray: false, init: v.init, isOut: outs.has(d.name), line: d.line }
+      : { name: d.name, reg: 0, addr: v.addr, size: v.size, isArray: v.isArray, init: v.init, isOut: outs.has(d.name), line: d.line });
+  }
+  const diagnostics = [...lay.diagnostics, ...check(program, lay.vars)];
   if (diagnostics.length) return { ok: false, diagnostics, program, vars };
   let gen;
   try {
-    gen = generate(program, source);
+    gen = generate(program, source, lay);
   } catch (e) {
     if (e instanceof CompileError) return { ok: false, diagnostics: [{ line: e.line, message: e.message }], program, vars };
     throw e;

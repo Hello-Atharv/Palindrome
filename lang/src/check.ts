@@ -1,31 +1,28 @@
 // Static checks for rev. These are the rules that keep a program reversible; the code generator relies on them.
 
-import type { Cond, Diagnostic, Expr, Program, Stmt } from './ast.js';
+import type { Cond, Diagnostic, Expr, LValue, Program, Stmt } from './ast.js';
+import type { VarInfo } from './layout.js';
 
-/** Variables read by an expression. */
+/** Names (variables and arrays) read by an expression, including inside array indexes. */
 export function reads(e: Expr, into: Set<string> = new Set()): Set<string> {
   switch (e.k) {
     case 'var': into.add(e.name); break;
+    case 'idx': into.add(e.name); reads(e.index, into); break;
     case 'bin': reads(e.a, into); reads(e.b, into); break;
     case 'not': case 'neg': case 'rol': reads(e.a, into); break;
-    case 'num': break;
+    case 'num': case 'input': break;
   }
   return into;
 }
 
-export const MAX_VARS = 9; // r1..r9; r10..r13 and r15 are temporaries; r0 is zero, r14 the stack pointer
-
-export function check(prog: Program): Diagnostic[] {
+export function check(prog: Program, vars: Map<string, VarInfo>): Diagnostic[] {
   const diags: Diagnostic[] = [];
   const err = (line: number, message: string): void => { diags.push({ line, message }); };
 
-  const vars = new Set<string>();
+  const seen = new Set<string>();
   for (const v of prog.vars) {
-    if (vars.has(v.name)) err(v.line, `variable '${v.name}' is declared twice`);
-    vars.add(v.name);
-  }
-  if (prog.vars.length > MAX_VARS) {
-    err(prog.vars[MAX_VARS].line, `too many variables: the machine keeps ${MAX_VARS} in registers (memory variables are not supported yet)`);
+    if (seen.has(v.name)) err(v.line, `variable '${v.name}' is declared twice`);
+    seen.add(v.name);
   }
   for (const o of prog.outs) if (!vars.has(o.name)) err(o.line, `out: '${o.name}' is not a declared variable`);
 
@@ -36,40 +33,93 @@ export function check(prog: Program): Diagnostic[] {
   }
   if (!prog.main) err(1, "the program has no 'main { ... }'");
 
-  const calls = new Map<string, Set<string>>();
-  const condVars = (c: Cond, line: number): void => {
-    for (const x of [c.a, c.b]) if (x.k === 'var' && !vars.has(x.name)) err(line, `unknown variable '${x.name}'`);
+  const isArray = (n: string): boolean => {
+    const v = vars.get(n);
+    return !!v && v.kind === 'mem' && v.isArray;
   };
+
+  /** every name in an expression exists, arrays are indexed and scalars are not */
+  const exprNames = (e: Expr, line: number): void => {
+    switch (e.k) {
+      case 'var':
+        if (!vars.has(e.name)) err(line, `unknown variable '${e.name}'`);
+        else if (isArray(e.name)) err(line, `'${e.name}' is an array: write ${e.name}[index]`);
+        break;
+      case 'idx':
+        if (!vars.has(e.name)) err(line, `unknown variable '${e.name}'`);
+        else if (!isArray(e.name)) err(line, `'${e.name}' is not an array`);
+        exprNames(e.index, line);
+        break;
+      case 'bin': exprNames(e.a, line); exprNames(e.b, line); break;
+      case 'not': case 'neg': case 'rol': exprNames(e.a, line); break;
+      case 'num': case 'input': break;
+    }
+  };
+
+  const lvalueNames = (lv: LValue, line: number): void => {
+    if (!vars.has(lv.name)) { err(line, `unknown variable '${lv.name}'`); return; }
+    if (lv.index) {
+      if (!isArray(lv.name)) err(line, `'${lv.name}' is not an array`);
+      exprNames(lv.index, line);
+    } else if (isArray(lv.name)) err(line, `'${lv.name}' is an array: write ${lv.name}[index]`);
+  };
+
+  /** condition operands; `simple` means no array elements (used where the machine tests them after the bodies have run) */
+  const condNames = (c: Cond, line: number, simple: string | null): void => {
+    for (const x of [c.a, c.b]) {
+      exprNames(x, line);
+      if (x.k === 'var' && simple && vars.get(x.name)?.kind === 'mem') {
+        err(line, `${simple} cannot compare '${x.name}': it lives in memory (only the first nine scalars get registers); copy it into a register variable first`);
+      }
+      if (x.k === 'idx') {
+        if (simple) err(line, `${simple} cannot compare an array element; copy it into a variable first`);
+        if (x.index.k !== 'num' && x.index.k !== 'var') err(line, 'an array index inside a condition must be a variable or a constant');
+      }
+    }
+  };
+
+  const calls = new Map<string, Set<string>>();
   const walk = (body: Stmt[], owner: string): void => {
     for (const s of body) {
       switch (s.k) {
         case 'assign': {
-          if (!vars.has(s.target)) err(s.line, `unknown variable '${s.target}'`);
+          lvalueNames(s.target, s.line);
+          exprNames(s.e, s.line);
           const r = reads(s.e);
-          for (const n of r) if (!vars.has(n)) err(s.line, `unknown variable '${n}'`);
-          if (r.has(s.target)) {
-            err(s.line, `'${s.target}' appears on both sides of '${s.op}'; that would not be reversible (copy it to another variable first)`);
+          if (r.has(s.target.name)) {
+            err(s.line, s.target.index
+              ? `'${s.target.name}' is read on the right of an assignment to ${s.target.name}[...]; that could update an element from itself, which is not reversible (copy the value to another variable first)`
+              : `'${s.target.name}' appears on both sides of '${s.op}'; that would not be reversible (copy it to another variable first)`);
+          }
+          if (s.target.index && reads(s.target.index).has(s.target.name)) {
+            err(s.line, `the index of ${s.target.name}[...] cannot itself read ${s.target.name}`);
           }
           break;
         }
         case 'swap':
-          if (!vars.has(s.a)) err(s.line, `unknown variable '${s.a}'`);
-          if (!vars.has(s.b)) err(s.line, `unknown variable '${s.b}'`);
-          if (s.a === s.b) err(s.line, `cannot swap '${s.a}' with itself`);
+          lvalueNames(s.a, s.line);
+          lvalueNames(s.b, s.line);
+          if (!s.a.index && !s.b.index && s.a.name === s.b.name) err(s.line, `cannot swap '${s.a.name}' with itself`);
+          // an index is read before the swap and read again afterwards to clear the temporaries: neither read may see a changed cell
+          for (const lv of [s.a, s.b]) {
+            if (lv.index && (reads(lv.index).has(s.a.name) || reads(lv.index).has(s.b.name))) {
+              err(s.line, `the index in ${lv.name}[...] reads a variable that this swap changes`);
+            }
+          }
           break;
         case 'call': case 'uncall':
           if (!procs.has(s.name)) err(s.line, `unknown procedure '${s.name}'`);
           calls.get(owner)?.add(s.name);
           break;
         case 'if':
-          condVars(s.test, s.line);
-          condVars(s.fi, s.line);
+          condNames(s.test, s.line, null);
+          condNames(s.fi, s.line, "an 'fi' assertion");
           walk(s.then, owner);
           walk(s.else, owner);
           break;
         case 'from':
-          condVars(s.entry, s.line);
-          condVars(s.until, s.line);
+          condNames(s.entry, s.line, "a loop's 'from' condition");
+          condNames(s.until, s.line, "a loop's 'until' condition");
           walk(s.body1, owner);
           walk(s.body2, owner);
           break;

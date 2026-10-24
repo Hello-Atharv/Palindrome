@@ -7,7 +7,7 @@
 //     if (a < b) { ... } else { ... } fi (a < b);
 //   }
 
-import type { Cond, Diagnostic, Expr, Program, RelOp, Stmt } from './ast.js';
+import type { Cond, Diagnostic, Expr, LValue, Operand, Program, RelOp, Stmt } from './ast.js';
 
 interface Token {
   t: 'id' | 'num' | 'op' | 'eof';
@@ -16,7 +16,7 @@ interface Token {
   value?: number;
 }
 
-const OPS = ['<=>', '+=', '-=', '^=', '==', '!=', '<=', '>=', '<', '>', '+', '-', '^', '&', '|', '~', '(', ')', '{', '}', ',', ';', '='];
+const OPS = ['<=>', '+=', '-=', '^=', '==', '!=', '<=', '>=', '<', '>', '+', '-', '^', '&', '|', '~', '(', ')', '{', '}', '[', ']', ',', ';', '=', '@'];
 
 export class ParseError extends Error {
   constructor(readonly line: number, message: string) {
@@ -60,7 +60,7 @@ function lex(src: string): Token[] {
   return out;
 }
 
-const KEYWORDS = new Set(['var', 'out', 'proc', 'main', 'if', 'else', 'fi', 'from', 'do', 'loop', 'until', 'call', 'uncall', 'skip', 'rol']);
+const KEYWORDS = new Set(['var', 'out', 'proc', 'main', 'if', 'else', 'fi', 'from', 'do', 'loop', 'until', 'call', 'uncall', 'skip', 'rol', 'events', 'latest']);
 
 class Parser {
   private p = 0;
@@ -98,9 +98,31 @@ class Parser {
         this.next();
         do {
           const id = this.ident('a variable name');
-          let init = 0;
-          if (this.isOp('=')) { this.next(); init = this.number(); }
-          prog.vars.push({ name: id.s, init, line: id.line });
+          let size = 0;
+          let init: number[] = [0];
+          if (this.isOp('[')) {
+            this.next();
+            size = this.number();
+            if (size < 1 || size > 0xf000) throw new ParseError(id.line, 'array size must be 1..61440');
+            this.expectOp(']');
+            init = [];
+          }
+          let addr: number | undefined;
+          if (this.isOp('@')) { this.next(); addr = this.number(); }
+          if (this.isOp('=')) {
+            this.next();
+            if (size) {
+              this.expectOp('{');
+              while (!this.isOp('}')) {
+                init.push(this.number());
+                if (this.isOp(',')) this.next();
+                else break;
+              }
+              this.expectOp('}');
+              if (init.length > size) throw new ParseError(id.line, `too many initial values for ${id.s}[${size}]`);
+            } else init = [this.number()];
+          }
+          prog.vars.push({ name: id.s, init, size, addr, line: id.line });
         } while (this.isOp(',') && this.next());
         this.expectOp(';');
       } else if (this.isKw('out')) {
@@ -177,28 +199,41 @@ class Parser {
       if (this.isOp(';')) this.next();
       return { k: 'from', entry, body1, body2, until, line };
     }
-    const target = this.ident('a statement');
+    const target = this.lvalue('a statement');
     if (this.isOp('<=>')) {
       this.next();
-      const other = this.ident('a variable name');
+      const other = this.lvalue('a variable name');
       this.expectOp(';');
-      return { k: 'swap', a: target.s, b: other.s, line };
+      return { k: 'swap', a: target, b: other, line };
     }
     if (this.isOp('+=') || this.isOp('-=') || this.isOp('^=')) {
       const op = this.next().s as '+=' | '-=' | '^=';
       const e = this.expr();
       this.expectOp(';');
-      return { k: 'assign', target: target.s, op, e, line };
+      return { k: 'assign', target, op, e, line };
     }
     if (this.isOp('=')) this.fail(`plain '=' would destroy the old value; use +=, -= or ^= (or <=> to swap)`);
-    this.fail(`expected '+=', '-=', '^=' or '<=>' after '${target.s}' but found '${this.cur.s}'`);
+    this.fail(`expected '+=', '-=', '^=' or '<=>' after '${target.name}' but found '${this.cur.s}'`);
   }
 
-  private operand(): Cond['a'] {
+  private lvalue(what: string): LValue {
+    const id = this.ident(what);
+    if (!this.isOp('[')) return { name: id.s, line: id.line };
+    this.next();
+    const index = this.expr();
+    this.expectOp(']');
+    return { name: id.s, index, line: id.line };
+  }
+
+  private operand(): Operand {
     const line = this.cur.line;
     if (this.cur.t === 'num' || this.isOp('-')) return { k: 'num', value: this.number(), line };
     const id = this.ident('a variable or a number');
-    return { k: 'var', name: id.s, line };
+    if (!this.isOp('[')) return { k: 'var', name: id.s, line };
+    this.next();
+    const index = this.expr();
+    this.expectOp(']');
+    return { k: 'idx', name: id.s, index, line };
   }
 
   private cond(): Cond {
@@ -256,8 +291,13 @@ class Parser {
       if (n > 31) throw new ParseError(line, 'rol count must be 0..31');
       return fold({ k: 'rol', a, n, line });
     }
+    if (this.isKw('events') || this.isKw('latest')) return { k: 'input', which: this.next().s as 'events' | 'latest', line };
     const id = this.ident('an expression');
-    return { k: 'var', name: id.s, line };
+    if (!this.isOp('[')) return { k: 'var', name: id.s, line };
+    this.next();
+    const index = this.expr();
+    this.expectOp(']');
+    return { k: 'idx', name: id.s, index, line };
   }
 }
 

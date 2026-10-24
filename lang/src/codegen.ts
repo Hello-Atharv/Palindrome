@@ -1,15 +1,19 @@
 // Code generator: rev AST -> assembly text for asm/ (spec/asm_syntax.md).
 //
 // Conventions
-//   * Each variable lives in a register, r1.. in declaration order. r0 stays zero, r14 is the stack pointer.
+//   * Scalars live in registers r1.. in declaration order (layout.ts); arrays and further scalars live in data memory.
+//     r0 stays zero, r14 is the stack pointer.
 //   * Every other register is a temporary. Temporaries are ZERO between statements: an expression is built into fresh
 //     temporaries, used, and the build is run backwards (Bennett's trick) so nothing is left behind.
+//   * Memory is only ever changed by XOR (`xst`). `m += v` is done as: move the cell into a zero register (`xld` then `xst`
+//     leaves the cell zero), add, move it back. Nothing is overwritten, so nothing is lost.
 //   * `if` / `from` become the br/lnd structure of SPEC section 6. The exit assertion of an `if` and the entry assertion of a
 //     loop must be conditions the machine can test directly (see ccOf); the logging VM checks every one at run time.
 //   * `uncall p` calls a generated procedure p__inv, the source-level inverse of p.
 
-import type { Cond, Expr, Program, Stmt } from './ast.js';
+import type { Cond, Expr, LValue, Operand, Program, Stmt } from './ast.js';
 import { invertBlock } from './invert.js';
+import type { Layout, VarInfo } from './layout.js';
 
 export class CompileError extends Error {
   constructor(readonly line: number, message: string) {
@@ -19,19 +23,22 @@ export class CompileError extends Error {
 
 /** One straight-line machine instruction we can invert. */
 interface I {
-  op: 'add' | 'sub' | 'xor' | 'addi' | 'xori' | 'not' | 'roli' | 'toff';
+  op: 'add' | 'sub' | 'xor' | 'addi' | 'xori' | 'not' | 'roli' | 'toff' | 'xld' | 'xst' | 'swap';
   a: number;
   b?: number;
   c?: number;
   imm?: number;
 }
 
+const mem = (base: number, off: number): string => `[r${base}${off < 0 ? '-' : '+'}${Math.abs(off)}]`;
+
 const text = (i: I): string => {
   switch (i.op) {
-    case 'add': case 'sub': case 'xor': return `${i.op} r${i.a}, r${i.b}`;
+    case 'add': case 'sub': case 'xor': case 'swap': return `${i.op} r${i.a}, r${i.b}`;
     case 'addi': case 'xori': case 'roli': return `${i.op} r${i.a}, ${i.imm}`;
     case 'not': return `not r${i.a}`;
     case 'toff': return `toff r${i.a}, r${i.b}, r${i.c}`;
+    case 'xld': case 'xst': return `${i.op} r${i.a}, ${mem(i.b!, i.imm!)}`;
   }
 };
 
@@ -41,15 +48,16 @@ const inverseOf = (i: I): I => {
     case 'sub': return { ...i, op: 'add' };
     case 'addi': return { ...i, imm: -i.imm! };
     case 'roli': return { ...i, imm: (32 - i.imm!) % 32 };
-    default: return i; // xor, xori, not, toff undo themselves
+    default: return i; // xor, xori, not, toff, xld, xst and swap undo themselves
   }
 };
 const inverse = (ops: I[]): I[] => ops.map(inverseOf).reverse();
 
-const ADDI_MIN = -131072;
-const ADDI_MAX = 131071;
+const IMM_MIN = -131072;
+const IMM_MAX = 131071;
 const XORI_MAX = 262143;
-const fitsAddi = (v: number): boolean => v >= ADDI_MIN && v <= ADDI_MAX;
+const fitsImm = (v: number): boolean => v >= IMM_MIN && v <= IMM_MAX;
+const IN_COUNT = 0x30001; // input window: COUNT; the latest event is at COUNT + 0x30001
 
 /** Instructions that XOR the constant c into the zero register t. */
 function loadConst(t: number, c: number): I[] {
@@ -62,8 +70,10 @@ function loadConst(t: number, c: number): I[] {
   return ops;
 }
 
-type Operand = { reg: number } | { imm: number };
+type Val = { reg: number } | { imm: number };
 type CC = { cc: 'eq' | 'ne' | 'lt'; swap: boolean };
+/** A memory cell: the instruction form is `[reg + off]` */
+interface Cell { reg: number; off: number }
 
 /**
  * How the machine tests `c` being `truth`. It has eq, ne and signed lt only, so `a < b` and `a > b` can be tested true, and
@@ -84,17 +94,15 @@ export interface Generated {
   asm: string;
   /** asm line (1-based) -> rev source line, 0 for lines that belong to no statement */
   lineMap: number[];
-  /** variable name -> register */
-  regs: Map<string, number>;
 }
 
-export function generate(prog: Program, source: string): Generated {
+export function generate(prog: Program, source: string, lay: Layout): Generated {
   const srcLines = source.split('\n');
   const out: { text: string; line: number }[] = [];
-  const regs = new Map<string, number>();
-  prog.vars.forEach((v, i) => regs.set(v.name, i + 1));
+  const info = (name: string): VarInfo => lay.vars.get(name)!;
+  const numRegs = [...lay.vars.values()].filter((v) => v.kind === 'reg').length;
   const free: number[] = [];
-  for (let r = 15; r >= 1; r--) if (r !== 14 && r > prog.vars.length) free.push(r);
+  for (let r = 15; r >= 1; r--) if (r !== 14 && r > numRegs) free.push(r);
   let labelN = 0;
   let curLine = 0;
 
@@ -109,20 +117,72 @@ export function generate(prog: Program, source: string): Generated {
     return r;
   };
   const release = (temps: number[]): void => { for (const t of [...temps].reverse()) free.push(t); };
-  const regOf = (name: string): number => regs.get(name)!;
+  const regOf = (name: string): number => (info(name) as { reg: number }).reg;
+
+  // ---- memory cells ----
+  /** The cell `[reg+off]` for the constant address `a`, loading the address into a temporary if it does not fit an offset. */
+  function constCell(a: number, ops: I[], temps: number[]): Cell {
+    if (fitsImm(a)) return { reg: 0, off: a };
+    const t = alloc();
+    temps.push(t);
+    ops.push(...loadConst(t, a));
+    return { reg: t, off: 0 };
+  }
+
+  /** The cell of `name[index]` (index null for a scalar kept in memory). Address arithmetic goes into ops, temporaries into temps. */
+  function cellOf(name: string, index: Expr | null, ops: I[], temps: number[]): Cell {
+    const v = info(name) as Extract<VarInfo, { kind: 'mem' }>;
+    if (index === null) return constCell(v.addr, ops, temps);
+    const ix = build(index, ops, temps);
+    if ('imm' in ix) return constCell(v.addr + ix.imm, ops, temps);
+    if (fitsImm(v.addr)) return { reg: ix.reg, off: v.addr };
+    const t = alloc();
+    temps.push(t);
+    ops.push(...loadConst(t, v.addr), { op: 'add', a: t, b: ix.reg });
+    return { reg: t, off: 0 };
+  }
 
   // ---- expressions: built into temporaries, then un-built ----
-  function build(e: Expr, ops: I[], temps: number[]): Operand {
+  function build(e: Expr, ops: I[], temps: number[]): Val {
     if (e.k === 'num') return { imm: e.value };
-    if (e.k === 'var') return { reg: regOf(e.name) };
-    const toReg = (o: Operand): number => {
+    if (e.k === 'var') {
+      const v = info(e.name);
+      if (v.kind === 'reg') return { reg: v.reg };
+      const c = cellOf(e.name, null, ops, temps);
+      const t = alloc();
+      temps.push(t);
+      ops.push({ op: 'xld', a: t, b: c.reg, imm: c.off });
+      return { reg: t };
+    }
+    if (e.k === 'idx') {
+      const c = cellOf(e.name, e.index, ops, temps);
+      const t = alloc();
+      temps.push(t);
+      ops.push({ op: 'xld', a: t, b: c.reg, imm: c.off });
+      return { reg: t };
+    }
+    if (e.k === 'input') {
+      const tb = alloc();
+      temps.push(tb);
+      ops.push({ op: 'xori', a: tb, imm: IN_COUNT });
+      if (e.which === 'latest') {
+        const tc = alloc();
+        temps.push(tc);
+        ops.push({ op: 'xld', a: tc, b: tb, imm: 0 }, { op: 'add', a: tb, b: tc }); // tb = address of the latest event
+      }
+      const t = alloc();
+      temps.push(t);
+      ops.push({ op: 'xld', a: t, b: tb, imm: 0 });
+      return { reg: t };
+    }
+    const toReg = (o: Val): number => {
       if ('reg' in o) return o.reg;
       const t = alloc();
       temps.push(t);
       ops.push(...loadConst(t, o.imm));
       return t;
     };
-    const xorInto = (t: number, o: Operand): void => {
+    const xorInto = (t: number, o: Val): void => {
       if ('reg' in o) ops.push({ op: 'xor', a: t, b: o.reg });
       else ops.push(...loadConst(t, o.imm));
     };
@@ -142,7 +202,7 @@ export function generate(prog: Program, source: string): Generated {
             if ('reg' in b) ops.push({ op: e.op === '+' ? 'add' : 'sub', a: t, b: b.reg });
             else {
               const v = e.op === '+' ? b.imm | 0 : -b.imm | 0;
-              if (fitsAddi(v)) ops.push({ op: 'addi', a: t, imm: v });
+              if (fitsImm(v)) ops.push({ op: 'addi', a: t, imm: v });
               else ops.push({ op: e.op === '+' ? 'add' : 'sub', a: t, b: toReg(b) });
             }
             break;
@@ -168,18 +228,20 @@ export function generate(prog: Program, source: string): Generated {
     return { reg: t };
   }
 
+  /** The register holding the value `o`, loading a constant into a new temporary if needed. */
+  function inReg(o: Val, ops: I[], temps: number[]): number {
+    if ('reg' in o) return o.reg;
+    const t = alloc();
+    temps.push(t);
+    ops.push(...loadConst(t, o.imm));
+    return t;
+  }
+
   /** Run `use(reg)` with the value of e available in a register; leaves every temporary zero again. */
   function withValue(e: Expr, use: (r: number) => void): void {
     const ops: I[] = [];
     const temps: number[] = [];
-    const o = build(e, ops, temps);
-    let reg: number;
-    if ('reg' in o) reg = o.reg;
-    else {
-      reg = alloc();
-      temps.push(reg);
-      ops.push(...loadConst(reg, o.imm));
-    }
+    const reg = inReg(build(e, ops, temps), ops, temps);
     emitOps(ops);
     use(reg);
     emitOps(inverse(ops));
@@ -188,15 +250,15 @@ export function generate(prog: Program, source: string): Generated {
 
   // ---- conditions ----
   interface Held { ops: I[]; temps: number[] }
-  /** Registers holding a condition's operands; non-zero constants go in temporaries that stay until `unhold`. */
+  /** Registers holding a condition's operands; constants and memory cells are loaded into temporaries recorded in `held`. */
   function operands(c: Cond, held: Held): [number, number] {
-    const get = (x: Cond['a']): number => {
-      if (x.k === 'var') return regOf(x.name);
-      if (x.value === 0) return 0;
-      const t = alloc();
-      held.temps.push(t);
-      held.ops.push(...loadConst(t, x.value));
-      return t;
+    const get = (x: Operand): number => {
+      if (x.k === 'num') {
+        if (x.value === 0) return 0;
+        return inReg({ imm: x.value }, held.ops, held.temps);
+      }
+      if (x.k === 'var' && info(x.name).kind === 'reg') return regOf(x.name);
+      return inReg(build(x, held.ops, held.temps), held.ops, held.temps);
     };
     return [get(c.a), get(c.b)];
   }
@@ -212,7 +274,7 @@ export function generate(prog: Program, source: string): Generated {
     raw(`        ; line ${s.line}: ${t.length > 70 ? t.slice(0, 67) + '...' : t}`);
     switch (s.k) {
       case 'skip': ins('nop'); return;
-      case 'swap': ins(`swap r${regOf(s.a)}, r${regOf(s.b)}`); return;
+      case 'swap': return swap(s.a, s.b);
       case 'call': ins(`call p_${s.name}`); return;
       case 'uncall': need.add(s.name); ins(`call p_${s.name}__inv`); return;
       case 'assign': return assign(s);
@@ -221,27 +283,107 @@ export function generate(prog: Program, source: string): Generated {
     }
   }
 
+  const isReg = (lv: LValue): boolean => info(lv.name).kind === 'reg';
+
+  function swap(a: LValue, b: LValue): void {
+    if (isReg(a) && isReg(b)) { ins(`swap r${regOf(a.name)}, r${regOf(b.name)}`); return; }
+    const ops: I[] = [];
+    const temps: number[] = [];
+    if (isReg(a) !== isReg(b)) {
+      // a register and a memory cell: read the cell into t, make the cell the register's value, swap, then clear t
+      const [r, m] = isReg(a) ? [a, b] : [b, a];
+      const cell = cellOf(m.name, m.index ?? null, ops, temps);
+      const t = alloc();
+      temps.push(t);
+      const x = regOf(r.name);
+      emitOps(ops);
+      ins(`xld r${t}, ${mem(cell.reg, cell.off)}`);
+      ins(`xst r${x}, ${mem(cell.reg, cell.off)}`);
+      ins(`xst r${t}, ${mem(cell.reg, cell.off)}`);
+      ins(`swap r${x}, r${t}`);
+      ins(`xld r${t}, ${mem(cell.reg, cell.off)}`);
+      emitOps(inverse(ops));
+      release(temps);
+      return;
+    }
+    // two memory cells (possibly the same one): d = A xor B; cell1 ^= d; cell2 ^= d; then clear the temporaries
+    const c1 = cellOf(a.name, a.index ?? null, ops, temps);
+    const c2 = cellOf(b.name, b.index ?? null, ops, temps);
+    const t1 = alloc();
+    temps.push(t1);
+    const t2 = alloc();
+    temps.push(t2);
+    emitOps(ops);
+    const m1 = mem(c1.reg, c1.off);
+    const m2 = mem(c2.reg, c2.off);
+    ins(`xld r${t1}, ${m1}`);
+    ins(`xld r${t2}, ${m2}`);
+    ins(`xor r${t1}, r${t2}`);
+    ins(`xst r${t1}, ${m1}`);
+    ins(`xst r${t1}, ${m2}`);
+    ins(`xld r${t1}, ${m1}`);
+    ins(`xld r${t1}, ${m2}`);
+    ins(`xld r${t2}, ${m1}`);
+    emitOps(inverse(ops));
+    release(temps);
+  }
+
   function assign(s: Extract<Stmt, { k: 'assign' }>): void {
-    const x = regOf(s.target);
+    const tgt = s.target;
     const e = s.e;
     const rop = s.op === '+=' ? 'add' : s.op === '-=' ? 'sub' : 'xor';
-    if (e.k === 'var') { ins(`${rop} r${x}, r${regOf(e.name)}`); return; }
-    if (e.k === 'num') {
-      const v = s.op === '+=' ? e.value | 0 : s.op === '-=' ? -e.value | 0 : e.value;
-      if (s.op === '^=' ? e.value <= XORI_MAX : fitsAddi(v)) {
-        if (s.op === '^=') { if (e.value) ins(`xori r${x}, ${e.value}`); }
-        else if (v) ins(`addi r${x}, ${v}`);
-        return;
+    if (isReg(tgt)) {
+      const x = regOf(tgt.name);
+      if (e.k === 'var' && info(e.name).kind === 'reg') { ins(`${rop} r${x}, r${regOf(e.name)}`); return; }
+      if (e.k === 'num') {
+        const v = s.op === '+=' ? e.value | 0 : s.op === '-=' ? -e.value | 0 : e.value;
+        if (s.op === '^=' ? e.value <= XORI_MAX : fitsImm(v)) {
+          if (s.op === '^=') { if (e.value) ins(`xori r${x}, ${e.value}`); }
+          else if (v) ins(`addi r${x}, ${v}`);
+          return;
+        }
       }
+      withValue(e, (r) => ins(`${rop} r${x}, r${r}`));
+      return;
     }
-    withValue(e, (r) => ins(`${rop} r${x}, r${r}`));
+    // a memory target: build the value and the address, then update the cell in place
+    const ops: I[] = [];
+    const temps: number[] = [];
+    const v = build(e, ops, temps);
+    const cell = cellOf(tgt.name, tgt.index ?? null, ops, temps);
+    const m = mem(cell.reg, cell.off);
+    if (s.op === '^=') {
+      const r = inReg(v, ops, temps);
+      emitOps(ops);
+      ins(`xst r${r}, ${m}`);
+    } else {
+      const t = alloc();
+      temps.push(t);
+      let useImm = false;
+      let imm = 0;
+      if ('imm' in v) { imm = s.op === '+=' ? v.imm | 0 : -v.imm | 0; useImm = fitsImm(imm); }
+      const r = useImm ? 0 : inReg(v, ops, temps);
+      emitOps(ops);
+      ins(`xld r${t}, ${m}`); // move the cell into t: the cell becomes zero
+      ins(`xst r${t}, ${m}`);
+      if (useImm) { if (imm) ins(`addi r${t}, ${imm}`); } else ins(`${rop} r${t}, r${r}`);
+      ins(`xst r${t}, ${m}`); // and move it back
+      ins(`xld r${t}, ${m}`);
+    }
+    emitOps(inverse(ops));
+    release(temps);
   }
 
   function ifStmt(s: Extract<Stmt, { k: 'if' }>): void {
-    const held: Held = { ops: [], temps: [] };
-    const ro = operands(s.test, held);
-    const rf = operands(s.fi, held);
-    emitOps(held.ops);
+    // The test's operands are loaded before the branch and cleared at the start of each body (the bodies may change what they
+    // were loaded from). The assertion's operands are variables and constants only, so they can wait until the join.
+    const test: Held = { ops: [], temps: [] };
+    const fiHeld: Held = { ops: [], temps: [] };
+    const ro = operands(s.test, test);
+    const rf = operands(s.fi, fiHeld);
+    emitOps(test.ops);
+    emitOps(fiHeld.ops);
+    const clearTest = (): void => emitOps(inverse(test.ops));
     // The entry `br` jumps into one body (X) and falls through into the other (Y). At the join, `lnd cc` asserts that cc holds
     // iff we arrived by the jump edge. Normally Y ends with that jump; when the fi condition cannot be tested the right way
     // round, X ends with it instead and Y goes through a one-instruction trampoline (two extra steps on the Y path).
@@ -263,6 +405,7 @@ export function generate(prog: Program, source: string): Generated {
     const LE = newLabel('E');
     label(S0);
     ins(`br ${entry.cc}, ${pair(entry, ro)}, ${LX}`);
+    clearTest();
     stmts(Y);
     curLine = s.line;
     label(S1);
@@ -270,6 +413,7 @@ export function generate(prog: Program, source: string): Generated {
       ins(`br al, ${LE}`);
       label(LX);
       ins(`lnd al, r0, r0, ${S0}`);
+      clearTest();
       stmts(X);
       curLine = s.line;
       label(LE);
@@ -280,6 +424,7 @@ export function generate(prog: Program, source: string): Generated {
       ins(`br al, ${LA}`);
       label(LX);
       ins(`lnd al, r0, r0, ${S0}`);
+      clearTest();
       stmts(X);
       curLine = s.line;
       label(S2);
@@ -289,7 +434,8 @@ export function generate(prog: Program, source: string): Generated {
       label(LE);
       ins(`lnd ${exit.cc}, ${pair(exit, rf)}, ${S2}`);
     }
-    unhold(held);
+    emitOps(inverse(fiHeld.ops));
+    release([...fiHeld.temps, ...test.temps]);
   }
 
   function fromStmt(s: Extract<Stmt, { k: 'from' }>): void {
@@ -325,14 +471,25 @@ export function generate(prog: Program, source: string): Generated {
   // ---- program ----
   const need = new Set<string>(); // procedures whose inverse is called
   curLine = 0;
+  if (lay.data.length) {
+    raw('        .data');
+    let cursor = 0;
+    for (const chunk of lay.data) {
+      if (chunk.addr > cursor) raw(`        .space ${chunk.addr - cursor}`);
+      raw(`        .word ${chunk.words.map((w) => '0x' + (w >>> 0).toString(16)).join(', ')}`);
+      cursor = chunk.addr + chunk.words.length;
+    }
+    raw('        .code');
+  }
   label('start');
   const bodyStart = out.length;
   for (const v of prog.vars) {
+    const vi = info(v.name);
+    if (vi.kind !== 'reg') continue;
     curLine = v.line;
-    emitOps(loadConst(regOf(v.name), v.init));
+    emitOps(loadConst(vi.reg, v.init[0] ?? 0));
   }
-  const mainBody = prog.main ?? [];
-  stmts(mainBody);
+  stmts(prog.main ?? []);
   curLine = prog.mainLine;
   // the entry may not be an LND: a program that opens with a loop gets a nop in front
   const firstIns = out.slice(bodyStart).find((l) => /^\s+(\w+)/.test(l.text) && !l.text.trim().startsWith(';') && !l.text.endsWith(':'));
@@ -368,6 +525,5 @@ export function generate(prog: Program, source: string): Generated {
   return {
     asm: out.map((l) => l.text).join('\n') + '\n',
     lineMap: out.map((l) => l.line),
-    regs,
   };
 }

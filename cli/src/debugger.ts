@@ -155,14 +155,23 @@ export class Debugger {
     const s = spec.trim();
     const reg = /^r(\d+)$/i.exec(s);
     if (reg && +reg[1] < 16) return () => this.vm.registers().regs[+reg[1]];
-    const v = this.info.vars.find((x) => x.name === s);
-    if (v) return () => this.vm.registers().regs[v.reg];
+    const el = /^(\w+)\[\s*(0x[0-9a-f]+|\d+)\s*\]$/i.exec(s);
+    if (el) {
+      const arr = this.info.vars.find((x) => x.name === el[1] && x.isArray);
+      if (arr && arr.addr !== undefined) {
+        const k = Number(el[2]);
+        if (k >= arr.size) throw new Error(`${arr.name} has only ${arr.size} elements`);
+        return () => this.vm.memory(arr.addr! + k, 1)[0];
+      }
+    }
+    const v = this.info.vars.find((x) => x.name === s && !x.isArray);
+    if (v) return v.reg ? () => this.vm.registers().regs[v.reg] : () => this.vm.memory(v.addr!, 1)[0];
     const mem = /^(?:mem)?\[\s*(0x[0-9a-f]+|\d+)\s*\]$/i.exec(s);
     if (mem) {
       const a = Number(mem[1]);
       return () => this.vm.memory(a, 1)[0];
     }
-    throw new Error(`don't know what '${spec}' is: use a variable name, r0..r15 or [address]`);
+    throw new Error(`don't know what '${spec}' is: use a variable name, array[3], r0..r15 or [address]`);
   }
 
   /**
@@ -200,8 +209,13 @@ export class Debugger {
   }
 
   // ---- looking ----
-  variables(): { name: string; value: number; isOut: boolean }[] {
+  variables(): { name: string; words: number[]; isArray: boolean; isOut: boolean }[] {
     const regs = this.vm.registers().regs;
-    return this.info.vars.map((v) => ({ name: v.name, value: regs[v.reg], isOut: v.isOut }));
+    return this.info.vars.map((v) => ({
+      name: v.name,
+      isArray: v.isArray,
+      isOut: v.isOut,
+      words: v.reg ? [regs[v.reg]] : Array.from(this.vm.memory(v.addr!, Math.min(v.size, 64))),
+    }));
   }
 }

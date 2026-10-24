@@ -109,7 +109,12 @@ export function runCommand(dbg: Debugger, input: string): { out: string; quit: b
           const v = dbg.target(arg)();
           out = `${arg} = ${hex(v)} (${v >>> 0})\n`;
         } else if (dbg.info.vars.length) {
-          out = dbg.variables().map((v) => `${v.name.padEnd(10)} ${hex(v.value).padStart(12)}${v.isOut ? '   out' : ''}`).join('\n') + '\n';
+          out = dbg.variables().map((v) => {
+            const shown = v.isArray
+              ? `${(v.name + '[' + v.words.length + ']').padEnd(10)} [${v.words.slice(0, 8).map(hex).join(', ')}${v.words.length > 8 ? ', ...' : ''}]`
+              : `${v.name.padEnd(10)} ${hex(v.words[0]).padStart(12)}`;
+            return shown + (v.isOut ? '   out' : '');
+          }).join('\n') + '\n';
         } else {
           out = 'no named variables in an assembly program; try: regs\n';
         }

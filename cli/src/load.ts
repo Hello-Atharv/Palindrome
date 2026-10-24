@@ -8,7 +8,13 @@ import { compile, formatDiagnostics, type CompileResult } from '../../lang/src/i
 
 export interface DebugVar {
   name: string;
+  /** register, or 0 when the variable lives in memory */
   reg: number;
+  /** data address when it lives in memory */
+  addr?: number;
+  /** words (1 for a scalar) */
+  size: number;
+  isArray: boolean;
   isOut: boolean;
 }
 
@@ -35,7 +41,7 @@ export function loadSource(file: string, source: string): Loaded {
     for (const [addr, , asmLine] of c.assembled.sourceMap.code) pcLine.set(addr, c.lineMap[asmLine - 1] ?? 0);
     return {
       kind: 'rev', file, lines, image: c.image, pcLine, codeLength: c.assembled.code.length, compiled: c, source,
-      vars: c.vars.map((v) => ({ name: v.name, reg: v.reg, isOut: v.isOut })),
+      vars: c.vars.map((v) => ({ name: v.name, reg: v.reg, addr: v.addr, size: v.size, isArray: v.isArray, isOut: v.isOut })),
     };
   }
   const a = assemble(source, { fileName: file });

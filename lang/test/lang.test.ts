@@ -11,11 +11,11 @@ const made: Ran[] = [];
 afterAll(() => made.forEach((r) => r.vm.destroy()));
 
 /** Compile, run on both engines, compare with the reference interpreter, then run backwards and check we are back at the start. */
-async function check(src: string): Promise<Map<string, number>> {
+async function check(src: string, input: number[] = []): Promise<{ get(n: string): number; words(n: string): number[] }> {
   const c = mustCompile(src);
-  const expected = interpret(c.program!);
-  const logging = await run(c, 'logging'); // this engine checks every br/lnd assertion
-  const rev = await run(c, 'reversible');
+  const expected = interpret(c.program!, input);
+  const logging = await run(c, 'logging', input); // this engine checks every br/lnd assertion
+  const rev = await run(c, 'reversible', input);
   made.push(logging, rev);
   expect(logging.status, `logging engine: ${logging.vm.lastError}`).toBe('halted');
   expect(rev.status).toBe('halted');
@@ -31,9 +31,10 @@ async function check(src: string): Promise<Map<string, number>> {
   const t = rev.vm.instructionCount;
   expect(rev.vm.runTo(0)).toBe('ok');
   expect(rev.vm.registers().regs.every((x, i) => x === (i === 14 ? 0x10000 : 0))).toBe(true);
+  expect(Array.from(rev.vm.memory(0, 0x20800)) .every((x, i) => x === rev.startMem[i]), 'memory back to the loaded image').toBe(true);
   expect(rev.vm.runTo(t)).toBe('ok');
   expect(Array.from(rev.vm.registers().regs)).toEqual(Array.from(logging.vm.registers().regs));
-  return rev.vars;
+  return { get: (n: string) => rev.vars.get(n)![0], words: (n: string) => rev.vars.get(n)! };
 }
 
 describe('rev language', () => {
@@ -186,6 +187,86 @@ describe('rev language', () => {
   });
 });
 
+
+describe('arrays, memory variables, placement and input', () => {
+  it('reads and updates array elements with variable and constant indexes', async () => {
+    const v = await check(`
+      var a[6] = {10, 20, 30}, i = 2, x = 0, y = 0;
+      main {
+        x += a[i];
+        a[i] += 5;
+        a[0] -= 3;
+        a[4] ^= 0xFF;
+        y += a[i] + a[1];
+        a[i + 1] += x;
+      }`);
+    expect(v.words('a')).toEqual([7, 20, 35, 30, 0xff, 0]);
+    expect([v.get('x'), v.get('y')]).toEqual([30, 55]);
+  });
+
+  it('swaps array elements, including an element with itself and a register with an element', async () => {
+    const v = await check(`
+      var a[4] = {1, 2, 3, 4}, i = 1, j = 3, r = 9;
+      main {
+        a[i] <=> a[j];
+        a[i] <=> a[i];
+        r <=> a[0];
+        a[2] <=> r;
+      }`);
+    expect(v.words('a')).toEqual([9, 4, 1, 2]);
+    expect(v.get('r')).toBe(3);
+  });
+
+  it('spills scalars beyond nine registers to memory, and they work everywhere', async () => {
+    const names = Array.from({ length: 12 }, (_, k) => `v${k}`);
+    const decl = names.map((n, k) => `${n} = ${k + 1}`).join(', ');
+    const v = await check(`
+      var k = 0, flag = 0, ${decl}, t = 0;
+      out v11;
+      proc spin { v10 += v11; v9 <=> v11; }
+      main {
+        v10 += v0 + v1;
+        v11 ^= v10;
+        if (v10 > v9) { v11 += 1; v9 += 100; flag += 1; } else { v9 -= 1; } fi (flag != 0);
+        from (k == 0) loop { k += 1; v11 += 1; } until (k > 3);
+        call spin; uncall spin; call spin;
+      }`);
+    // compare against the interpreter happens inside check(); spot-check one value as well
+    expect(v.get('v0')).toBe(1);
+  });
+
+  it('a condition may compare array elements before an if', async () => {
+    const v = await check(`
+      var a[3] = {5, 2, 9}, swapped = 0;
+      main {
+        if (a[0] > a[1]) { a[0] <=> a[1]; swapped += 1; } fi (swapped != 0);
+        if (a[1] > a[2]) { a[1] <=> a[2]; swapped += 2; } fi (swapped > 2);
+      }`.replace('swapped > 2', 'swapped != 1'));
+    expect(v.words('a')).toEqual([2, 5, 9]);
+  });
+
+  it('draws into the framebuffer through an absolute array, and rewinds the picture', async () => {
+    const v = await check(`
+      var screen[2048] @ 0x20000, x = 3, y = 2, c = 0xFF00FF;
+      main { screen[rol(y, 6) + x] ^= c; screen[0] ^= 1; }`);
+    expect(v.words('screen')[2 * 64 + 3]).toBe(0xff00ff);
+    expect(v.words('screen')[0]).toBe(1);
+  });
+
+  it('reads the latest key event and the event count', async () => {
+    const none = await check('var e = 0, l = 0; main { e += events; l += latest; }');
+    expect([none.get('e'), none.get('l')]).toEqual([0, 0]);
+    const some = await check('var e = 0, l = 0; main { e += events; l += latest; }', [0x57, 0x53, 0x181]);
+    expect([some.get('e'), some.get('l')]).toEqual([3, 0x181]);
+  });
+
+  it('initial data and memory survive a full run backwards', async () => {
+    await check(`
+      var a[5] = {1, 2, 3, 4, 5}, i = 0, s = 0;
+      main { from (i == 0) loop { s += a[i]; a[i] += s; i += 1; } until (i == 5); }`);
+  });
+});
+
 describe('compile errors', () => {
   const err = (src: string): string => {
     const r = compile(src);
@@ -215,9 +296,27 @@ describe('compile errors', () => {
     const p = parse('var x;\nmain {\n  x += ;\n}');
     expect(p.diagnostics[0].line).toBe(3);
   });
-  it('rejects too many variables', () => {
-    const names = Array.from({ length: 10 }, (_, i) => `v${i}`).join(', ');
-    expect(err(`var ${names}; main { }`)).toMatch(/too many variables/);
+  it('rejects scalars used as arrays and arrays used as scalars', () => {
+    expect(err('var x; main { x[0] += 1; }')).toMatch(/not an array/);
+    expect(err('var a[4]; main { a += 1; }')).toMatch(/is an array/);
+    expect(err('var a[4], x; main { x += a; }')).toMatch(/is an array/);
+  });
+  it('rejects an array element updated from its own array', () => {
+    expect(err('var a[4], i; main { a[i] += a[0]; }')).toMatch(/read on the right/);
+    expect(err('var a[4]; main { a[a[0]] += 1; }')).toMatch(/cannot itself read/);
+    expect(err('var a[4], i; main { i <=> a[i]; }')).toMatch(/swap changes/);
+  });
+  it('rejects array elements where the machine tests after the bodies have run', () => {
+    expect(err('var a[4], i, f; main { if (i == 0) { f += 1; } fi (a[0] != 0); }')).toMatch(/cannot compare an array element/);
+  });
+  it('rejects a memory-resident variable where the machine tests after the bodies have run', () => {
+    const names = Array.from({ length: 10 }, (_, k) => `v${k}`).join(', ');
+    expect(err(`var ${names}; main { if (v0 == 0) { v1 += 1; } fi (v9 != 0); }`)).toMatch(/lives in memory/);
+  });
+  it('rejects bad placements', () => {
+    expect(err('var a[4] @ 0x50000; main { }')).toMatch(/not in mapped memory/);
+    expect(err('var s[4] @ 0x20000 = {1}; main { }')).toMatch(/cannot have initial values/);
+    expect(err('var f @ 0xFFFF; main { }')).toMatch(/FRAME/);
   });
 });
 
@@ -240,9 +339,23 @@ describe('cost report', () => {
     const c = mustCompile(src);
     const r = await analyze(c, src);
     expect(r.roundTrip).toBe(true);
-    expect(r.vars.filter((v) => v.isOut).map((v) => v.final)).toEqual([2, 5, 7]);
+    expect(r.vars.filter((v) => v.isOut).map((v) => v.final[0])).toEqual([2, 5, 7]);
     expect(r.garbageVars.length).toBeGreaterThan(0);
     expect(r.garbageBits).toBe(32 * r.garbageVars.length);
+  });
+
+  it('the eight-number sort in rev matches the hand-written assembly sort, and costs close to it', async () => {
+    const src = readFileSync(new URL('../examples/sort8.rev', import.meta.url), 'utf8');
+    const c = mustCompile(src);
+    const r = await analyze(c, src);
+    expect(r.roundTrip).toBe(true);
+    const a = r.vars.find((v) => v.name === 'a')!;
+    expect(a.final).toEqual([...a.initial].sort((x, y) => x - y));
+    const g = r.vars.find((v) => v.name === 'garbage')!;
+    expect(g.final.filter((x) => x !== 0).length).toBe(14); // the same 14 swaps as programs/sort.s
+    // the hand-written programs/sort.s is 341 instructions and 311 steps; the compiler should stay in that neighbourhood
+    expect(r.steps).toBeLessThan(311 * 1.25);
+    expect(r.codeWords).toBeLessThan(341 * 1.5);
   });
 
   it('reports an assertion the program breaks, instead of silently running', async () => {

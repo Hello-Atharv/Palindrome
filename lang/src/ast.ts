@@ -5,22 +5,34 @@ export type RelOp = '==' | '!=' | '<' | '>' | '<=' | '>=';
 export type Expr =
   | { k: 'num'; value: number; line: number } // unsigned 32-bit
   | { k: 'var'; name: string; line: number }
+  | { k: 'idx'; name: string; index: Expr; line: number } // array element
+  | { k: 'input'; which: 'events' | 'latest'; line: number } // the input window: how many key events so far / the latest one
   | { k: 'bin'; op: '+' | '-' | '^' | '&' | '|'; a: Expr; b: Expr; line: number }
   | { k: 'not'; a: Expr; line: number }
   | { k: 'neg'; a: Expr; line: number }
   | { k: 'rol'; a: Expr; n: number; line: number };
 
-/** A condition compares two operands, each a variable or a constant. */
+/** A condition operand: a constant, a variable, or an array element. */
+export type Operand = Extract<Expr, { k: 'num' } | { k: 'var' } | { k: 'idx' }>;
+
+/** A condition compares two operands. */
 export interface Cond {
   op: RelOp;
-  a: Expr & ({ k: 'num' } | { k: 'var' });
-  b: Expr & ({ k: 'num' } | { k: 'var' });
+  a: Operand;
+  b: Operand;
+  line: number;
+}
+
+/** Something that can be assigned to: a variable or an array element. */
+export interface LValue {
+  name: string;
+  index?: Expr;
   line: number;
 }
 
 export type Stmt =
-  | { k: 'assign'; target: string; op: '+=' | '-=' | '^='; e: Expr; line: number }
-  | { k: 'swap'; a: string; b: string; line: number }
+  | { k: 'assign'; target: LValue; op: '+=' | '-=' | '^='; e: Expr; line: number }
+  | { k: 'swap'; a: LValue; b: LValue; line: number }
   | { k: 'if'; test: Cond; then: Stmt[]; else: Stmt[]; fi: Cond; line: number }
   | { k: 'from'; entry: Cond; body1: Stmt[]; body2: Stmt[]; until: Cond; line: number }
   | { k: 'call'; name: string; line: number }
@@ -29,7 +41,12 @@ export type Stmt =
 
 export interface VarDecl {
   name: string;
-  init: number;
+  /** the initial value (a scalar: one word) or the initial words (an array; fewer than `size` means the rest are zero) */
+  init: number[];
+  /** array length, or 0 for a scalar */
+  size: number;
+  /** absolute data address (`var screen[2048] @ 0x20000;`); otherwise the compiler places it */
+  addr?: number;
   line: number;
 }
 

@@ -23,8 +23,10 @@ export interface LineCost {
 
 export interface VarResult {
   name: string;
-  initial: number;
-  final: number;
+  /** one word for a scalar, the whole array otherwise */
+  initial: number[];
+  final: number[];
+  isArray: boolean;
   isOut: boolean;
 }
 
@@ -85,18 +87,29 @@ export async function analyze(c: CompileResult, source: string, maxSteps = 5_000
     const steps = logging.instructionCount;
 
     // the reversible engine: same run, then back to the start and forward again
+    const MEM = 0x20800; // data + stack + framebuffer
+    const startMem = reversible.memory(0, MEM);
+    const sameWords = (a: Uint32Array, b: Uint32Array): boolean => a.every((x, i) => x === b[i]);
     while (reversible.instructionCount < steps && reversible.stepForward() === 'ok') { /* same steps */ }
     const finalRegs = Array.from(reversible.registers().regs);
+    const finalMem = reversible.memory(0, MEM);
     const loggingRegs = Array.from(logging.registers().regs);
-    let roundTrip = finalRegs.every((x, i) => x === loggingRegs[i]);
+    let roundTrip = finalRegs.every((x, i) => x === loggingRegs[i]) && sameWords(finalMem, logging.memory(0, MEM));
     if (roundTrip) {
-      roundTrip = reversible.runTo(0) === 'ok' && reversible.registers().regs.every((x, i) => x === (i === 14 ? 0x10000 : 0));
-      roundTrip = roundTrip && reversible.runTo(steps) === 'ok' && Array.from(reversible.registers().regs).every((x, i) => x === finalRegs[i]);
+      roundTrip = reversible.runTo(0) === 'ok' && reversible.registers().regs.every((x, i) => x === (i === 14 ? 0x10000 : 0)) && sameWords(reversible.memory(0, MEM), startMem);
+      roundTrip = roundTrip && reversible.runTo(steps) === 'ok' && Array.from(reversible.registers().regs).every((x, i) => x === finalRegs[i]) && sameWords(reversible.memory(0, MEM), finalMem);
     }
 
-    const vars: VarResult[] = c.vars.map((v) => ({ name: v.name, initial: v.init >>> 0, final: finalRegs[v.reg], isOut: v.isOut }));
+    const vars: VarResult[] = c.vars.map((v) => ({
+      name: v.name,
+      isOut: v.isOut,
+      isArray: v.isArray,
+      initial: Array.from({ length: v.size }, (_, i) => (v.init[i] ?? 0) >>> 0),
+      final: v.reg ? [finalRegs[v.reg]] : Array.from(finalMem.slice(v.addr!, v.addr! + v.size)),
+    }));
     const outsDeclared = c.vars.some((v) => v.isOut);
-    const garbageVars = outsDeclared ? vars.filter((v) => !v.isOut && v.final !== 0 && v.final !== v.initial).map((v) => v.name) : [];
+    const changed = (v: VarResult): boolean => v.final.some((x) => x !== 0) && v.final.some((x, i) => x !== v.initial[i]);
+    const garbageVars = outsDeclared ? vars.filter((v) => !v.isOut && changed(v)).map((v) => v.name) : [];
     const used = new Set(c.vars.map((v) => v.reg));
     const dirtyRegisters: number[] = [];
     for (let r = 1; r <= 15; r++) if (r !== 14 && !used.has(r) && finalRegs[r] !== 0) dirtyRegisters.push(r);
@@ -114,8 +127,8 @@ export async function analyze(c: CompileResult, source: string, maxSteps = 5_000
       vars,
       outsDeclared,
       garbageVars,
-      garbageBits: garbageVars.length * 32,
-      garbageSignificantBits: vars.filter((v) => garbageVars.includes(v.name)).reduce((n, v) => n + (32 - Math.clz32(v.final)), 0),
+      garbageBits: vars.filter((v) => garbageVars.includes(v.name)).reduce((n, v) => n + 32 * v.final.filter((x) => x !== 0).length, 0),
+      garbageSignificantBits: vars.filter((v) => garbageVars.includes(v.name)).reduce((n, v) => n + v.final.reduce((m, x) => m + (32 - Math.clz32(x)), 0), 0),
       dirtyRegisters,
       diaryBytes: logging.historyBytes,
       reversibleHistoryBytes: reversible.historyBytes,
@@ -145,8 +158,16 @@ export function formatReport(r: Report, file: string): string {
   o.push('');
   o.push('variables           initial        final   role');
   for (const v of r.vars) {
-    const role = !r.outsDeclared ? '' : v.isOut ? 'out' : v.final === 0 ? 'cleared' : v.final === v.initial ? 'input (unchanged)' : 'GARBAGE';
-    o.push(`  ${v.name.padEnd(12)} ${hex(v.initial).padStart(10)} ${hex(v.final).padStart(12)}   ${role}`);
+    const zero = v.final.every((x) => x === 0);
+    const same = v.final.every((x, i) => x === v.initial[i]);
+    const role = !r.outsDeclared ? '' : v.isOut ? 'out' : zero ? 'cleared' : same ? 'input (unchanged)' : 'GARBAGE';
+    if (!v.isArray) {
+      o.push(`  ${v.name.padEnd(12)} ${hex(v.initial[0]).padStart(10)} ${hex(v.final[0]).padStart(12)}   ${role}`);
+    } else {
+      const show = (a: number[]): string => '[' + a.slice(0, 8).map(hex).join(', ') + (a.length > 8 ? `, ... ${a.length} words` : '') + ']';
+      o.push(`  ${(v.name + '[' + v.final.length + ']').padEnd(12)} ${show(v.initial)}`);
+      o.push(`  ${''.padEnd(12)} -> ${show(v.final)}   ${role}`);
+    }
   }
   o.push('');
   o.push('what it cost to be able to go back');

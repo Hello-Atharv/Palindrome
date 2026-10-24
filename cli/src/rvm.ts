@@ -48,7 +48,12 @@ try {
       console.log(`${name}: ${s} after ${vm.instructionCount} steps on the ${engine} engine, ${vm.historyBytes} bytes of history`);
       if (s === 'fault') console.log(`fault: ${vm.lastError}`);
       const regs = vm.registers().regs;
-      if (prog.vars.length) for (const v of prog.vars) console.log(`  ${v.name.padEnd(10)} ${regs[v.reg] | 0}${v.isOut ? '   out' : ''}`);
+      if (prog.vars.length) {
+        for (const v of prog.vars) {
+          const words = v.reg ? [regs[v.reg]] : Array.from(vm.memory(v.addr!, Math.min(v.size, 16)));
+          console.log(`  ${(v.isArray ? v.name + '[' + v.size + ']' : v.name).padEnd(12)} ${v.isArray ? '[' + words.join(', ') + (v.size > 16 ? ', ...' : '') + ']' : words[0] | 0}${v.isOut ? '   out' : ''}`);
+        }
+      }
       else for (let i = 0; i < 16; i++) if (regs[i]) console.log(`  r${i} = ${regs[i] | 0}`);
       vm.destroy();
       break;
