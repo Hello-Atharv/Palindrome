@@ -17,11 +17,15 @@ Updated: 2026-10-24
 
 - **Macros**: `.if/.else/.fi` and `.loop/.again` (nestable), expanding to the exact hand-written code; hidden `$` labels; 62 assembler tests including nested.s on both engines with rewind and replay.
 
+- **WebAssembly build** (`vm/wasm`, `web/wasm`): both engines behind the `RVM` interface, single-file module committed (42 KB). 25 tests: examples through the assembler on both engines, rewind and replay, faults, and random-scrub differential tests between the engines in wasm. `npm run build:wasm` rebuilds (needs the Emscripten SDK; installed at ~/emsdk on core's machine).
+- **Benchmarks** (`bench/`): speed and history memory of both engines; results with spread and caveats in `bench/RESULTS.md`. Headline: 48 B/step diary vs 0 B; reversible rewind is slower (2 to 5x), forward is faster.
+
 ## In progress
-- WASM build of the VMs, then benchmarks.
+- Conventional-vs-reversible comparison for the sort demo; garbage macros.
 
 ## Notes for others
 - C++ namespace is `rev` (the C handle struct is `rvm`). The two VMs match on well-formed programs; only the `LND` assertion is logging-VM-only (SPEC section 7).
+- Real VM in the browser: `web/wasm` (`createWasmVm('reversible'|'logging')`), same interface as the mock. UI people: swap the factory; the engine toggle can now be enabled.
 - Test helpers to build programs from raw words: `tests/test_util.h` (usable until the assembler exists).
 - Tape persists across `load_program`; direction log does not.
 

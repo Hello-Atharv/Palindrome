@@ -44,6 +44,10 @@ Needs CMake >= 3.21, a C++17 compiler (MSVC or Apple clang), Node.
 - `npm run build` configure + build (Release) / `npm test` build + CTest / `npm run dev` Debug build.
 Underlying: `cmake --preset default`, `cmake --build --preset default`, `ctest --preset default`.
 
+## Real VM in the browser
+`web/wasm/` is the C++ VMs compiled to WebAssembly behind the `RVM` interface: `await createWasmVm('reversible')` (or
+`'logging'`) is a drop-in for `web/mock_vm`. Prebuilt and committed; see `web/wasm/README.md`.
+
 ## Assembler
 `cd asm && npm install && npm run build`, then `node asm/dist/cli.js prog.s -o prog.rvm`. Run a program with
 `build/default/rvm_run prog.rvm --engine reversible --rewind` (built by `npm run build` at the root). Syntax: `spec/asm_syntax.md`.
