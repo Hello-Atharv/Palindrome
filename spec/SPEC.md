@@ -2,7 +2,7 @@
 
 **STATUS: v0.2 DRAFT, decisions applied. Treat the ISA table (section 4), memory map (5) and API
 (`vm_api.ts`/`vm_api.h`, section 8) as the contract. Change them only through `core`; every change is logged in
-`SPEC_CHANGELOG.md`.** Unresolved items are in section 10.
+`spec/CHANGELOG.md`.** Unresolved items are in section 10.
 
 Companion files: `vm_api.ts` (TypeScript API, canonical for web), `vm_api.h` (C ABI), `program_format.md` (.rvm binary), `input_tape.md`
 (input), `asm_syntax.md` (assembly source syntax).
@@ -160,7 +160,7 @@ f_end:  ret
   reversible VM cannot make is the `LND` assertion (it has no history to compare against), so a program that
   violates it faults in the logging VM and is undefined in the reversible VM. Every other fault check (operand
   rules, addresses, `BR` target, `CALL`/`RET` pairing, stack slot) depends only on state and code, so both
-  VMs fault identically. Tested by `tests/differential_test.cpp`.
+  VMs fault identically. Tested by `vm/tests/differential_test.cpp`.
 
 ## 8. API
 **Web code is written against `spec/vm_api.ts`** (TypeScript interface `RVM`, constants, opcodes). It is
@@ -185,7 +185,7 @@ and is what the two C++ VMs implement. The two files must stay in step.
 3. Garbage macros (`compute/copy/uncompute`) after basic `if`/`loop` macros.
 4. Framebuffer fixed at 64x32 for now.
 
-## 11. UI requirements (web/viz, web/debugger)
+## 11. UI requirements (web/viz; the debugger logic is cli/src/debugger.ts)
 The UI is one page of panels over one `RVM` (`vm_api.ts`). Tech stack is open: the viz owner picks it and
 records it in their status file. Words below: **must** = required for the demo, **should** = wanted,
 **could** = only if time allows.
@@ -299,8 +299,8 @@ nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SP
    The VM treats it as ordinary memory. The debugger's "step by frame" runs single steps until `memory(0xFFFF, 1)`
    equals its starting value plus 1, and gives up with a message after 1,000,000 steps (so programs that never touch it
    are not hung). It waits for "plus 1", not for "changed", because a program that updates the word by moving it through a
-   register (`xld`, `xst`, add, `xst`, as `programs/pong.s` and the `rev` compiler do) passes through zero halfway through
-   its own update.
+   register (`xld`, `xst`, add, `xst`, as `examples/demos/pong.s` and the `rev` compiler do) passes through zero halfway through
+   its own update. `web/wasm/src/frames.ts` (`FrameTracker`) implements frame stepping, forwards and backwards, for any UI.
    Programs must not use `0xFFFF` for anything else.
 3. **Assembler.** Written in TypeScript (`asm/`): a Node command line tool that also runs in the browser, so the
    Code view can assemble live. It emits the same `.rvm` files either way.

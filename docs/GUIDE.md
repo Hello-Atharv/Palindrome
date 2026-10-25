@@ -115,7 +115,7 @@ We built the machine **twice**, behind the same interface:
 
 Why two? **To check ourselves.** Both must produce the exact same state after every action: step, step back, jump to time T, and so
 on. We wrote tests that do thousands of random jumps forwards and backwards and compare the two engines after each one
-(`tests/differential_test.cpp`). If we break an instruction's undo on purpose, the tests catch it (we did this deliberately; it is
+(`vm/tests/differential_test.cpp`). If we break an instruction's undo on purpose, the tests catch it (we did this deliberately; it is
 called a *mutation check*).
 
 The engines are written in C++ for speed, and also compiled to **WebAssembly** so the very same code runs in the browser.
@@ -231,10 +231,10 @@ forwards again reproduced the identical states.
 
 ## 11. The demo programs
 
-- **Speck cipher** (`programs/cipher.s`): a real encryption algorithm. Decrypt = run it backwards. We checked it against the
+- **Speck cipher** (`examples/demos/cipher.s`): a real encryption algorithm. Decrypt = run it backwards. We checked it against the
   published test vector.
-- **Sort** (`programs/sort.s`): shows its garbage on screen.
-- **Pong** (`programs/pong.s` in assembly, `programs/pong.rev` in the language). Playable. Rewind and the whole game rewinds,
+- **Sort** (`examples/demos/sort.s`): shows its garbage on screen.
+- **Pong** (`examples/demos/pong.s` in assembly, `examples/demos/pong.rev` in the language). Playable. Rewind and the whole game rewinds,
   including your key presses. The ball has no bounce code: it's a "triangle wave" (position folds back at the edges), so a bounce is
   just the fold turning round and nothing is decided or lost. Drawing is XOR, so the same line draws and erases.
   `pong.rev` also has a **permanent wall** and a score shown as digits.
@@ -349,12 +349,12 @@ compiler overhead, a "ball marks the wall" idea. Not planned: more demos or lang
 ## 18. Where everything is
 
 ```
-spec/        the contract: instructions, memory map, cost model (SPEC.md section 12), formats
-vm/          the two C++ engines (logging + reversible)       tests/   their tests
-asm/         the assembler                                     lang/    the rev compiler + cost report
-cli/         the rvm command, debugger, verify                 vscode/  the editor extension
-web/wasm/    the engines in the browser + the playground       bench/   benchmarks and the fair twins
-programs/    cipher, sort, pong (.s) and pong.rev              demo/    demo script and writeup
-docs/        this guide                                        status/  who did what
+spec/        the contract: instructions, memory map, cost model (SPEC.md section 12), formats, CHANGELOG.md
+vm/          the two C++ engines (logging + reversible), their tests in vm/tests/, the WebAssembly build
+asm/         the assembler                                     lang/       the rev compiler + cost report
+cli/         the rvm command, debugger, verify                 vscode/     the editor extension
+web/wasm/    the engines in the browser + the playground       bench/      benchmarks and the fair twins
+examples/    every runnable program: asm/ (teaching), rev/ (the language), demos/ (cipher, sort, Pong)
+docs/        all the written material: this guide, ARCHITECTURE, LANGUAGE, DEMO, WRITEUP, hackathon/, status/
 ```
 Run everything: `npm run setup`, `npm run build`, `npm run test:all`. Try it: `cd web/wasm && npm run playground`.

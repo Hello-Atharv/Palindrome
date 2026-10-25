@@ -71,7 +71,7 @@ project: `rvm_run prog.rvm --engine reversible --rewind`.
 
 ## Macros: if/else and loops
 These expand to the `br`/`lnd` pairs of SPEC section 6 before assembly, so you never write the landing
-bookkeeping by hand. `asm/examples/ifelse_macro.s` and `loop_macro.s` assemble to exactly the same code as the
+bookkeeping by hand. `examples/asm/ifelse_macro.s` and `loop_macro.s` assemble to exactly the same code as the
 hand-written `ifelse.s` and `loop.s`.
 
 ```
@@ -89,7 +89,7 @@ hand-written `ifelse.s` and `loop.s`.
 - **The programmer's duty (Janus's rule):** the `.fi` condition must be true when the else side ran and false when the
   then side ran (so the bodies must leave the values it reads telling the two sides apart, or set them to do so; the
   usual way is to let the `.if` test registers be untouched and reuse them, or to record the choice in a flag register
-  as `programs/sort.s` does). The `.if` test is only evaluated on entry, so the bodies are free to change the registers
+  as `examples/demos/sort.s` does). The `.if` test is only evaluated on entry, so the bodies are free to change the registers
   it names. The loop head condition must be false on the first entry and true on every later one. The logging VM faults
   ("LND assertion failed") the moment one of these is wrong; the reversible VM trusts it. Test new code on the
   logging engine first.
@@ -129,7 +129,7 @@ block that reads the input window (`xld` from 0x30000) would read it again when 
 that is zero again afterwards; the four registers must differ (use `r0` for column 0). The same line draws and erases.
 
 ### Procedures
-`call` / `proc` / `ret` are ordinary and reversible (SPEC 4.2); `programs/pong.s` uses them. A procedure that only XORs its
+`call` / `proc` / `ret` are ordinary and reversible (SPEC 4.2); `examples/demos/pong.s` uses them. A procedure that only XORs its
 results into registers computed from unchanged inputs is **its own inverse**: calling it twice clears what the first call set.
 
 ### Console: `.print`

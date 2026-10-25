@@ -4,18 +4,18 @@ import { assemble, type ListingRow } from '../../../asm/src/index.js';
 import { compile } from '../../../lang/src/compile.js';
 import { analyze, formatReport } from '../../../lang/src/report.js';
 import { highlightRev } from './highlight.js';
-import cipher from '../../../programs/cipher.s?raw';
-import sort from '../../../programs/sort.s?raw';
-import pong from '../../../programs/pong.s?raw';
-import pongRev from '../../../programs/pong.rev?raw';
-import fibRev from '../../../lang/examples/fib.rev?raw';
-import sort3Rev from '../../../lang/examples/sort3.rev?raw';
-import sort8Rev from '../../../lang/examples/sort8.rev?raw';
-import call from '../../../asm/examples/call.s?raw';
-import ifelse from '../../../asm/examples/ifelse_macro.s?raw';
-import memory from '../../../asm/examples/memory.s?raw';
-import nested from '../../../asm/examples/nested.s?raw';
-import { createWasmVm, type WasmVm } from '../src/index.js';
+import cipher from '../../../examples/demos/cipher.s?raw';
+import sort from '../../../examples/demos/sort.s?raw';
+import pong from '../../../examples/demos/pong.s?raw';
+import pongRev from '../../../examples/demos/pong.rev?raw';
+import fibRev from '../../../examples/rev/fib.rev?raw';
+import sort3Rev from '../../../examples/rev/sort3.rev?raw';
+import sort8Rev from '../../../examples/rev/sort8.rev?raw';
+import call from '../../../examples/asm/call.s?raw';
+import ifelse from '../../../examples/asm/ifelse_macro.s?raw';
+import memory from '../../../examples/asm/memory.s?raw';
+import nested from '../../../examples/asm/nested.s?raw';
+import { createWasmVm, FrameTracker, type WasmVm } from '../src/index.js';
 
 type Kind = 'logging' | 'reversible';
 interface Program { name: string; src: string; crop: 'top' | 'full'; mem: string; note: string; speed?: string; frames?: boolean; rev?: boolean; blocks?: boolean }
@@ -57,8 +57,7 @@ let status = 'ready';
 let running: 'fwd' | 'back' | null = null;
 let diverged: string | null = null;
 let paddleMin = 99; // debug: fewest paddle pixels visible in any redraw
-let lastFrame = -1; // FRAME word at the last redraw while running (programs with frames: true)
-const FRAME_WORD = 0xffff;
+let tracker: FrameTracker | null = null; // knows where each frame ended (src/frames.ts), for programs that count frames
 let samples = new Map<number, [number, number]>(); // t -> [diary bytes, reversible bytes]
 
 const primary = (): Machine => machines[0];
@@ -115,7 +114,7 @@ async function load(): Promise<void> {
   move = 'none';
   status = 'ready';
   diverged = null;
-  lastFrame = -1;
+  tracker = new FrameTracker(primary().vm);
   samples = new Map([[0, [0, 0]]]); // the chart starts at the origin, so jumping straight to a time still draws a line
   // optional start state from the URL, e.g. ?p=0&t=500&dir=-1&after=300&cmp=1 (handy for sharing a view)
   const t0 = Number(q.get('t') ?? 0);
@@ -331,26 +330,23 @@ function loopBody(schedule = true): void {
   const n = parseInt($<HTMLSelectElement>('speed').value, 10);
   // XOR drawing erases before it redraws, so a screen sampled mid-frame is half-erased (the paddle would flicker).
   // For programs that count frames, stop exactly when the frame counter ticks and redraw only then.
-  const frameSync = !!PROGRAMS[PROGRAM_SELECT.selectedIndex].frames && q.get('frames') !== '0';
-  const readFrame = (): number => primary().vm.memory(FRAME_WORD, 1)[0];
-  if (frameSync && lastFrame < 0) lastFrame = readFrame();
+  const frameSync = !!PROGRAMS[PROGRAM_SELECT.selectedIndex].frames && q.get('frames') !== '0' && primary().vm.direction > 0 && tracker !== null;
   let frameDone = false;
   for (let i = 0; i < n && running; i++) {
     const before = primary().vm.instructionCount;
     const s = stepAll(running);
     applyStatus(s, running ?? 'fwd');
     if (primary().vm.instructionCount === before && s === 'ok') break;
-    if (frameSync && running && readFrame() !== lastFrame) {
+    // forward: a frame just completed; backward: we are back at the end of a frame. (Not "the FRAME word changed": it passes
+    // through zero while being updated. See src/frames.ts.)
+    if (frameSync && running && (running === 'fwd' ? tracker!.observe() : tracker!.atBoundary())) {
       frameDone = true;
       break;
     }
   }
-  if (frameSync && running) {
-    if (!frameDone) { // still inside a frame: keep going, draw nothing
-      if (schedule) requestAnimationFrame(loop);
-      return;
-    }
-    lastFrame = readFrame();
+  if (frameSync && running && !frameDone) { // still inside a frame: keep going, draw nothing
+    if (schedule) requestAnimationFrame(loop);
+    return;
   }
   render();
   if (running && schedule) requestAnimationFrame(loop);
@@ -432,6 +428,7 @@ $('dir').onclick = () => {
   const d = primary().vm.direction > 0 ? -1 : 1;
   machines.forEach((m) => m.vm.setDirection(d));
   maxT = primary().vm.instructionCount; // a host action starts a new branch: the old future is gone
+  tracker?.truncateAfter(maxT);
   samples = new Map([[0, [0, 0]]]);
   move = 'none';
   status = 'direction changed; run forward';
@@ -475,6 +472,7 @@ function onKey(ev: KeyboardEvent, up: boolean): void {
   machines.forEach((m) => m.vm.pushInput(value));
   if (primary().vm.instructionCount < maxT) { // pressing a key after scrubbing back starts a new timeline
     maxT = primary().vm.instructionCount;
+    tracker?.truncateAfter(maxT);
     samples = new Map([[0, [0, 0]]]);
     $('branch').textContent = 'new timeline';
   }

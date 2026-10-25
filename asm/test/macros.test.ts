@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { assemble } from '../src/index.js';
 
-const example = (name: string): string => readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8');
+const example = (name: string): string => readFileSync(new URL(`../../examples/asm/${name}`, import.meta.url), 'utf8');
 const errors = (src: string): string[] =>
   assemble(src).diagnostics.filter((d) => d.severity === 'error').map((d) => d.message);
 const has = (src: string, re: RegExp): boolean => errors(src).some((m) => re.test(m));

@@ -54,7 +54,7 @@ describe('rev grammar', () => {
 
   it('tokenises every shipped rev program without leaving a keyword uncoloured', async () => {
     const g = await grammar('source.rev', 'syntaxes/rev.tmLanguage.json');
-    for (const f of ['lang/examples/fib.rev', 'lang/examples/sort3.rev', 'programs/pong.rev']) {
+    for (const f of ['examples/rev/fib.rev', 'examples/rev/sort3.rev', 'examples/demos/pong.rev']) {
       let stack = INITIAL;
       for (const line of readFileSync(repo(f), 'utf8').split('\n')) {
         const r = g.tokenizeLine(line, stack);
@@ -104,7 +104,7 @@ describe('editor logic', () => {
   });
 
   it('computes per-line costs, a summary, and the report', async () => {
-    const src = readFileSync(repo('lang/examples/fib.rev'), 'utf8');
+    const src = readFileSync(repo('examples/rev/fib.rev'), 'utf8');
     const c = await cost(src);
     expect(c.ok).toBe(true);
     expect(c.lines.length).toBeGreaterThan(3);

@@ -41,7 +41,7 @@ on the reversible engine, with 0 bytes of history (`web/wasm`, test "rewinds a l
   Read that file before quoting the 48 bytes per step above as a comparison.
 - The MSVC and GCC differences are compiler code generation on this machine, not a property of the design.
 
-## A real program: Pong (`programs/pong.s`)
+## A real program: Pong (`examples/demos/pong.s`)
 Measured by `web/wasm/test/pong.test.ts` (200 frames, a paddle that chases the ball, 105 key events):
 - about **400 steps per frame** (275 instructions of code);
 - diary engine history **19,145 bytes per frame** (48 bytes x 399 steps), reversible engine history **0**;

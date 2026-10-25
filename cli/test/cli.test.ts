@@ -23,7 +23,7 @@ const script = (d: Debugger, cmds: string): string => cmds.split(';').map((c) =>
 
 describe('debugger', () => {
   it('steps by source line and back again, landing where it started', async () => {
-    const d = await debuggerFor('lang/examples/fib.rev');
+    const d = await debuggerFor('examples/rev/fib.rev');
     const w0 = d.where();
     for (let i = 0; i < 6; i++) expect(d.stepLine()).toBe('done');
     const w6 = d.where();
@@ -35,7 +35,7 @@ describe('debugger', () => {
   });
 
   it('next steps over a call, step goes into it', async () => {
-    const d = await debuggerFor('lang/examples/fib.rev');
+    const d = await debuggerFor('examples/rev/fib.rev');
     const callLine = 13;
     d.breakpoints.add(callLine);
     expect(d.cont()).toBe('breakpoint');
@@ -47,7 +47,7 @@ describe('debugger', () => {
     d.goto(d.t - 1 - 0); // back to just before `i += 1`
     d.breakpoints.clear();
     // stepping from the call line with `s` enters the procedure
-    const d2 = await debuggerFor('lang/examples/fib.rev');
+    const d2 = await debuggerFor('examples/rev/fib.rev');
     d2.breakpoints.add(callLine);
     d2.cont();
     expect(d2.stepLine()).toBe('done');
@@ -55,7 +55,7 @@ describe('debugger', () => {
   });
 
   it('reverse watchpoint finds the line that last wrote a variable, exactly', async () => {
-    const d = await debuggerFor('lang/examples/sort3.rev');
+    const d = await debuggerFor('examples/rev/sort3.rev');
     expect(d.cont()).toBe('halted');
     const endT = d.t;
     const flag = d.target('f2');
@@ -74,14 +74,14 @@ describe('debugger', () => {
   });
 
   it('forward watch stops just after the change', async () => {
-    const d = await debuggerFor('lang/examples/fib.rev');
+    const d = await debuggerFor('examples/rev/fib.rev');
     const { hit } = d.forwardWatch(d.target('i'));
     expect(hit!.writer.line).toBe(14);
     expect([hit!.before, hit!.after]).toEqual([0, 1]);
   });
 
   it('continue and reverse-continue are mirror images', async () => {
-    const d = await debuggerFor('lang/examples/sort3.rev');
+    const d = await debuggerFor('examples/rev/sort3.rev');
     expect(d.cont()).toBe('halted');
     const end = d.where();
     expect(d.rcont()).toBe('at_start');
@@ -91,7 +91,7 @@ describe('debugger', () => {
   });
 
   it('breakpoints stop in both directions', async () => {
-    const d = await debuggerFor('lang/examples/sort3.rev');
+    const d = await debuggerFor('examples/rev/sort3.rev');
     d.breakpoints.add(9);
     expect(d.cont()).toBe('breakpoint');
     expect(d.where().line).toBe(9);
@@ -103,7 +103,7 @@ describe('debugger', () => {
   });
 
   it('a breakpoint fires on arriving at its line, not at every instruction of it', async () => {
-    const d = await debuggerFor('lang/examples/sort3.rev');
+    const d = await debuggerFor('examples/rev/sort3.rev');
     d.breakpoints.add(8);
     expect(d.cont()).toBe('breakpoint');
     expect(d.where().line).toBe(8);
@@ -116,7 +116,7 @@ describe('debugger', () => {
   });
 
   it('a breakpoint inside a loop fires once per pass', async () => {
-    const d = await debuggerFor('lang/examples/fib.rev');
+    const d = await debuggerFor('examples/rev/fib.rev');
     d.breakpoints.add(13); // call step; (ten passes)
     let hits = 0;
     while (d.cont() === 'breakpoint') {
@@ -132,14 +132,14 @@ describe('debugger', () => {
 
   it('gives the same transcript on both engines (apart from the history line)', async () => {
     const cmds = 'list;s;s;n;p;rwatch f1;p f1;b;c;rc;goto 7;where;regs;mem 0 2;watch a;si 3;bi 2;info;break 9;c;p';
-    const a = script(await debuggerFor('lang/examples/sort3.rev', 'logging'), cmds);
-    const b = script(await debuggerFor('lang/examples/sort3.rev', 'reversible'), cmds);
+    const a = script(await debuggerFor('examples/rev/sort3.rev', 'logging'), cmds);
+    const b = script(await debuggerFor('examples/rev/sort3.rev', 'reversible'), cmds);
     expect(a).toBe(b);
     expect(a).toMatch(/was last written by line 8/);
   });
 
   it('works on plain assembly too (lines are the .s lines)', async () => {
-    const d = await debuggerFor('asm/examples/loop_macro.s');
+    const d = await debuggerFor('examples/asm/loop_macro.s');
     expect(d.cont()).toBe('halted');
     const r3 = d.target('r3');
     expect(r3()).toBe(16); // r3 += r1 (= 4), four times
@@ -149,7 +149,7 @@ describe('debugger', () => {
   });
 
   it('ignores comments after a # so annotated command lists can be pasted', async () => {
-    const d = await debuggerFor('lang/examples/sort3.rev');
+    const d = await debuggerFor('examples/rev/sort3.rev');
     expect(runCommand(d, 'c   # run to the end').out).toMatch(/halted/);
     expect(runCommand(d, 'p f1   # now 1').out).toBe('f1 = 1 (1)\n');
     expect(runCommand(d, '# only a comment').out).toBe('');
@@ -157,7 +157,7 @@ describe('debugger', () => {
   });
 
   it('explains bad input instead of crashing', async () => {
-    const d = await debuggerFor('lang/examples/fib.rev');
+    const d = await debuggerFor('examples/rev/fib.rev');
     expect(runCommand(d, 'watch nonsense').out).toMatch(/don't know what/);
     expect(runCommand(d, 'frobnicate').out).toMatch(/unknown command/);
     expect(runCommand(d, 'goto banana').out).toMatch(/machine time/);
@@ -167,7 +167,7 @@ describe('debugger', () => {
 
 describe('verify', () => {
   it('passes the example programs', async () => {
-    for (const f of ['lang/examples/fib.rev', 'lang/examples/sort3.rev', 'asm/examples/nested.s', 'asm/examples/call.s', 'asm/examples/bennett.s']) {
+    for (const f of ['examples/rev/fib.rev', 'examples/rev/sort3.rev', 'examples/asm/nested.s', 'examples/asm/call.s', 'examples/asm/bennett.s']) {
       const r = await verify(loadFile(repo(f)));
       expect(r.ok, `${f}: ${JSON.stringify(r.checks.filter((c) => !c.ok))}`).toBe(true);
       expect(r.steps).toBeGreaterThan(0);
@@ -175,7 +175,7 @@ describe('verify', () => {
   });
 
   it('passes the demo programs: cipher, sort and pong (which halts at game over without input)', async () => {
-    for (const f of ['programs/cipher.s', 'programs/sort.s', 'programs/pong.s']) {
+    for (const f of ['examples/demos/cipher.s', 'examples/demos/sort.s', 'examples/demos/pong.s']) {
       const r = await verify(loadFile(repo(f)), { maxSteps: 100_000 });
       expect(r.ok, `${f}: ${JSON.stringify(r.checks.filter((c) => !c.ok))}`).toBe(true);
     }
@@ -206,6 +206,6 @@ start:  addi r1, 5
 
 describe('sanity', () => {
   it('the example files exist', () => {
-    expect(readFileSync(repo('lang/examples/fib.rev'), 'utf8')).toMatch(/Fibonacci/);
+    expect(readFileSync(repo('examples/rev/fib.rev'), 'utf8')).toMatch(/Fibonacci/);
   });
 });

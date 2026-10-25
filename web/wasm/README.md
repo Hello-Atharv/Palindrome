@@ -45,3 +45,10 @@ differential test between them, and a long rewind).
   the cipher decrypting.
 
 **rev programs in the playground.** The programs ending in `.rev` (indexes 6 to 9: pong.rev, sort8.rev, sort3.rev, fib.rev) show a source editor and a cost report above the machine. Edit the source and press *Compile & load*: it compiles in the browser (`lang/`), loads the result into the engine, and prints the per-line cost report (steps per source line, garbage, history bytes, exact round trip). The Code panel shows the assembly the compiler wrote. Program indexes for `?p=`: 0 cipher, 1 sort, 2 pong, 3 nested, 4 ifelse_macro, 5 call, 6 pong.rev, 7 sort8.rev, 8 sort3.rev, 9 fib.rev, 10 memory.
+
+**Frame stepping (`src/frames.ts`).** For programs that count frames (SPEC 11.7), `new FrameTracker(vm)` gives exact `stepFrame()`,
+`backFrame()`, `goToFrame(k)`, `frame()` and `atBoundary()` on either engine. It records the machine time at which each frame completed,
+because "the FRAME word changed" is not a usable test (the word passes through zero while being updated, and going backwards no value
+test can find a frame boundary). Call `observe()` after any single forward step you make yourself, `truncateAfter(t)` when a key or a
+direction flip starts a new timeline, and `reset()` after `loadProgram`. The playground and any other UI should use it rather than
+copying the logic.
