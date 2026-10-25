@@ -25,6 +25,7 @@ main {
   } until (i == 8);
   i -= 8;
   print "before: ", hex screen[0], " ", hex screen[1], "\n";
+  print "text:   ", char (screen[0] & 255), char (rol(screen[0], 24) & 255), char (rol(screen[0], 16) & 255), char (rol(screen[0], 8) & 255), char (screen[1] & 255), char (rol(screen[1], 24) & 255), char (rol(screen[1], 16) & 255), char (rol(screen[1], 8) & 255), "\n";
 
   // one pass per block of two words
   from (i == 0) loop {

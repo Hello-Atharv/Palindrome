@@ -9,6 +9,7 @@ const ICONS = {
   playBack: { d: 'M11.5 2.5v11L3 8z', fill: true },
   pause: { d: 'M4 3h3v10H4zM9 3h3v10H9z', fill: true },
   stop: { d: 'M3.5 3.5h9v9h-9z', fill: true },
+  restart: { d: 'M13 8a5 5 0 1 1-1.5-3.6M12.2 1.8v3.2H9' },
   step: { d: 'M3 2.5v11l7.5-5.5zM11.5 2.5h2v11h-2z', fill: true },
   stepBack: { d: 'M13 2.5v11L5.5 8zM2.5 2.5h2v11h-2z', fill: true },
   stepFrame: { d: 'M2 2.5v11l5.5-5.5zM8 2.5v11l5.5-5.5zM14 2.5v11', fill: false },

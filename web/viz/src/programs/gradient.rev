@@ -1,11 +1,22 @@
-// Fills the screen with a gradient, one pixel at a time. The colour steps by 0x010203 on every pixel.
+// Fills the screen with a smooth gradient, one pixel at a time: red grows from left to right, green from top to bottom, blue stays at 0x60.
+// A row is 64 pixels, so four steps of red per pixel wrap exactly at the end of a row (the carry is taken back out).
 var screen[2048] @ 0x20000;
-var i = 0, colour = 0;
+var i = 0, x = 0, y = 0, colour = 0x60;
 
 main {
-  from (i == 0) loop {
-    screen[i] ^= colour;
-    colour += 0x010203;
-    i += 1;
-  } until (i == 2048);
+  from (y == 0) loop {
+    from (x == 0) loop {
+      screen[i] ^= colour;
+      colour += 0x040000;     // a little more red, one pixel to the right
+      i += 1;
+      x += 1;
+    } until (x == 64);
+    x -= 64;
+    colour -= 0x1000000;      // 64 steps of 4 carried out of the red byte: take the carry back
+    colour += 0x000800;       // a little more green, one row down
+    y += 1;
+  } until (y == 32);
+  i -= 2048;                  // put the counters and the colour back to zero: nothing is left but the picture
+  y -= 32;
+  colour -= 0x010060;
 }

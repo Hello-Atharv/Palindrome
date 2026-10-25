@@ -33,7 +33,9 @@ describe.each(['pong.s', 'pong.rev'])('a key at every offset in a frame (%s)', (
     made.push(start);
     start.loadProgram(image);
     const memAtStart = Array.from(start.memory(0, 0x20800));
-    for (let off = 0; off < 620; off += 1) {
+    // every 3rd offset by default, which still lands inside every window the old bug had (they were over 100 steps wide); KEYRACE_STRIDE=1 tries them all
+    const stride = Number(process.env.KEYRACE_STRIDE ?? 3);
+    for (let off = 0; off < 620; off += stride) {
       const at = [3000 + off, 3000 + off + 7 + (off % 13)]; // two keys close together: the second can land inside the first one's read
       const keys = [0x80, 0x57];
       const log = await play('logging', image, at, keys, 7000);

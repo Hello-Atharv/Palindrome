@@ -25,7 +25,6 @@ import callRev from './programs/call.rev?raw';
 import addTwoRev from './programs/add_two_numbers.rev?raw';
 import cipherRev from './programs/cipher.rev?raw';
 import gradientRev from './programs/gradient.rev?raw';
-import gradientS from './programs/gradient.s?raw';
 import ifElseRev from './programs/if_else.rev?raw';
 import loopRev from './programs/loop.rev?raw';
 import memoryRev from './programs/memory.rev?raw';
@@ -135,11 +134,15 @@ describe.each(KINDS)('a program in .s and in .rev, on the %s engine', (kind) => 
     expect(screen(r).slice(0, 8)).not.toEqual([0x48544f4e, 0x20474e49, 0x45205349, 0x20524556, 0x4f524854, 0x41204e57, 0x20594157, 0x45524548]); // it did encrypt
   });
 
-  it('gradient: the same 2048 pixels', async () => {
-    const a = await run(kind, asm(gradientS));
+  it('gradient: red grows to the right, green grows downwards, and nothing is left but the picture', async () => {
     const r = await run(kind, rev(gradientRev).image!);
-    expect(screen(r)).toEqual(screen(a));
-    expect(screen(r)[2]).toBe(2 * 0x010203);
+    const px = screen(r);
+    expect(px[0]).toBe(0x000060); // top left: dark blue
+    expect(px[63]).toBe(0xfc0060); // top right: red is 63 * 4
+    expect(px[31 * 64]).toBe(0x00f860); // bottom left: green is 31 * 8
+    expect(px[2047]).toBe(0xfcf860);
+    expect(px.every((p) => p <= 0xffffff)).toBe(true); // the carry out of the red byte is taken back every row
+    expect(Array.from(r.registers().regs.slice(1, 5))).toEqual([0, 0, 0, 0]); // i, x, y and colour are back to zero
   });
 });
 

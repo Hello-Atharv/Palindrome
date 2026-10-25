@@ -10,7 +10,7 @@ describe('bundled tools', () => {
   it('build, then run a program from a different folder', () => {
     execFileSync(process.execPath, [here('build.mjs')], { cwd: here('.'), stdio: 'ignore' });
     const out = execFileSync(process.execPath, [here('dist/rvm.mjs'), 'run', here('../examples/rev/hello.rev')], { cwd: tmpdir(), encoding: 'utf8' });
-    expect(out).toMatch(/fib\(10\) = 55 \(hex 0x37\)/);
+    expect(out).toMatch(/This is line 3 of 3\./);
   }, 60_000);
 
   it('the debugger works from the bundle, including step back and reverse watch', () => {

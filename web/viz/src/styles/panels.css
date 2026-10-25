@@ -198,6 +198,8 @@
 .ibtn .ibtn-label { display: none; font-size: 13px; font-weight: 600; }
 .ibtn.step-back .ibtn-label { color: var(--back); }
 .ibtn.step-fwd .ibtn-label { color: var(--fwd); }
+.ibtn.run-back .ibtn-label { color: var(--back); }
+.ibtn.run-fwd .ibtn-label { color: var(--fwd); }
 @container (min-width: 360px) {
   .ibtn.labelled { width: auto; padding: 0 var(--s-8) 0 var(--s-4); gap: var(--s-4); }
   .ibtn.labelled .ibtn-label { display: inline; }

@@ -260,7 +260,7 @@ word, 11.7).
 6. **Timeline:** shows instruction count `t` and a scrubber that calls `runTo`. Its range is `0 .. maxT`, where
    `maxT` is the largest `t` reached on the current branch. A host action (`pushInput`, `setDirection`) starts
    a new branch, so after one the UI must reset `maxT` to the current `t`.
-7. **Direction toggle** via `setDirection`, showing the current `direction`.
+7. **Direction** via `setDirection` (optional: the browser UI does not expose it, because *Run back* shows the same thing without the clock running up), showing the current `direction` if it is exposed.
 8. **Status:** `historyBytes` readout, and a clear message for `halted`, `at_start` and `fault` (show `lastError`
    for a fault). A fault leaves state unchanged, so stepping back stays possible.
 

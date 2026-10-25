@@ -18,8 +18,8 @@ its garbage. Owner: **games**.
 Both demos keep their data **on the screen** (framebuffer words are pixels), so the screen is the visualisation and the
 programs draw nothing. This is the trick for visuals with no boilerplate: put the data where the screen is.
 - `cipher.s`: **Speck64/128** (a published add-rotate-xor cipher) encrypting a 32-character message in place on the screen.
-  Row 0 first shows 8 dull grey-blue pixels (the plaintext), which turn into 8 random colours (the ciphertext). Flip the
-  direction toggle and the same program decrypts. 42 instructions, 1,203 steps, no garbage (every temporary register ends at
+  Row 0 first shows 8 dull grey-blue pixels (the plaintext), which turn into 8 random colours (the ciphertext). Run it
+  backwards (the Run back button, or direction -1 in the engine) and the same program decrypts. 42 instructions, 1,203 steps, no garbage (every temporary register ends at
   zero), and it reproduces the official Speck64/128 test vector on the machine. The message starts in the data region (programs
   load there) and is moved onto the screen first: `xld`, `xst`, `xst`, `xld` moves a word with nothing overwritten.
 - `sort.s`: a **reversible sort of 8 numbers that exposes its garbage**. The list is row 0 of the screen (values are colours:
@@ -42,8 +42,8 @@ programs draw nothing. This is the trick for visuals with no boilerplate: put th
     about 19 KB a frame of diary history on the logging engine.
   - Simplification: the paddle wraps around the top and bottom instead of stopping at the edge (stopping it would need a recorded bit per
     blocked move). Game over is a one-sided halt, which needs no assertion bookkeeping (`.fi al`).
-  - Use **Back / Run back / the scrubber** to rewind Pong, not the Direction toggle: a program that reads the input window is not exactly
-    self-inverse under direction -1, because the window follows machine time (spec/input_tape.md). Time travel is always exact.
+  - Rewind Pong with **Back / Run back / the scrubber** (always exact). Running it with direction -1 (the program as its own inverse, an
+    engine feature the browser UI no longer exposes) is not exact for a program that reads the input window, because the window follows machine time (spec/input_tape.md). Time travel is always exact.
   - Tested on both engines against an independent model of the game after every frame (screen, registers, log, and "every temporary is
     zero"), including a 400-frame game that steers the paddle to six returns, game over at frame 53 with no input, rewind and scrubbing.
 - Idioms they demonstrate: moving words between memory and registers without overwriting; nested `.loop` macros; `.if` with a flag

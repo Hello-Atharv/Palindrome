@@ -262,7 +262,6 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     setSpeed: (i: number) => { rateIndex = i; customKps = null; runner.speedIndex = i; runner.customHz = null; syncSpeed(true); refresh(status); },
     setCustomSpeed: (kps: number) => { customKps = kps; runner.customHz = kps * 1000; syncSpeed(true); refresh(status); },
     setPace: (p: PaceChoice) => { pace = p; runner.speedIndex = p === 'instant' ? INSTANT_SPEED : LEARN_SPEED; syncSpeed(true); refresh(status); },
-    setDirection: (d: Direction) => void api.setDirection(d),
   };
   // the debug bar and the top of the Compare tab each have the controls; they move together
   const transport = buildTransport(actions, runner.speedIndex);
@@ -506,9 +505,9 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     root.dataset.status = s;
     root.dataset.engine = vmNow.kind;
     root.dataset.compare = String(machines.length > 1);
+    transports.forEach((t) => t.setEnded(s === 'halted'));
     engineSwitch.setKind(vmNow.kind);
     engineSwitch.setLocked(rightTabs.active === 'compare');
-    transports.forEach((t) => t.setDirection(cur.direction));
     const frame = vmNow.memory(FRAME_ADDR, 1)[0];
     numberB.el.hidden = !!program?.game; // a game reads keys, not typed numbers
     const frameNo = frames !== null && cur.direction > 0 ? frames.frame() : null;

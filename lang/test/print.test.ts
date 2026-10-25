@@ -29,10 +29,10 @@ async function printed(src: string): Promise<{ text: string; rev: Ran; entries: 
 }
 
 describe('print in rev', () => {
-  it('prints text, numbers and hex (the example program)', async () => {
+  it('prints text and numbers (the example program)', async () => {
     const src = readFileSync(new URL('../../examples/rev/hello.rev', import.meta.url), 'utf8');
     const r = await printed(src);
-    expect(r.text).toBe('computing fib(10)...\nfib(10) = 55 (hex 0x37)\n');
+    expect(r.text).toBe('Hello, world!\nThis is line 1 of 3.\nThis is line 2 of 3.\nThis is line 3 of 3.\nNow step back: the text un-prints.\n');
   });
 
   it('the formats: unsigned, signed, hex and char', async () => {
@@ -101,7 +101,7 @@ describe('print in rev', () => {
     const src = readFileSync(new URL('../../examples/rev/hello.rev', import.meta.url), 'utf8');
     const rep = await analyze(mustCompile(src), src);
     expect(rep.roundTrip).toBe(true);
-    expect(rep.console).toBe('computing fib(10)...\nfib(10) = 55 (hex 0x37)\n');
+    expect(rep.console).toBe('Hello, world!\nThis is line 1 of 3.\nThis is line 2 of 3.\nThis is line 3 of 3.\nNow step back: the text un-prints.\n');
     expect(rep.consoleEntries).toBeGreaterThan(30);
     expect(formatReport(rep, 'hello.rev')).toMatch(/console output .* words of garbage/);
   });

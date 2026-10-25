@@ -1,4 +1,4 @@
-import type { Direction, VmKind } from '../../../spec/vm_api';
+import type { VmKind } from '../../../spec/vm_api';
 import { h } from './dom';
 import { icon } from './icons';
 import type { IconName } from './icons';
@@ -24,13 +24,13 @@ export interface TransportActions {
   /** A speed typed in, in thousands of steps per second. */
   setCustomSpeed(kps: number): void;
   setPace(p: PaceChoice): void;
-  setDirection(d: Direction): void;
 }
 
 export interface Transport {
   el: HTMLElement;
   setRun(mode: RunMode | null): void;
-  setDirection(d: Direction): void;
+  /** True once the program has halted: the stop button becomes Restart. */
+  setEnded(ended: boolean): void;
   /** Show the frame buttons (for a program that counts frames). */
   setFrames(on: boolean): void;
   /**
@@ -54,8 +54,10 @@ function iconButton(name: IconName, label: string, hint: string, cls = ''): HTML
   return b;
 }
 
+/** Swap the icon and keep the word (if the button has one). */
 function setIcon(b: HTMLButtonElement, name: IconName): void {
-  b.replaceChildren(icon(name));
+  const label = b.querySelector('.ibtn-label');
+  b.replaceChildren(icon(name), ...(label ? [label] : []));
 }
 
 /** The debug controls: stop, run back, step back, step, run/pause, reverse program, speed. Small, icon only. */
@@ -63,18 +65,24 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
   const el = h('div', 'transport');
   el.setAttribute('role', 'toolbar');
   el.setAttribute('aria-label', 'debug controls');
-  const stop = iconButton('stop', 'Stop and go back to the start', 'Alt+0');
-  const runBack = iconButton('playBack', 'Run backwards in time', '', 'run-back');
+  const stop = iconButton('stop', 'Stop and go back to the start', 'Alt+0', 'labelled stop-btn');
+  const runBack = iconButton('playBack', 'Run backwards in time', '', 'run-back labelled');
   const back = iconButton('stepBack', 'Step back one instruction', 'Alt+,', 'labelled step-back');
   const step = iconButton('step', 'Step forward one instruction', 'Alt+.', 'labelled step-fwd');
   // the two buttons the whole project is about get a word, when the bar is wide enough to show it
   back.append(h('span', 'ibtn-label', 'Back'));
   step.append(h('span', 'ibtn-label', 'Step'));
+  const stopLabel = h('span', 'ibtn-label', 'Stop');
+  const runBackLabel = h('span', 'ibtn-label', 'Run back');
+  stop.append(stopLabel);
+  runBack.append(runBackLabel);
   const backFrame = iconButton('backFrame', 'Back one frame', '', 'frame-btn');
   const stepFrame = iconButton('stepFrame', 'Forward one frame', '', 'frame-btn');
   backFrame.hidden = true;
   stepFrame.hidden = true;
-  const run = iconButton('play', 'Run forward', 'Alt+Space', 'run-fwd');
+  const run = iconButton('play', 'Run forward', 'Alt+Space', 'run-fwd labelled');
+  const runLabel = h('span', 'ibtn-label', 'Run forward');
+  run.append(runLabel);
   let mode: RunMode | null = null;
 
   stop.addEventListener('click', () => a.stop());
@@ -144,27 +152,27 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
     }
   });
 
-  // Direction is not time travel: it makes the PROGRAM run as its own inverse (SPEC section 7).
-  const dir = iconButton('reverse', 'Direction −1: run the program as its own inverse (this is not stepping back in time). Not exact for programs that read input, such as Pong: use Back there.', '', 'dir-toggle');
-  dir.setAttribute('aria-pressed', 'false');
-  let d: Direction = 1;
-  dir.addEventListener('click', () => a.setDirection(d === 1 ? -1 : 1));
-
-  el.append(stop, runBack, backFrame, back, step, stepFrame, run, h('span', 'tsep'), dir, speed, custom);
+  el.append(stop, runBack, backFrame, back, step, stepFrame, run, h('span', 'tsep'), speed, custom);
   return {
     el,
     setRun(m) {
       mode = m;
       setIcon(run, m === 'forward' ? 'pause' : 'play');
       setIcon(runBack, m === 'back' ? 'pause' : 'playBack');
+      runLabel.textContent = m === 'forward' ? 'Pause' : 'Run forward';
+      runBackLabel.textContent = m === 'back' ? 'Pause' : 'Run back';
       run.title = m === 'forward' ? 'Pause (Alt+Space)' : 'Run forward (Alt+Space)';
       runBack.title = m === 'back' ? 'Pause' : 'Run backwards in time';
       run.classList.toggle('active', m === 'forward');
       runBack.classList.toggle('active', m === 'back');
     },
-    setDirection(next) {
-      d = next;
-      dir.setAttribute('aria-pressed', String(next === -1));
+    setEnded(ended) {
+      // the program has run to its end (HLT): Stop would just reset it, so say so
+      setIcon(stop, ended ? 'restart' : 'stop');
+      stopLabel.textContent = ended ? 'Restart' : 'Stop';
+      const text = ended ? 'Restart: go back to the start' : 'Stop and go back to the start';
+      stop.title = `${text} (Alt+0)`;
+      stop.setAttribute('aria-label', text);
     },
     setFrames(on) {
       backFrame.hidden = !on;

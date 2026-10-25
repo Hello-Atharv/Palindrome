@@ -96,7 +96,7 @@ function withGeneratedAsm(rev: ProgramEntry): ProgramEntry {
 const PONG_NOTE =
   'Press Run, then use W / S or the arrow keys to move the cyan paddle. Your score is the number on the right, and the ball bounces off a grey wall. ' +
   'Miss the ball and the game halts. Back, Back one frame and the time bar rewind the game exactly, score included, replaying your keys. ' +
-  'The key log is the only garbage Pong keeps (8 bytes a frame). Direction -1 is not exact for programs that read input, so rewind with Back. ' +
+  'The key log is the only garbage Pong keeps (8 bytes a frame). ' +
   'Edit the source and press Build and load.';
 
 /** Simple programs first: they open in the Visualisation tab. Sort, cipher, Pong and the gradient are too big to animate. */
@@ -112,7 +112,7 @@ export const programs: ProgramEntry[] = [
   withGeneratedAsm(fromRev('sort', 'a reversible sort; the 19 words of flags are what it cannot erase', sort8Rev)),
   withGeneratedAsm(fromRev('cipher', 'Speck64/128: encrypt, then run it backwards to decrypt', cipherRev)),
   withGeneratedAsm(fromRev('pong', 'Pong: W / S or the arrow keys move the paddle', pongRev, { log: { addr: 0x1000, bytesPerFrame: 8 }, note: PONG_NOTE }, 10_000)),
-  withGeneratedAsm(fromRev('gradient', 'fills the screen in a loop, one colour step per pixel', gradientRev)),
+  withGeneratedAsm(fromRev('gradient', 'fills the screen with a smooth gradient, one pixel at a time', gradientRev, undefined, 10_000)),
   withGeneratedAsm(fromRev('hello', 'prints text; step back and it un-prints', helloRev)),
   withGeneratedAsm(fromRev('fibonacci', 'Fibonacci in rev; nothing is thrown away', fibRev)),
   withGeneratedAsm(fromRev('sort of three', 'three numbers sorted with flags: the flags are the garbage', sort3Rev)),

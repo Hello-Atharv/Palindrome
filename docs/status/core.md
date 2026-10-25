@@ -73,3 +73,9 @@ Updated: 2026-10-24
 
 ## 2026-10-25 playground retired
 - web/viz is the one browser UI. It now has the rev editor with errors as you type (web/viz/src/revtools.ts calls lang/) and the per-line cost report after Build. web/wasm/playground, its Vite config and its highlighter test are deleted; docs updated (README, GUIDE, ARCHITECTURE, DEMO, WRITEUP, CLAUDE.md). The playground-only test options (selftest, debug) are gone.
+
+## 2026-10-25 viz changes (announced for Atharv)
+- web/viz/src/controls.ts, shell.ts: the Direction -1 button is gone from the transport (Run back already shows the program going backwards, and with direction -1 the machine clock counts UP, which looked like a bug). The engine API and viz.setDirection() are unchanged, so the tests that use them still apply; the reverse banner can now only appear through that API.
+- web/viz/src/panels/editor.ts: while a game is running, the current-line marker is hidden (a game is only observed at frame boundaries, where the pc is always the same line); it comes back when paused.
+- web/viz/src/programs/gradient.rev: a smooth gradient (red left to right, green top to bottom). gradient.s (the hand-written twin) is retired; pairs.test checks the picture instead.
+- spec/SPEC.md section 11 item 7: the Direction toggle is now optional (logged in CHANGELOG).

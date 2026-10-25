@@ -322,7 +322,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
     api,
     onDefaultClick(fn) { fallback = fn; },
     get outsideListeners() { return outside.size; },
-    update({ vm, snap, program: info }: Ctx) {
+    update({ vm, snap, program: info, run }: Ctx) {
       if (info !== program) {
         program = info;
         addrOfLine = new Map();
@@ -355,7 +355,9 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
         scroll.scrollTop = 0;
         lastT = -1;
       }
-      pcLine = lineOfAddr.get(snap.pc) ?? -1;
+      // A running game is only observed at the end of each frame, where the program counter is always the same instruction: showing it
+      // would look stuck, so the marker waits until the game is paused.
+      pcLine = info?.game && run !== 'paused' ? -1 : (lineOfAddr.get(snap.pc) ?? -1);
       paintMarks();
       if (snap.t !== lastT) {
         lastT = snap.t;
