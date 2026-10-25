@@ -23,32 +23,13 @@ then `emsdk install latest` and `emsdk activate latest`; `emsdk.bat` on Windows)
 Tests: `cd web/wasm && npm install && npm test` (runs the assembler's examples on both engines, a random-scrub
 differential test between them, and a long rewind).
 
-## Playground (see the real engines run)
-`cd web/wasm && npm install && npm run playground` opens a small page at http://localhost:5173. It is not the product UI
-(that is `web/viz`); it is a working reference for `createWasmVm` and `assemble()` in a Vite page, and a way to watch a program.
-- The demo programs (cipher, sort, **Pong**, examples), each with a one-line explanation of what to look at. **The keyboard is wired
-  to the machine** (W/S/arrows etc., encoded as in SPEC 11.7), so Pong can be played: pick it, press Run, use W/S or the arrows.
-- **Compare engines**: the diary engine and the reversible engine side by side on the same program, driven by the same actions.
-  Shows each engine's VM history as a big number, both screens and registers, a "states match" badge (registers, PC, memory and
-  screen compared after every action), and a chart of history against time: the diary climbs, the reversible line stays at zero.
-- Step, step back, run, run back, a time scrubber, the direction toggle with a "running in reverse" banner, changed values
-  flashing amber (forward) or cyan (backward), a code listing with the PC marked, a memory window (jump to data / stack / screen,
-  ASCII column), and a zoom for the small screen.
-- URL options: `?p=<program index>&e=reversible|logging&cmp=1&t=<steps to run>&mem=<memory start>&dir=-1&after=<steps in reverse>`.
-  Testing options: `run=1` starts running at once; `speed=<steps per frame>`; `debug=1` shows the page's scroll position and the fewest paddle
-  pixels visible in any redraw in the tab title; `selftest=<n>` drives n iterations of the run loop synchronously (no animation frames) and
-  reports in the title; `frames=0` turns off frame-synced drawing.
-- **Frame-synced drawing.** XOR drawing erases before it redraws, so a screen sampled in the middle of a frame is half-erased (Pong's
-  paddle would flicker). For programs that increment the FRAME word (SPEC 11.7), Run stops exactly when it ticks and redraws only then.
-  Measured with `?selftest=300&p=2&debug=1`: the fewest paddle pixels visible in any redraw is 0 without it and 4 with it.
-  Examples: `?p=0&t=800` the cipher part-way through; `?p=1&cmp=1&t=200` the sort on both engines; `?p=0&t=1203&dir=-1&after=600`
-  the cipher decrypting.
-
-**rev programs in the playground.** The programs ending in `.rev` (indexes 6 to 9: pong.rev, sort8.rev, sort3.rev, fib.rev) show a source editor and a cost report above the machine. Edit the source and press *Compile & load*: it compiles in the browser (`lang/`), loads the result into the engine, and prints the per-line cost report (steps per source line, garbage, history bytes, exact round trip). The Code panel shows the assembly the compiler wrote. Program indexes for `?p=`: 0 cipher, 1 sort, 2 pong, 3 nested, 4 ifelse_macro, 5 call, 6 pong.rev, 7 sort8.rev, 8 sort3.rev, 9 fib.rev, 10 memory.
+## Where the browser UI is
+The browser UI is `web/viz` (`npm run viz` from the repo root). The old playground that lived here was retired once `web/viz` could run every
+demo (including the `rev` programs, with a live editor and the cost report).
 
 **Frame stepping (`src/frames.ts`).** For programs that count frames (SPEC 11.7), `new FrameTracker(vm)` gives exact `stepFrame()`,
 `backFrame()`, `goToFrame(k)`, `frame()` and `atBoundary()` on either engine. It records the machine time at which each frame completed,
 because "the FRAME word changed" is not a usable test (the word passes through zero while being updated, and going backwards no value
 test can find a frame boundary). Call `observe()` after any single forward step you make yourself, `truncateAfter(t)` when a key or a
-direction flip starts a new timeline, and `reset()` after `loadProgram`. The playground and any other UI should use it rather than
+direction flip starts a new timeline, and `reset()` after `loadProgram`. Any UI should use it rather than
 copying the logic.

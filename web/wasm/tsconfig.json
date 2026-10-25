@@ -17,7 +17,6 @@
   "include": [
     "src",
     "test",
-    "playground",
     "lib/*.d.ts",
     "../../spec/vm_api.ts",
     "../../asm/src"

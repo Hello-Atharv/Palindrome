@@ -49,7 +49,7 @@ programs draw nothing. This is the trick for visuals with no boilerplate: put th
 - Idioms they demonstrate: moving words between memory and registers without overwriting; nested `.loop` macros; `.if` with a flag
   register for the `.fi` assertion (the `.if` test registers may change; only the `.fi` assertion registers matter); constants and
   temporaries with `.with` and `.compute`/`.uncompute`; XOR drawing with `.plot`; self-inverse procedures.
-- Watch (and play) them: `cd web/wasm && npm run playground` (see `web/wasm/README.md`), including the **Compare engines** view.
+- Watch (and play) them: `npm run viz` from the repo root, including the **Compare engines** view.
 - To run any program headless: `node asm/dist/cli.js examples/demos/x.s -o x.rvm`, then `build/default/rvm_run x.rvm --engine reversible --rewind`.
 
 ## pong.rev

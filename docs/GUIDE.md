@@ -224,7 +224,7 @@ forwards again reproduced the identical states.
 | `rvm` command | `cli/` | `build`, `run`, `report`, `verify`, `debug`. |
 | Debugger | `cli/src/debugger.ts` | Steps **back** by source line. `rwatch x` runs time backwards until `x` changes: "who last wrote this?" That's a showpiece. |
 | `rvm verify` | `cli/src/verify.ts` | Runs a program on both engines, checks they agree after every step, does 200 random time jumps, checks exact undo and replay. Says honestly: this is testing, not proof. |
-| Playground | `web/wasm/playground` | The real engines in a browser: play Pong, scrub time, compare engines, live `rev` editor with colouring and error underlines. |
+| Browser UI | `web/viz` | The real engines in a browser: play Pong, scrub time, compare engines, live `rev` editor with errors as you type and the cost report. (`npm run viz`) |
 | VS Code extension | `vscode/` | Colours, error underlines, and the cost shown beside each line. |
 
 ---
@@ -353,8 +353,8 @@ spec/        the contract: instructions, memory map, cost model (SPEC.md section
 vm/          the two C++ engines (logging + reversible), their tests in vm/tests/, the WebAssembly build
 asm/         the assembler                                     lang/       the rev compiler + cost report
 cli/         the rvm command, debugger, verify                 vscode/     the editor extension
-web/wasm/    the engines in the browser + the playground       bench/      benchmarks and the fair twins
+web/wasm/    the engines in the browser (WebAssembly)         bench/      benchmarks and the fair twins
 examples/    every runnable program: asm/ (teaching), rev/ (the language), demos/ (cipher, sort, Pong)
 docs/        all the written material: this guide, ARCHITECTURE, LANGUAGE, DEMO, WRITEUP, hackathon/, status/
 ```
-Run everything: `npm run setup`, `npm run build`, `npm run test:all`. Try it: `cd web/wasm && npm run playground`.
+Run everything: `npm run setup`, `npm run build`, `npm run test:all`. Try it: `npm run viz`.

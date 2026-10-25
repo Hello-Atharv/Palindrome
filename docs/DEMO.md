@@ -13,7 +13,7 @@ Items marked *(planned)* are not built yet. Cut or fake nothing: if a moment is 
 ## Beats
 | # | Time | What the audience sees | What it proves | Status |
 |---|---|---|---|---|
-| 1 | 0:00 | Pong plays in the browser. Pause, scrub back through 2 seconds of play, resume with a different key press. | Time travel on a real program. | built (`web/wasm` playground) |
+| 1 | 0:00 | Pong plays in the browser. Pause, scrub back through 2 seconds of play, resume with a different key press. | Time travel on a real program. | built (`web/viz`, `npm run viz`) |
 | 2 | 0:45 | **Compare engines.** Same Pong on both engines, shared clock. Diary history climbs (about 19 KB per frame); reversible stays at 0. The "states match" badge stays green while we scrub. | Rewinding needs no history memory; the engines agree. | built |
 | 3 | 1:30 | The honest cost, said out loud: reversible rewind is 2 to 5 times slower per step, and the diary here is naive (48 B/step). Show the tight-diary row. | We report the downside and a fair baseline. | built (`bench/TWINS.md`) |
 | 4 | 2:15 | The sort: the screen shows the sorted list and, in the row below, the **garbage** the sort cannot erase. | Information is conserved; erasing is the thing that costs. | built |

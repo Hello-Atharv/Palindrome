@@ -15,8 +15,8 @@ Nothing is implemented twice.
    front ends (thin):
      cli/            the `rvm` and `rvmc` commands (terminal)
      vscode/         the editor extension: colours, errors, cost beside each line
-     web/wasm/playground   the engines in a browser: play, scrub, compare, edit rev live (our development harness)
-     web/viz         Atharv's UI (on its own branch until merged)
+     web/wasm        the engines compiled to WebAssembly (`createWasmVm`) and the shared FrameTracker
+     web/viz         the browser UI: play, scrub, compare, edit rev live with the cost report (Atharv's)
    measurements:
      bench/          speed of the engines; bench/twins = conventional twins and fair baselines (TWINS.md, results.json)
    content:
@@ -26,7 +26,7 @@ Nothing is implemented twice.
 
 ## Rules that keep it from getting messy
 1. **A front end never contains logic.** The terminal debugger, the (future) browser debugger and the (future) VS Code debug panel
-   all call `cli/src/debugger.ts`. The playground, the extension and `rvmc` all call `lang/src/compile.ts` and `report.ts`.
+   all call `cli/src/debugger.ts`. `web/viz`, the extension and `rvmc` all call `lang/src/compile.ts` and `report.ts`.
 2. **Everything shared is browser-safe TypeScript** (no Node imports in `asm/`, `lang/src/compile.ts`, `report.ts`, `console.ts`,
    `debugger.ts`), so the same code runs in Node, in the browser and inside the VS Code extension.
 3. **The contract is `spec/`.** Change it only through `core`, with a line in `spec/CHANGELOG.md`.
@@ -44,8 +44,6 @@ Nothing is implemented twice.
   JavaScript tests from both; run them from one, or `npm run setup` separately in each checkout.
 
 ## Known loose ends (honest list)
-- **Two UIs:** the playground and Atharv's `web/viz`. After merging, `web/viz` becomes the product and the playground is kept as a small
-  development harness (or folded in).
 - **No browser debugger.** The debugger's logic lives in `cli/src/debugger.ts`, shared by the terminal and any other front end; we demo it
   in the terminal. (The placeholder `web/debugger/` folder was removed.)
 - **Documentation numbers** (README, writeup) are copied from `bench/results.json` by hand; regenerate and re-check them after any

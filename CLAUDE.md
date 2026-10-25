@@ -32,7 +32,7 @@ writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `do
 | bench/ | benchmarks and the fair baselines (`bench/twins`) | core |
 | examples/ | every runnable program: `asm/` (small teaching programs), `rev/` (the language: `tour.rev` and its debugger script), `demos/` (cipher, sort, Pong) | core / games |
 | docs/ | all the written material: guides, architecture, demo script, writeup, hackathon material, and `status/` (one `<name>.md` per person, that person only) | core |
-| web/wasm/ | the engines in the browser (WebAssembly) and the playground | core |
+| web/wasm/ | the engines in the browser (WebAssembly) and the shared `FrameTracker` | core |
 | web/viz/ and web/mock_vm/ | visualiser: CPU, memory, framebuffer, app shell; mock VM | viz |
 
 ## Role quick-starts

@@ -23,7 +23,7 @@ Everything written for humans lives here, or is linked from here. Read in this o
 |---|---|
 | [../cli/README.md](../cli/README.md) | `rvm` and `rvmc`: build, run, report, verify, and the debugger (including the narrated `--demo` mode). |
 | [../vscode/README.md](../vscode/README.md) | The VS Code extension: what it shows, how to install it, what is and is not tested. |
-| [../web/wasm/README.md](../web/wasm/README.md) | The engines in the browser and the playground. |
+| [../web/wasm/README.md](../web/wasm/README.md) | The engines in the browser (WebAssembly). |
 | [../examples/demos/README.md](../examples/demos/README.md) | The demo programs and the reversible idioms they use. |
 
 ## Team and background

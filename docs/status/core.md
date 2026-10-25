@@ -70,3 +70,6 @@ Updated: 2026-10-24
 - Found by Atharv's UI report plus a key-race test: pong.rev read the input twice, so a key landing between the reads left a temporary non-zero and the logging engine failed an LND assertion. Fixed: events/latest only straight into a register (`v ^= latest;`), new window word LATEST at IN_BASE+0xFFFF (spec/input_tape.md), pong.rev records then clears from the record. web/wasm/test/keyrace.test.ts injects keys at every offset of a frame.
 - Needs from viz (Atharv): web/mock_vm/src/tape.ts must also return LATEST at window offset 0xFFFF so the mock matches the engines.
 - Open: pong.s did not fail in any of my tests, so his earlier pong.s LND report is unexplained (his later 180-session driver found none).
+
+## 2026-10-25 playground retired
+- web/viz is the one browser UI. It now has the rev editor with errors as you type (web/viz/src/revtools.ts calls lang/) and the per-line cost report after Build. web/wasm/playground, its Vite config and its highlighter test are deleted; docs updated (README, GUIDE, ARCHITECTURE, DEMO, WRITEUP, CLAUDE.md). The playground-only test options (selftest, debug) are gone.

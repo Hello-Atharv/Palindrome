@@ -15,7 +15,7 @@ touch it, so we did not invent anything; we built all of it and tested it hard.
   (the oracle) and one that keeps nothing. We check them against each other after every action, including random jumps back and forth in
   time. When we deliberately broke the inverse of an instruction, the checks caught it.
 - An assembler, a **language** (`rev`, in the Janus family) with a compiler for it, a **debugger** that steps back by source line and
-  can answer "who last wrote this variable?" by running time backwards, a **verifier**, a browser playground with a live editor, and a
+  can answer "who last wrote this variable?" by running time backwards, a **verifier**, a browser UI with a live editor, and a
   VS Code extension that shows the cost beside each line.
 - Three programs that stress it: a real cipher (Speck64/128, decrypting by running it backwards), a sort that shows the garbage it cannot
   erase, and Pong, which you can play and then rewind exactly, keypresses and all. Pong exists twice: by hand in assembly and in `rev`, and
