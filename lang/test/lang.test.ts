@@ -330,6 +330,12 @@ describe('compile errors', () => {
     expect(err('var a[4]; main { a += 1; }')).toMatch(/is an array/);
     expect(err('var a[4], x; main { x += a; }')).toMatch(/is an array/);
   });
+  it('rejects a constant index outside the array', () => {
+    expect(err('var a[2]; main { a[5] += 1; }')).toMatch(/index 5 is outside a\[2\]/);
+    expect(err('var a[2], x; main { x += a[2]; }')).toMatch(/outside a\[2\]/);
+    expect(err('var a[2], x; main { a[-1] <=> x; }')).toMatch(/index -1 is outside/);
+    expect(compile('var a[2], x; main { a[1] += 1; x += a[0]; }').ok).toBe(true);
+  });
   it('rejects an array element updated from its own array', () => {
     expect(err('var a[4], i; main { a[i] += a[0]; }')).toMatch(/read on the right/);
     expect(err('var a[4]; main { a[a[0]] += 1; }')).toMatch(/cannot itself read/);

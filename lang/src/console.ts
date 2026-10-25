@@ -26,6 +26,9 @@ export function readConsole(read: ReadMemory): ConsoleEntry[] {
   return out;
 }
 
+/** True if the program printed past the end of the buffer: the 4,096th entry lands on OUT_LEN and FRAME, so the console is no longer trustworthy. */
+export const consoleOverflowed = (read: ReadMemory): boolean => (read(OUT_LEN, 1)[0] >>> 0) > OUT_CAPACITY;
+
 /** One entry as text. */
 export function formatEntry(e: ConsoleEntry): string {
   switch (e.tag) {

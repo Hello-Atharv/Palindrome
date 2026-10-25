@@ -125,3 +125,14 @@ describe('print: mistakes are reported', () => {
   it('the format words are reserved', () => expect(err('var hex; main { }')).toMatch(/expected a variable name/));
   it('print needs a semicolon', () => expect(err('var x; main { print x }')).toMatch(/expected ';'/));
 });
+
+describe('console capacity', () => {
+  it('reports an overrun after the 4,095th entry', async () => {
+    const { consoleOverflowed } = await import('../src/console.js');
+    const src = 'var i = 0, n = 4100; main { from (i == 0) loop { print "x"; i += 1; } until (i == n); }';
+    const r = await run(mustCompile(src), 'reversible');
+    expect(consoleOverflowed((a, n) => r.vm.memory(a, n))).toBe(true);
+    const ok = await run(mustCompile('var i = 0, n = 100; main { from (i == 0) loop { print "x"; i += 1; } until (i == n); }'), 'reversible');
+    expect(consoleOverflowed((a, n) => ok.vm.memory(a, n))).toBe(false);
+  });
+});

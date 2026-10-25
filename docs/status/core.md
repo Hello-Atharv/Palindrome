@@ -60,3 +60,8 @@ Updated: 2026-10-24
 
 ## Interfaces I changed or rely on
 - Owns `spec/`. Tell me (via your status file) if the spec is wrong or unclear.
+
+## 2026-10-25 bug fixes
+- Stack bounds enforced in both engines (CALL/RET and inverses fault outside 0x10000..0x1FFFF); WASM rebuilt.
+- rev: a constant array index outside the array is a compile error.
+- Console: capacity limit (4,095 entries) documented in SPEC 11.9; consoleOverflowed() + rvm run warning. Not prevented at runtime (a guard needs a third scratch register in .print; open).

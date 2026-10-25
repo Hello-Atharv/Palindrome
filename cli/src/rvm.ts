@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 
 import { createWasmVm } from '../../web/wasm/src/index.js';
-import { consoleText } from '../../lang/src/console.js';
+import { consoleOverflowed, consoleText } from '../../lang/src/console.js';
 import { analyze, formatReport } from '../../lang/src/report.js';
 import { Debugger } from './debugger.js';
 import { loadFile } from './load.js';
@@ -58,6 +58,7 @@ try {
       else for (let i = 0; i < 16; i++) if (regs[i]) console.log(`  r${i} = ${regs[i] | 0}`);
       const printed = consoleText((a, n) => vm.memory(a, n));
       if (printed) console.log('console:\n' + printed);
+      if (consoleOverflowed((a, n) => vm.memory(a, n))) console.log('warning: the program printed more than 4,095 entries; the console buffer overran into OUT_LEN and FRAME (SPEC 11.9)');
       vm.destroy();
       break;
     }
