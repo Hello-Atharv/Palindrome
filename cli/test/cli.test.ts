@@ -102,6 +102,34 @@ describe('debugger', () => {
     expect(d.where().line).toBe(8);
   });
 
+  it('a breakpoint fires on arriving at its line, not at every instruction of it', async () => {
+    const d = await debuggerFor('lang/examples/sort3.rev');
+    d.breakpoints.add(8);
+    expect(d.cont()).toBe('breakpoint');
+    expect(d.where().line).toBe(8);
+    // standing on the breakpoint, one step runs the whole line and moves on (it used to stay stuck on line 8)
+    expect(d.stepLine()).toBe('done');
+    expect(d.where().line).toBe(9);
+    // and continuing from a breakpoint does not stop at it again straight away
+    d.breakpoints.add(8);
+    expect(d.cont()).toBe('halted');
+  });
+
+  it('a breakpoint inside a loop fires once per pass', async () => {
+    const d = await debuggerFor('lang/examples/fib.rev');
+    d.breakpoints.add(13); // call step; (ten passes)
+    let hits = 0;
+    while (d.cont() === 'breakpoint') {
+      hits++;
+      expect(d.where().line).toBe(13);
+    }
+    expect(hits).toBe(10);
+    // going back through the loop fires it once per pass too
+    let backHits = 0;
+    while (d.rcont() === 'breakpoint') backHits++;
+    expect(backHits).toBe(10);
+  });
+
   it('gives the same transcript on both engines (apart from the history line)', async () => {
     const cmds = 'list;s;s;n;p;rwatch f1;p f1;b;c;rc;goto 7;where;regs;mem 0 2;watch a;si 3;bi 2;info;break 9;c;p';
     const a = script(await debuggerFor('lang/examples/sort3.rev', 'logging'), cmds);
@@ -118,6 +146,14 @@ describe('debugger', () => {
     const { hit } = d.reverseWatch(r3);
     expect(hit!.writer.line).toBeGreaterThan(0);
     expect([hit!.before, hit!.after]).toEqual([12, 16]);
+  });
+
+  it('ignores comments after a # so annotated command lists can be pasted', async () => {
+    const d = await debuggerFor('lang/examples/sort3.rev');
+    expect(runCommand(d, 'c   # run to the end').out).toMatch(/halted/);
+    expect(runCommand(d, 'p f1   # now 1').out).toBe('f1 = 1 (1)\n');
+    expect(runCommand(d, '# only a comment').out).toBe('');
+    expect(runCommand(d, 'rwatch f1  # who wrote it?').out).toMatch(/f1 was last written by line 8/);
   });
 
   it('explains bad input instead of crashing', async () => {

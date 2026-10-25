@@ -37,3 +37,14 @@ Not committed to yet. Do not announce either until it runs.
 - Hand-play Pong with a real keyboard (never done).
 - Re-run `npm test`, `npm run test:asm`, `npm run test:wasm`.
 - Check the pushed commit builds from a clean clone.
+
+## The developer-tools segment (about 90 seconds): syntax and debugger in one go
+Open `lang/examples/tour.rev` in VS Code (the extension colours it and shows the steps each line costs after saving), put the terminal
+beside it, and run:
+```
+npm run rvm -- debug lang/examples/tour.rev --demo demo/tour.dbg
+```
+Press Enter through the script. It walks the whole language (updates in place, an `if` with no `fi`, an `if` that needs a flag, a loop,
+printing, `call` and `uncall`) and the debugger's best moments: step by source line, "who last wrote f?" by running time backwards,
+stepping back un-printing the console, and `history` reporting 0 bytes. Then it leaves you at the prompt to explore. Fallback if the
+terminal misbehaves: the same program and a screen recording.

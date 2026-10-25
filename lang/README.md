@@ -42,7 +42,14 @@ npm run test:lang                                    # 35 tests, run on the real
 - **Expressions**: constants (decimal, `0x`, `0b`), variables, `+ - ^ & |`, unary `~` and `-`, `rol(e, k)`. All 32-bit
   wrapping. There is no multiply or shift yet. Temporaries needed to evaluate `e` are built, used and then un-built, so
   nothing is left behind (Bennett's trick).
-- **`if (test) { ... } else { ... } fi (assertion);`** The assertion must be true if the `then` branch ran and false if the
+- **`if (test) { ... } else { ... }`** with an optional **`fi (assertion)`**. If you leave `fi` out, the compiler uses the test again, which
+  is correct, and free, whenever neither branch (nor a procedure it calls) changes a variable the test reads and the test uses only
+  registers and constants. If that is not so, it stops and says exactly why, and you write the `fi` yourself: a condition that is
+  true if the `then` branch ran and false if the `else` branch ran, on the state *after* the branches (often a flag: that flag is
+  the garbage the cost report counts). The report says how many `if`s had an inferred `fi` (nothing stored, nothing accumulating)
+  and how many a written one. The compiler also **warns** about a written `fi` that probably cannot separate the branches: one that
+  repeats the test after a branch changed what it reads, or one that reads only things no branch changes and is not the test.
+- **`if (test) { ... } else { ... } fi (assertion);`** (the long form) The assertion must be true if the `then` branch ran and false if the
   `else` branch ran; it is what lets the machine know where it came from when run backwards.
 - **`from (entry) do { S1 } loop { S2 } until (exit);`** The entry condition is true on the first pass and false on every
   later pass; the loop ends when `exit` is true. Both bodies are optional.

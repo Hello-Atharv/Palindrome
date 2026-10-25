@@ -33,7 +33,7 @@ export interface LValue {
 export type Stmt =
   | { k: 'assign'; target: LValue; op: '+=' | '-=' | '^='; e: Expr; line: number }
   | { k: 'swap'; a: LValue; b: LValue; line: number }
-  | { k: 'if'; test: Cond; then: Stmt[]; else: Stmt[]; fi: Cond; line: number }
+  | { k: 'if'; test: Cond; then: Stmt[]; else: Stmt[]; fi: Cond; /** no fi was written: it is the test again (check() verifies that is safe) */ inferred?: boolean; line: number }
   | { k: 'from'; entry: Cond; body1: Stmt[]; body2: Stmt[]; until: Cond; line: number }
   | { k: 'print'; items: PrintItem[]; /** set by invert(): remove the entries instead of adding them */ undo?: boolean; line: number }
   | { k: 'call'; name: string; line: number }

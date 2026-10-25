@@ -10,6 +10,8 @@
 //  * fold_x and fold_y XOR their result in, so calling one twice clears what the first call set.
 //  * INPUT IS THE ONE THING THAT MUST BE RECORDED: each frame the latest key event and the event count go into `log` (the program's
 //    garbage, 8 bytes a frame) so the game can be replayed.
+// An `if` whose branches leave its test's variables alone needs no `fi` (the compiler infers it); the two ifs that do change what
+// their fi reads (the score carry and the miss test) write one explicitly.
 // Variables used by an `fi` or `until` condition must live in registers, so they are declared first; the rest are kept in
 // memory (`@ mem`) to leave registers free for expression temporaries.
 var u = 0, over = 0, lp = 0, ev = 0, qx = 0, ri = 0, dig0 = 0;
@@ -36,13 +38,13 @@ var frame @ 0xFFFF;
 proc fold_x {
   u ^= rol(px, 6) & 63;
   qx ^= u;
-  if (u < 32) { bx ^= u; } else { bx ^= 63 - u; } fi (u < 32);
+  if (u < 32) { bx ^= u; } else { bx ^= 63 - u; }
   u ^= rol(px, 6) & 63;
 }
 
 proc fold_y {
   u ^= rol(py, 6) & 63;
-  if (u < 32) { by ^= u; } else { by ^= 63 - u; } fi (u < 32);
+  if (u < 32) { by ^= u; } else { by ^= 63 - u; }
   u ^= rol(py, 6) & 63;
 }
 
@@ -109,10 +111,10 @@ main {
     ev ^= latest;
     log[lp] ^= latest;
     log[lp + 1] ^= events;
-    if (ev == 0x57) { pp -= 0x8000000; } else { skip; } fi (ev == 0x57);
-    if (ev == 0x80) { pp -= 0x8000000; } else { skip; } fi (ev == 0x80);
-    if (ev == 0x53) { pp += 0x8000000; } else { skip; } fi (ev == 0x53);
-    if (ev == 0x81) { pp += 0x8000000; } else { skip; } fi (ev == 0x81);
+    if (ev == 0x57) { pp -= 0x8000000; } else { skip; }
+    if (ev == 0x80) { pp -= 0x8000000; } else { skip; }
+    if (ev == 0x53) { pp += 0x8000000; } else { skip; }
+    if (ev == 0x81) { pp += 0x8000000; } else { skip; }
     ev ^= latest;
     call draw_paddle;
 
@@ -139,7 +141,7 @@ main {
       } fi (over != 0);
       d ^= (by - row) & 31;
       row ^= rol(pp, 5) & 31;
-    } else { skip; } fi (qx == 63);
+    } else { skip; }
 
     // ---- next frame ----
     lp += 2;

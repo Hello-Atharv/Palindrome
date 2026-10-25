@@ -25,6 +25,11 @@ export interface Variable {
 export interface CompileResult {
   ok: boolean;
   diagnostics: Diagnostic[];
+  /** things that compile but look wrong (see check.ts) */
+  warnings: Diagnostic[];
+  /** source lines of if statements with an inferred / a written fi */
+  inferredFis: number[];
+  explicitFis: number[];
   program?: Program;
   asm?: string;
   /** asm line (1-based) -> rev source line */
@@ -36,7 +41,7 @@ export interface CompileResult {
 
 export function compile(source: string): CompileResult {
   const parsed = parse(source);
-  if (!parsed.program) return { ok: false, diagnostics: parsed.diagnostics, vars: [] };
+  if (!parsed.program) return { ok: false, diagnostics: parsed.diagnostics, warnings: [], inferredFis: [], explicitFis: [], vars: [] };
   const program = parsed.program;
   const lay = layout(program);
   const outs = new Set(program.outs.map((o) => o.name));
@@ -48,13 +53,15 @@ export function compile(source: string): CompileResult {
       ? { name: d.name, reg: v.reg, size: 1, isArray: false, init: v.init, isOut: outs.has(d.name), line: d.line }
       : { name: d.name, reg: 0, addr: v.addr, size: v.size, isArray: v.isArray, init: v.init, isOut: outs.has(d.name), line: d.line });
   }
-  const diagnostics = [...lay.diagnostics, ...check(program, lay.vars)];
-  if (diagnostics.length) return { ok: false, diagnostics, program, vars };
+  const checked = check(program, lay.vars);
+  const diagnostics = [...lay.diagnostics, ...checked.errors];
+  const extra = { warnings: checked.warnings, inferredFis: checked.inferredFis, explicitFis: checked.explicitFis };
+  if (diagnostics.length) return { ok: false, diagnostics, ...extra, program, vars };
   let gen;
   try {
     gen = generate(program, source, lay);
   } catch (e) {
-    if (e instanceof CompileError) return { ok: false, diagnostics: [{ line: e.line, message: e.message }], program, vars };
+    if (e instanceof CompileError) return { ok: false, diagnostics: [{ line: e.line, message: e.message }], ...extra, program, vars };
     throw e;
   }
   const assembled = assemble(gen.asm, { fileName: 'out.s' });
@@ -63,6 +70,7 @@ export function compile(source: string): CompileResult {
     // the assembler is a second opinion on the generated code: a diagnostic here is a compiler bug, not a user error
     return {
       ok: false,
+      ...extra,
       program,
       asm: gen.asm,
       lineMap: gen.lineMap,
@@ -71,7 +79,7 @@ export function compile(source: string): CompileResult {
       diagnostics: errors.map((d) => ({ line: gen.lineMap[d.line - 1] || 0, message: `internal error (generated assembly line ${d.line}): ${d.message}` })),
     };
   }
-  return { ok: true, diagnostics: [], program, asm: gen.asm, lineMap: gen.lineMap, assembled, image: assembled.image, vars };
+  return { ok: true, diagnostics: [], ...extra, program, asm: gen.asm, lineMap: gen.lineMap, assembled, image: assembled.image, vars };
 }
 
 export function formatDiagnostics(file: string, ds: Diagnostic[]): string {

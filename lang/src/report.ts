@@ -52,6 +52,9 @@ export interface Report {
   /** what the program printed (SPEC 11.9) and how many entries; the console is garbage: it can only be stepped back */
   console: string;
   consoleEntries: number;
+  /** if statements whose fi was inferred (free: the test survives the branches) and written by hand */
+  inferredFis: number;
+  explicitFis: number;
   /** `fault` text if the logging engine rejected an assertion */
   fault?: string;
 }
@@ -139,6 +142,8 @@ export async function analyze(c: CompileResult, source: string, maxSteps = 5_000
       roundTrip,
       console: consoleText((a, n) => finalMem.slice(a, a + n)),
       consoleEntries: readConsole((a, n) => finalMem.slice(a, a + n)).length,
+      inferredFis: c.inferredFis.length,
+      explicitFis: c.explicitFis.length,
       fault,
     };
   } finally {
@@ -183,6 +188,9 @@ export function formatReport(r: Report, file: string): string {
   else if (r.garbageVars.length === 0) o.push('  garbage                              none: every non-output variable is back to zero');
   else o.push(`  garbage                              ${r.garbageVars.join(', ')}  (${r.garbageSignificantBits} significant bits; spec upper bound ${r.garbageBits})`);
   if (r.consoleEntries > 0) o.push(`  console output                       ${r.consoleEntries} entries = ${r.consoleEntries * 2} words of garbage: ${JSON.stringify(r.console)}`);
+  if (r.inferredFis + r.explicitFis > 0) {
+    o.push(`  if statements                        ${r.inferredFis} with an inferred fi (free), ${r.explicitFis} with a written fi (a flag or another condition: look for garbage above)`);
+  }
   o.push(`  temporaries left behind              ${r.dirtyRegisters.length === 0 ? 'none' : 'r' + r.dirtyRegisters.join(', r') + '  (compiler bug)'}`);
   o.push(`  round trip                           ${r.roundTrip ? `verified: undone step by step to t=0 and replayed ${r.steps} steps, identical states` : 'FAILED'}`);
   return o.join('\n');

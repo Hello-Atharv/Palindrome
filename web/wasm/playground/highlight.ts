@@ -42,13 +42,15 @@ export function highlightLine(line: string): string {
 }
 
 /** The whole source as HTML; `errors` maps a 1-based line number to its message and underlines that line. */
-export function highlightRev(source: string, errors: Map<number, string> = new Map()): string {
+export function highlightRev(source: string, errors: Map<number, string> = new Map(), warnings: Map<number, string> = new Map()): string {
   return source
     .split('\n')
     .map((line, k) => {
       const html = highlightLine(line) || '&#8203;';
       const msg = errors.get(k + 1);
-      return msg ? `<span class="t-err" title="${esc(msg).replace(/"/g, '&quot;')}">${html}</span>` : html;
+      if (msg) return `<span class="t-err" title="${esc(msg).replace(/"/g, '&quot;')}">${html}</span>`;
+      const warn = warnings.get(k + 1);
+      return warn ? `<span class="t-warn" title="${esc(warn).replace(/"/g, '&quot;')}">${html}</span>` : html;
     })
     .join('\n') + '\n';
 }

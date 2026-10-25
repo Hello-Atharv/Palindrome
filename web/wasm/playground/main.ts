@@ -362,16 +362,21 @@ let lintTimer: number | undefined;
 function paintEditor(withLint: boolean): void {
   const source = srcBox.value;
   const errors = new Map<number, string>();
+  const warnings = new Map<number, string>();
   let summary = '';
   if (withLint) {
-    const ds = compile(source).diagnostics;
-    for (const d of ds) if (!errors.has(d.line)) errors.set(d.line, d.message);
-    summary = ds.map((d) => `line ${d.line}: ${d.message}`).join('\n');
+    const c = compile(source);
+    for (const d of c.diagnostics) if (!errors.has(d.line)) errors.set(d.line, d.message);
+    for (const d of c.warnings) if (!warnings.has(d.line)) warnings.set(d.line, d.message);
+    summary = [
+      ...c.diagnostics.map((d) => `line ${d.line}: ${d.message}`),
+      ...c.warnings.map((d) => `line ${d.line}: warning: ${d.message}`),
+    ].join('\n');
     const lint = $('lint');
-    lint.className = ds.length ? 'bad' : 'good';
-    lint.textContent = ds.length ? summary : 'no errors';
+    lint.className = c.diagnostics.length ? 'bad' : c.warnings.length ? 'warn' : 'good';
+    lint.textContent = summary || 'no errors';
   }
-  $('hl').innerHTML = highlightRev(source, errors);
+  $('hl').innerHTML = highlightRev(source, errors, warnings);
   $('hl').scrollTop = srcBox.scrollTop;
   $('hl').scrollLeft = srcBox.scrollLeft;
 }

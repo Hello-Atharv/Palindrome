@@ -15,9 +15,54 @@ export function reads(e: Expr, into: Set<string> = new Set()): Set<string> {
   return into;
 }
 
-export function check(prog: Program, vars: Map<string, VarInfo>): Diagnostic[] {
+export interface Checked {
+  errors: Diagnostic[];
+  warnings: Diagnostic[];
+  /** source lines of if statements whose fi was inferred / written */
+  inferredFis: number[];
+  explicitFis: number[];
+}
+
+/** A condition as a string, ignoring line numbers, to tell whether two conditions are the same. */
+const exprKey = (e: Expr): string => {
+  switch (e.k) {
+    case 'num': return String(e.value);
+    case 'var': return e.name;
+    case 'idx': return `${e.name}[${exprKey(e.index)}]`;
+    case 'input': return e.which;
+    case 'bin': return `(${exprKey(e.a)}${e.op}${exprKey(e.b)})`;
+    case 'not': case 'neg': return `${e.k}(${exprKey(e.a)})`;
+    case 'rol': return `rol(${exprKey(e.a)},${e.n})`;
+  }
+};
+const condKey = (c: Cond): string => `${exprKey(c.a)} ${c.op} ${exprKey(c.b)}`;
+
+export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
   const diags: Diagnostic[] = [];
+  const warnings: Diagnostic[] = [];
+  const inferredFis: number[] = [];
+  const explicitFis: number[] = [];
   const err = (line: number, message: string): void => { diags.push({ line, message }); };
+  const warn = (line: number, message: string): void => { warnings.push({ line, message }); };
+
+  // which variables a block may change, following calls
+  const bodies = new Map(prog.procs.map((p) => [p.name, p.body]));
+  const writes = (body: Stmt[], into: Set<string> = new Set(), seen: Set<string> = new Set()): Set<string> => {
+    for (const s of body) {
+      switch (s.k) {
+        case 'assign': into.add(s.target.name); break;
+        case 'swap': into.add(s.a.name); into.add(s.b.name); break;
+        case 'if': writes(s.then, into, seen); writes(s.else, into, seen); break;
+        case 'from': writes(s.body1, into, seen); writes(s.body2, into, seen); break;
+        case 'call': case 'uncall':
+          if (!seen.has(s.name) && bodies.has(s.name)) { seen.add(s.name); writes(bodies.get(s.name)!, into, seen); }
+          break;
+        case 'print': case 'skip': break;
+      }
+    }
+    return into;
+  };
+  const condNamesRead = (c: Cond): string[] => [...reads(c.a), ...reads(c.b)];
 
   const seen = new Set<string>();
   for (const v of prog.vars) {
@@ -116,12 +161,38 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Diagnostic[] {
           if (!procs.has(s.name)) err(s.line, `unknown procedure '${s.name}'`);
           calls.get(owner)?.add(s.name);
           break;
-        case 'if':
+        case 'if': {
           condNames(s.test, s.line, null);
-          condNames(s.fi, s.line, "an 'fi' assertion");
+          const changed = writes([...s.then, ...s.else]);
+          if (s.inferred) {
+            // no fi was written, so it is the test: that only works if neither branch changes what the test reads, and the
+            // test uses only registers and constants (an fi cannot read memory)
+            inferredFis.push(s.line);
+            const hit = condNamesRead(s.test).find((n) => changed.has(n));
+            const inMemory = [s.test.a, s.test.b].find((x) => x.k === 'idx' || (x.k === 'var' && vars.get(x.name)?.kind === 'mem'));
+            if (hit) {
+              err(s.line, `this if needs an explicit fi: a branch changes '${hit}', which its test reads, so the test can no longer tell which branch ran (write fi (...) with a condition that still can, for example on a flag the branch sets)`);
+            } else if (inMemory) {
+              const what = inMemory.k === 'idx' ? `${inMemory.name}[...]` : `'${(inMemory as { name: string }).name}'`;
+              err(s.line, `this if needs an explicit fi: its test reads ${what} from memory, and an fi can only read registers and constants`);
+            }
+          } else {
+            explicitFis.push(s.line);
+            condNames(s.fi, s.line, "an 'fi' assertion");
+            // heuristics: warn about an fi that probably cannot separate the branches
+            const fiNames = condNamesRead(s.fi);
+            const same = condKey(s.fi) === condKey(s.test);
+            const touched = fiNames.find((n) => changed.has(n));
+            if (same && touched) {
+              warn(s.line, `the fi repeats the test, but a branch changes '${touched}', which it reads: it probably no longer tells the branches apart`);
+            } else if (!same && !touched) {
+              warn(s.line, 'no branch changes what this fi reads, so it gives the same answer on both paths; it can only separate them if it is equivalent to the test');
+            }
+          }
           walk(s.then, owner);
           walk(s.else, owner);
           break;
+        }
         case 'from':
           condNames(s.entry, s.line, "a loop's 'from' condition");
           condNames(s.until, s.line, "a loop's 'until' condition");
@@ -160,5 +231,5 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Diagnostic[] {
     state.set(n, 2);
   };
   for (const n of calls.keys()) dfs(n, []);
-  return diags;
+  return { errors: diags, warnings, inferredFis, explicitFis };
 }

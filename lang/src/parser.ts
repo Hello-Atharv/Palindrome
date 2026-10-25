@@ -234,7 +234,11 @@ class Parser {
       const then = this.block();
       let els: Stmt[] = [];
       if (this.isKw('else')) { this.next(); els = this.block(); }
-      this.expectKw('fi');
+      if (!this.isKw('fi')) { // no fi written: it is the test again, if check() can show the branches leave the test's variables alone
+        if (this.isOp(';')) this.next();
+        return { k: 'if', test, then, else: els, fi: test, inferred: true, line };
+      }
+      this.next();
       this.expectOp('(');
       const fi = this.cond();
       this.expectOp(')');

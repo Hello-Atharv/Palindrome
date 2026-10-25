@@ -6,7 +6,8 @@
   "description": "rvm: one command line for the reversible machine: build, run, report, verify, debug (with step back)",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "node build.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

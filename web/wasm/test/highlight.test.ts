@@ -36,6 +36,14 @@ describe('rev highlighting', () => {
     expect(text).toBe(src + '\n');
   });
 
+  it('underlines warnings differently from errors', () => {
+    const html = highlightRev('var x;\nx += 1;\n', new Map(), new Map([[2, 'looks odd']]));
+    expect(html).toContain('class="t-warn" title="looks odd"');
+    expect(html).not.toContain('t-err');
+    // an error on the same line wins over a warning
+    expect(highlightRev('x;\n', new Map([[1, 'bad']]), new Map([[1, 'odd']]))).toContain('t-err');
+  });
+
   it('underlines the lines with errors and carries the message', () => {
     const html = highlightRev('var x;\nx += x;\n', new Map([[2, 'both sides "x"']]));
     expect(html).toContain('class="t-err" title="both sides &quot;x&quot;"');

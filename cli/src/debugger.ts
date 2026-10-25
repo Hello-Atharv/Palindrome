@@ -53,10 +53,14 @@ export class Debugger {
     return s === 'ok' ? 'done' : s === 'halted' ? 'halted' : s === 'at_start' ? 'at_start' : 'fault';
   }
 
-  private atBreakpoint(): boolean {
+  /**
+   * A breakpoint fires when execution ARRIVES at its line from a different line, not at every instruction of that line. (Otherwise
+   * standing on a breakpoint and pressing step would never get past it.) `before` is the source line before the step.
+   */
+  private atBreakpoint(before: number): boolean {
     if (this.breakpoints.size === 0) return false;
     const line = this.lineAt(this.vm.registers().pc);
-    return line !== 0 && this.breakpoints.has(line);
+    return line !== 0 && line !== before && this.breakpoints.has(line);
   }
 
   // ---- single steps ----
@@ -76,7 +80,6 @@ export class Debugger {
       if (s !== 'ok') return this.status(s);
       const line = this.lineAt(this.vm.registers().pc);
       if (line !== start && line !== 0) return 'done';
-      if (this.atBreakpoint()) return 'breakpoint';
     }
     return 'limit';
   }
@@ -93,7 +96,6 @@ export class Debugger {
       if (r.regs[14] > sp) continue; // inside a call
       const line = this.lineAt(r.pc);
       if (line !== start && line !== 0) return 'done';
-      if (this.atBreakpoint()) return 'breakpoint';
     }
     return 'limit';
   }
@@ -128,9 +130,10 @@ export class Debugger {
   /** Continue forward to a breakpoint, the halt, or the limit. */
   cont(): Stop {
     for (let n = 0; n < LIMIT * 10; n++) {
+      const before = this.lineAt(this.vm.registers().pc);
       const s = this.vm.stepForward();
       if (s !== 'ok') return this.status(s);
-      if (this.atBreakpoint()) return 'breakpoint';
+      if (this.atBreakpoint(before)) return 'breakpoint';
     }
     return 'limit';
   }
@@ -138,9 +141,10 @@ export class Debugger {
   /** Continue backward to a breakpoint or the start. */
   rcont(): Stop {
     for (let n = 0; n < LIMIT * 10; n++) {
+      const before = this.lineAt(this.vm.registers().pc);
       const s = this.vm.stepBack();
       if (s !== 'ok') return this.status(s);
-      if (this.atBreakpoint()) return 'breakpoint';
+      if (this.atBreakpoint(before)) return 'breakpoint';
     }
     return 'limit';
   }
@@ -182,6 +186,7 @@ export class Debugger {
   reverseWatch(get: Getter): { hit: WatchHit | null; stop: Stop } {
     const before = get();
     for (let n = 0; n < LIMIT; n++) {
+      const fromLine = this.lineAt(this.vm.registers().pc);
       const s = this.vm.stepBack();
       if (s !== 'ok') return { hit: null, stop: this.status(s) };
       const v = get();
@@ -189,7 +194,7 @@ export class Debugger {
         const w = this.where();
         return { hit: { ...w, before: v, after: before, writer: w }, stop: 'watch' };
       }
-      if (this.atBreakpoint()) return { hit: null, stop: 'breakpoint' };
+      if (this.atBreakpoint(fromLine)) return { hit: null, stop: 'breakpoint' };
     }
     return { hit: null, stop: 'limit' };
   }
@@ -203,7 +208,7 @@ export class Debugger {
       if (s !== 'ok') return { hit: null, stop: this.status(s) };
       const v = get();
       if (v !== before) return { hit: { ...this.where(), before, after: v, writer }, stop: 'watch' };
-      if (this.atBreakpoint()) return { hit: null, stop: 'breakpoint' };
+      if (this.atBreakpoint(writer.line)) return { hit: null, stop: 'breakpoint' };
     }
     return { hit: null, stop: 'limit' };
   }
