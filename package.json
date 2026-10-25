@@ -9,7 +9,7 @@
     "dev": "cmake --preset debug && cmake --build --preset debug",
     "test:asm": "npm --prefix asm test",
     "build:asm": "npm --prefix asm install && npm --prefix asm run build",
-    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:wasm": "node vm/wasm/build-wasm.mjs",
     "test:wasm": "npm --prefix web/wasm test",
     "test:twins": "npm --prefix bench/twins test",
     "bench:twins": "npm --prefix bench/twins run report",

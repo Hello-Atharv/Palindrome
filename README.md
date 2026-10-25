@@ -11,13 +11,13 @@ and measured it honestly. See "What this is not" below.
 ```
 npm run setup              # install the JavaScript parts (once)
 npm run build              # build the C++ engines (needs CMake and a C++17 compiler)
-npm run rvm -- debug lang/examples/sort3.rev --script "s; s; s; p; rwatch f1; b; b"
+npm run rvm -- debug examples/rev/sort3.rev --script "s; s; s; p; rwatch f1; b; b"
 ```
 That compiles a sort written in `rev`, runs it, then runs it **backwards** to the line that last wrote `f1`, and steps back to the start
 (the machine keeps 0 bytes of history for any of it). Other things to try:
 ```
-npm run rvm -- report programs/pong.rev     # what every source line of Pong costs, and the garbage it keeps
-npm run rvm -- verify programs/pong.rev     # both engines, 200 random time jumps, exact undo, direction -1
+npm run rvm -- report examples/demos/pong.rev     # what every source line of Pong costs, and the garbage it keeps
+npm run rvm -- verify examples/demos/pong.rev     # both engines, 200 random time jumps, exact undo, direction -1
 cd web/wasm && npm run playground           # the real engines in a browser: play Pong, scrub time, edit rev live
 npm run test:all                            # all 219 tests (about a minute)
 ```
@@ -31,7 +31,7 @@ npm run test:all                            # all 219 tests (about a minute)
 | Command line | `cli/` | `rvm build / run / report / verify / debug`. The debugger steps back by source line, has breakpoints, and answers "who last wrote this variable?" by running time backwards. |
 | Browser | `web/wasm/` | The same C++ engines compiled to WebAssembly. A playground with a live `rev` editor, a compare-engines view, keyboard-playable Pong. |
 | Editor | `vscode/` | Syntax colouring, diagnostics, and the cost shown beside each line. |
-| Demos | `programs/` | A Speck64/128 cipher (decrypt = run backwards), a sort that exposes its garbage, and Pong, in assembly and in `rev`. |
+| Demos | `examples/demos/` | A Speck64/128 cipher (decrypt = run backwards), a sort that exposes its garbage, and Pong, in assembly and in `rev`. |
 | Measurements | `bench/` | Speed of both engines, and **conventional twins** of the sort and Pong against which the price of undoing is measured. |
 
 ## The numbers (all measured; `bench/TWINS.md` has the method and the caveats)
@@ -59,4 +59,4 @@ npm run test:all                            # all 219 tests (about a minute)
 
 ## Layout and rules
 One owner per directory; see `CLAUDE.md` for roles, `spec/SPEC.md` (the contract, including the cost model in section 12) and
-`SPEC_CHANGELOG.md`. Each person keeps a status file in `status/`. Demo script: `demo/DEMO.md`. Writeup: `demo/WRITEUP.md`. **New to all this? Start with `docs/GUIDE.md`** (and `docs/ARCHITECTURE.md` for how the pieces fit), which explains every idea from zero.
+`spec/CHANGELOG.md`. Each person keeps a status file in `docs/status/`. All the written material is in `docs/` (index: `docs/README.md`): the demo script is `docs/DEMO.md`, the writeup `docs/WRITEUP.md`. **New to all this? Start with `docs/GUIDE.md`** (and `docs/ARCHITECTURE.md` for how the pieces fit), which explains every idea from zero.

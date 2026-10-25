@@ -22,7 +22,7 @@ const rvmRun = candidates.find((p) => existsSync(p));
 if (!rvmRun) console.warn('rvm_run not found; skipping integration tests. Build the repo root first.');
 
 const dir = mkdtempSync(join(tmpdir(), 'rvmasm-'));
-const example = (name: string): string => readFileSync(join(root, 'asm', 'examples', name), 'utf8');
+const example = (name: string): string => readFileSync(join(root, 'examples', 'asm', name), 'utf8');
 
 interface Run {
   status: string;

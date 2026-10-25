@@ -5,7 +5,7 @@ number below is measured, not estimated; the tests in `bench/twins/test` check t
 the reversible program on the real engines, and that the tight diary and the checkpoints rewind **exactly**.
 
 ## What is being compared
-- **Reversible**: `programs/sort.s` and `programs/pong.s` on the reversible engine. No history in the machine; the program
+- **Reversible**: `examples/demos/sort.s` and `examples/demos/pong.s` on the reversible engine. No history in the machine; the program
   keeps its own garbage.
 - **Conventional twin**: the same job written for an ordinary overwriting machine (`bench/twins/src/twins.ts`, run by a
   small conventional machine in `src/conv.ts` with the same memory map and input window). Same network, same game, same

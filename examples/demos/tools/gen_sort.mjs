@@ -1,4 +1,4 @@
-// Generates programs/sort.s from a sorting network. Run: node programs/tools/gen_sort.mjs
+// Generates examples/demos/sort.s from a sorting network. Run: node examples/demos/tools/gen_sort.mjs
 // The network is the known 19-comparator, depth-6 network for 8 inputs; the generator proves it sorts every
 // 0/1 input (the 0-1 principle), so it sorts every input.
 import { writeFileSync } from 'node:fs';

@@ -6,7 +6,7 @@ import { assemble } from '../src/index.js';
 const errors = (src: string): string[] =>
   assemble(src).diagnostics.filter((d) => d.severity === 'error').map((d) => d.message);
 const has = (src: string, re: RegExp): boolean => errors(src).some((m) => re.test(m));
-const example = (name: string): string => readFileSync(new URL(`../examples/${name}`, import.meta.url), 'utf8');
+const example = (name: string): string => readFileSync(new URL(`../../examples/asm/${name}`, import.meta.url), 'utf8');
 
 describe('the shipped examples assemble cleanly', () => {
   for (const name of ['ifelse.s', 'loop.s', 'call.s', 'memory.s', 'ifelse_macro.s', 'loop_macro.s', 'nested.s', 'bennett.s']) {

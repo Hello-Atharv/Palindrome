@@ -39,10 +39,10 @@ Not committed to yet. Do not announce either until it runs.
 - Check the pushed commit builds from a clean clone.
 
 ## The developer-tools segment (about 90 seconds): syntax and debugger in one go
-Open `lang/examples/tour.rev` in VS Code (the extension colours it and shows the steps each line costs after saving), put the terminal
+Open `examples/rev/tour.rev` in VS Code (the extension colours it and shows the steps each line costs after saving), put the terminal
 beside it, and run:
 ```
-npm run rvm -- debug lang/examples/tour.rev --demo demo/tour.dbg
+npm run rvm -- debug examples/rev/tour.rev --demo examples/rev/tour.dbg
 ```
 Press Enter through the script. It walks the whole language (updates in place, an `if` with no `fi`, an `if` that needs a flag, a loop,
 printing, `call` and `uncall`) and the debugger's best moments: step by source line, "who last wrote f?" by running time backwards,

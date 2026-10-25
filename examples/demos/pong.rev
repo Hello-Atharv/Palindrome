@@ -1,4 +1,4 @@
-// PONG in rev: the same game as programs/pong.s (written in assembly), now in the reversible language.
+// PONG in rev: the same game as examples/demos/pong.s (written in assembly), now in the reversible language.
 // Keys: W / S or Up / Down move the paddle. The court is the left half of the screen; the paddle is cyan on column 0, the ball is
 // white, and each time the ball comes back to the left edge and the paddle is there, your score goes up: the number on the right.
 // If the paddle is not there the program ends: game over (step back to carry on, which is the point).

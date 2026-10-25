@@ -1,5 +1,5 @@
 /* vm_api.h - C API shared by the logging VM (oracle) and the reversible VM.
- * DRAFT. Any change here is a spec change: add a line to SPEC_CHANGELOG.md.
+ * DRAFT. Any change here is a spec change: add a line to spec/CHANGELOG.md.
  *
  * Terms: "time" t = instruction_count. step_forward: t -> t+1. step_back: t -> t-1
  * (exact inverse). "direction" is which way the PROGRAM runs (+1 normal, -1 program

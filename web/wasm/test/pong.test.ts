@@ -1,11 +1,11 @@
-// programs/pong.s on both real engines, compared after every frame with an independent model of the game.
+// examples/demos/pong.s on both real engines, compared after every frame with an independent model of the game.
 import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { assemble } from '../../../asm/src/index.js';
 import { createWasmVm, type WasmVm } from '../src/index.js';
 
-const SOURCE = readFileSync(new URL('../../../programs/pong.s', import.meta.url), 'utf8');
+const SOURCE = readFileSync(new URL('../../../examples/demos/pong.s', import.meta.url), 'utf8');
 const ASM = assemble(SOURCE);
 const HEAD = ASM.listing.find((r) => r.text.includes('.loop'))!.addr; // the frame loop head: pc is here between frames
 const FRAME_WORD = 0xffff;
