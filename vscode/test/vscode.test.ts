@@ -108,8 +108,8 @@ describe('editor logic', () => {
     const c = await cost(src);
     expect(c.ok).toBe(true);
     expect(c.lines.length).toBeGreaterThan(3);
-    expect(c.lines.reduce((s, l) => s + l.steps, 0)).toBe(95);
-    expect(c.summary).toMatch(/95 steps.*0 B history.*garbage.*undo verified/);
+    expect(c.lines.reduce((s, l) => s + l.steps, 0)).toBe(1545); // fib.rev prints each number: the print line is most of the cost
+    expect(c.summary).toMatch(/1,?545 steps.*0 B history.*garbage.*undo verified/);
     expect(c.report).toMatch(/cost by source line/);
     expect(lensText({ line: 1, steps: 1234, percent: 12.34, instructions: 3 })).toBe('1,234 steps, 12.3%');
     expect(lensText({ line: 1, steps: 1, percent: 0.01, instructions: 1 })).toBe('1 steps, <0.1%');
