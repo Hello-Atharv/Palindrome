@@ -300,7 +300,7 @@ nothing VM-specific except `spec/vm_api.ts`. Disassembly helpers (decode from SP
    equals its starting value plus 1, and gives up with a message after 1,000,000 steps (so programs that never touch it
    are not hung). It waits for "plus 1", not for "changed", because a program that updates the word by moving it through a
    register (`xld`, `xst`, add, `xst`, as `examples/demos/pong.s` and the `rev` compiler do) passes through zero halfway through
-   its own update.
+   its own update. `web/wasm/src/frames.ts` (`FrameTracker`) implements frame stepping, forwards and backwards, for any UI.
    Programs must not use `0xFFFF` for anything else.
 3. **Assembler.** Written in TypeScript (`asm/`): a Node command line tool that also runs in the browser, so the
    Code view can assemble live. It emits the same `.rvm` files either way.

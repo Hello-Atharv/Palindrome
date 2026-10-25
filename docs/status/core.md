@@ -44,6 +44,8 @@ Updated: 2026-10-24
 
 - **Optional `fi` and warnings** (`lang/`): an `if` without `fi` gets the test as its assertion when no branch (or procedure it calls) changes what the test reads and the test uses only registers and constants; otherwise a compile error says exactly why. The inferred code is byte-identical to writing the same `fi` (tested for all six relations). `examples/demos/pong.rev` lost 7 redundant `fi`s and compiles to the identical image. Warnings (a `fi` that repeats the test after a branch changed it; a `fi` no branch can influence and that is not the test) reach `rvmc`, the VS Code extension and the browser editor (yellow underline). The cost report says how many `if`s had an inferred vs a written `fi`. 12 new tests, mutation-checked.
 
+- **Frame tracker** (`web/wasm/src/frames.ts`, 18 tests on both engines and both Pong versions, mutation-checked): exact `stepFrame`/`backFrame`/`goToFrame` for programs that count frames, by recording the time each frame completed (the FRAME word passes through zero mid-update and no value test works backwards). The playground uses it; in headless Chrome the paddle is fully drawn in every redraw with it (paddleMin 4) and not without (0). Atharv's UI should import it rather than copy the logic.
+
 ## In progress
 - Benchmark chart for the demo (Atharv's UI), the showpiece, the writeup, and a README that gets a stranger from clone to demo.
 
