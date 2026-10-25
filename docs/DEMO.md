@@ -11,8 +11,9 @@ Everything shown comes from the quantities in `spec/SPEC.md` section 12. Say Ben
 ## Before you start (two minutes)
 - Open the app: https://reversible-machine.vercel.app (backup: `npm run viz`, then http://localhost:5173). Pick **pong**. Click the page once so
   the keyboard goes to the game.
-- In a terminal at the repo root, have this ready, and open `examples/rev/tour.rev` beside it:
-  `npm run rvm -- debug examples/rev/tour.rev --demo examples/rev/tour.dbg`
+- In a terminal at the repo root, have this typed and ready (do not press Enter yet), and open `examples/rev/tour.rev` beside it:
+  `npm run demo`
+  It runs the narrated debugger tour: press **Enter** to run each step, `quit` leaves, and at the end it hands you a live `(rvm)` prompt (`help` lists the commands).
 - Have a screen recording of the whole run as the fallback for any beat (record it once, in advance).
 
 ## The beats
@@ -23,7 +24,7 @@ Everything shown comes from the quantities in `spec/SPEC.md` section 12. Say Ben
 | 3 | 1:40 | Open the **Benchmarks** tab, choose **Pong**. | "The left engine's diary is deliberately naive, 48 bytes a step. The fair opponents are here. Over 200 frames of Pong: the naive diary keeps 3.65 MiB, a real bit-packed diary 24.6 KiB, checkpointing between 2.9 and 239 KiB depending on how often you snapshot, and the reversible program 1.6 KiB. But the price: it runs 3.3 times the instructions (3.0 times for the sort), measured on the hand-written assembly versions. Reversibility is a trade, and here it is." | The honest cost, with fair baselines. |
 | 4 | 2:30 | Click **Back to the IDE**. Pick **sort**, press **Run forward**, then open **Compare** and read the **Garbage** line. | "A sort destroys the original order. A reversible sort cannot, so it keeps flags: that is garbage. Information is conserved; erasing is what costs." | Garbage is visible and counted. |
 | 5 | 3:10 | Pick **sort** again and click **.rev** (beside the file name), then **Build and load**. Point at the **cost report** under the editor. Type a nonsense line at the end of the file and show the error appear. | "The same sort in our language is 36 lines against 340 of assembly. The compiler tells you what each line costs, and checks the reversibility rules as you type." | The cost is visible at the source level. |
-| 6 | 3:50 | **Terminal.** Run the tour command and press Enter through it (about 90 seconds). | "Now the debugger. 'Who last wrote this variable?' I ask by running time backwards until it changes. No log exists. History: zero bytes. Stepping back un-prints the console." | Step back is computing inverses, answered at the source line. |
+| 6 | 3:50 | **Terminal.** Run `npm run demo` and press Enter through it (about 90 seconds). | "Now the debugger. 'Who last wrote this variable?' I ask by running time backwards until it changes. No log exists. History: zero bytes. Stepping back un-prints the console." | Step back is computing inverses, answered at the source line. |
 | 7 | 4:50 | Back to the slide or the Pong screen. | "We did not make undoing free. We made its cost impossible to hide." | The close. |
 
 The tour script (`examples/rev/tour.dbg`) narrates itself; the commands it runs are `where`, `break 13`, `c`, `s`, `p`, `console`, `rwatch f`,
@@ -32,7 +33,7 @@ The tour script (`examples/rev/tour.dbg`) narrates itself; the commands it runs 
 ## If something breaks
 - **The site is down or slow:** `npm run viz` locally, or play the recording.
 - **A key does nothing in Pong:** the game only gets keys while the **Output** tab is open and "Send keys to the machine" is ticked. Click the page once first.
-- **The terminal tour misbehaves:** play the recording of it, or run `npm run rvm -- debug examples/rev/tour.rev` and type `where`, `s`, `p`, `rwatch f`.
+- **The terminal tour misbehaves:** play the recording of it, or run `npm run rvm -- debug examples/rev/tour.rev` (the same program, no script) and type `where`, `s`, `p`, `rwatch f`.
 - **Never** fake a number. If a figure is not ready, drop the beat.
 
 ## Numbers to have in your head (all measured; `bench/TWINS.md` has the method)
@@ -55,5 +56,5 @@ The tour script (`examples/rev/tour.dbg`) narrates itself; the commands it runs 
 
 ## Before demo day
 - Rehearse the whole thing twice, with a timer, on the machine you will present from.
-- Check a clean clone: `git clone`, `npm run setup`, then the tour command.
+- Check a clean clone: `git clone`, `npm run setup`, then `npm run demo`.
 - Record the backup video.

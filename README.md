@@ -19,6 +19,7 @@ That compiles a sort written in `rev`, runs it, then runs it **backwards** to th
 ```
 npm run rvm -- report examples/demos/pong.rev     # what every source line of Pong costs, and the garbage it keeps
 npm run rvm -- verify examples/demos/pong.rev     # both engines, 200 random time jumps, exact undo, direction -1
+npm run demo                                # the narrated debugger tour: press Enter through it (step back, who last wrote this variable, 0 bytes of history)
 npm run viz                                 # the browser UI: play Pong, scrub time, edit rev live, compare engines
 npm run build                               # the C++ engines, only for the C++ tests (needs CMake and a C++17 compiler)
 npm run test:all                            # engines, assembler, compiler, CLI, extension, benchmarks (about 300 tests, about a minute)

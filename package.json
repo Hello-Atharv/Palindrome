@@ -16,6 +16,7 @@
     "test:lang": "npm --prefix lang test",
     "rvmc": "node cli/dist/rvmc.mjs",
     "rvm": "node cli/dist/rvm.mjs",
+    "demo": "node cli/dist/rvm.mjs debug examples/rev/tour.rev --demo examples/rev/tour.dbg",
     "test:cli": "npm --prefix cli test",
     "test:vscode": "npm --prefix vscode test",
     "build:vscode": "npm --prefix vscode run build",

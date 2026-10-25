@@ -1,5 +1,5 @@
 # ===== A TOUR of the rev language and the debugger. Press Enter to run each step; lines starting with # are narration. =====
-# Run it:  npm run rvm -- debug examples/rev/tour.rev --demo examples/rev/tour.dbg   (open examples/rev/tour.rev beside it)
+# Run it:  npm run demo   (open examples/rev/tour.rev beside it)
 #
 # The program has not started yet. "where" shows the time and the line about to run.
 where
