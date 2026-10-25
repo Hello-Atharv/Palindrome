@@ -6,6 +6,7 @@
  * The pair is repeated until the total time is long enough to read a stable number from a browser clock.
  */
 import type { CreateVm, RVM, VmKind } from '../../../spec/vm_api';
+import type { ProgramVariable } from './assembler';
 import { OUT_BASE, OUT_CAPACITY, OUT_LEN } from '../../../lang/src/console';
 
 /** A run is cut here however long the caller asks for: the diary holds 48 bytes per step, so 5M steps is 240 MB. */
@@ -46,16 +47,35 @@ export interface TrackOptions {
   maxSteps?: number;
   /** Data ranges [from, to) the program keeps as garbage (ProgramInfo.garbage). */
   garbage?: readonly (readonly [number, number])[];
+  /** rev programs: the variables, so register garbage is counted too. */
+  variables?: readonly ProgramVariable[];
   /** Keep repeating until the forward and back tracks have each taken at least this long in total. */
   minTotalMs?: number;
 }
 
 
-/** 32 bits for every non-zero word in the garbage regions and in the console buffer (SPEC 12.1, 11.9). */
-export function garbageBitsOf(vm: RVM, ranges: readonly (readonly [number, number])[] = []): number {
+/**
+ * 32 bits for every non-zero word the program keeps only because it cannot erase it (SPEC 12.1): the console buffer, plus either
+ *  - for a rev program that declares `out`, every variable that is not an `out` and no longer has its starting value
+ *    (the same rule as the compiler's cost report: a flag, a leftover loop counter, a `garbage` array; registers included), or
+ *  - the data ranges labelled `garbage` (assembly programs).
+ * Because it is read from the machine at the current time, it rises as the program runs and falls as it is stepped back.
+ */
+export function garbageBitsOf(vm: RVM, ranges: readonly (readonly [number, number])[] = [], variables: readonly ProgramVariable[] = []): number {
   let words = 0;
   const count = (a: ArrayLike<number>): void => { for (let i = 0; i < a.length; i++) if (a[i] !== 0) words++; };
-  for (const [from, to] of ranges) count(vm.memory(from, to - from));
+  if (variables.some((v) => v.isOut)) {
+    const regs = vm.registers().regs;
+    for (const v of variables) {
+      if (v.isOut) continue;
+      const now: ArrayLike<number> = v.reg ? [regs[v.reg]] : vm.memory(v.addr ?? 0, v.size);
+      let changed = false;
+      for (let i = 0; i < now.length; i++) if (now[i] !== (v.init[i] ?? 0)) changed = true;
+      if (changed) count(now);
+    }
+  } else {
+    for (const [from, to] of ranges) count(vm.memory(from, to - from));
+  }
   const used = Math.min(vm.memory(OUT_LEN, 1)[0] >>> 0, OUT_CAPACITY) & ~1;
   if (used > 0) count(vm.memory(OUT_BASE, used));
   return words * 32;
@@ -98,7 +118,7 @@ export async function measureTrack(createVm: CreateVm, kind: VmKind, image: Uint
   const capped = status === 'ok';
   const historyBytes = vm.historyBytes;
   const endDigest = digest(vm);
-  const garbageBits = garbageBitsOf(vm, opts.garbage);
+  const garbageBits = garbageBitsOf(vm, opts.garbage, opts.variables);
   const written = vm.memory(0, 0x20800).reduce((n, w) => n + (w !== 0 ? 1 : 0), 0);
   vm.runTo(0);
   const startDigest = digest(vm);

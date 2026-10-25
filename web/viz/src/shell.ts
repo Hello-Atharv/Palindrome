@@ -216,7 +216,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       onMismatch: () => api.pause(),
       onMeasure: async () => {
         if (!createVm || !program) throw new Error('Load a program first.');
-        return measureTracks(createVm, ['logging', 'reversible'], program.image, { garbage: program.garbage });
+        return measureTracks(createVm, ['logging', 'reversible'], program.image, { garbage: program.garbage, variables: program.variables });
       },
     },
     cmpControls,
@@ -713,7 +713,9 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
         program.generatedFrom = entryOf(name)?.generatedFrom;
         const tool = toolFor(name);
         if (source !== undefined && tool) {
-          program.listing = tool(source, name).listing.map((r) => ({ addr: r.addr, line: r.line, text: r.text }));
+          const built = tool(source, name);
+          program.listing = built.listing.map((r) => ({ addr: r.addr, line: r.line, text: r.text }));
+          program.variables = built.variables;
         }
         const verdict = learnVerdict(program);
         // too big to animate: show the output instead, and come back to the visualisation when a simple program loads

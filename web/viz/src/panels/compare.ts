@@ -1,3 +1,4 @@
+import type { ProgramVariable } from '../assembler';
 import { consoleText } from '../../../../lang/src/console';
 import type { RVM, VmKind } from '../../../../spec/vm_api';
 import { formatBytes, h } from '../dom';
@@ -228,6 +229,7 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
   let lastState = 'off';
   let measuring = false;
   let garbageRanges: readonly (readonly [number, number])[] = [];
+  let garbageVariables: readonly ProgramVariable[] = [];
   let timing: Partial<Record<VmKind, TrackResult>> = {};
   let program: object | null | undefined;
   let programName = '';
@@ -323,7 +325,7 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
 
   const paintCard = (c: ReturnType<typeof makeCard>, vm: RVM, written: number): void => {
     const hist = vm.historyBytes;
-    const garbage = garbageBitsOf(vm, garbageRanges);
+    const garbage = garbageBitsOf(vm, garbageRanges, garbageVariables);
     c.hist.textContent = formatBytes(hist);
     c.garbage.textContent = fmtBits(garbage);
     c.total.textContent = fmtBits(totalBits(hist, garbage));
@@ -354,6 +356,7 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
         program = p;
         programName = p?.name ?? '';
         garbageRanges = p?.garbage ?? [];
+        garbageVariables = p?.variables ?? [];
         timing = {};
         chartSlot.replaceChildren();
         table.hidden = true;

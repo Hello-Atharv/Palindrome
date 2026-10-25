@@ -16,11 +16,28 @@ export interface AsmListingRow {
   text: string;
 }
 
+/** A variable of a rev program, as the compiler laid it out: lets the UI tell which ones the program keeps only because it cannot erase them. */
+export interface ProgramVariable {
+  name: string;
+  /** register number, or 0 when the variable lives in memory */
+  reg: number;
+  /** data address when it lives in memory */
+  addr?: number;
+  /** words: 1 for a scalar */
+  size: number;
+  /** starting values (an array may list fewer than `size`; the rest start at 0) */
+  init: number[];
+  /** declared `out`: a result, not garbage */
+  isOut: boolean;
+}
+
 export interface AsmOutcome {
   ok: boolean;
   image?: Uint8Array;
   diagnostics: AsmDiagnostic[];
   listing: AsmListingRow[];
+  /** rev programs only */
+  variables?: ProgramVariable[];
 }
 
 export type AssembleFn = (source: string, fileName?: string) => AsmOutcome;

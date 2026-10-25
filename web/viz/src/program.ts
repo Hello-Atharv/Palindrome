@@ -1,3 +1,5 @@
+import type { ProgramVariable } from './assembler';
+
 /** What the UI needs to know about a .rvm image beyond what RVM exposes: code length, entry, labels, garbage. */
 
 export interface DataLabel {
@@ -20,6 +22,8 @@ export interface ProgramInfo {
    * Found by convention: a data label whose name starts with `garbage` runs to the next data label (or the end of data).
    */
   garbage: [number, number][];
+  /** rev programs: every variable, so garbage can be told apart from results (see garbageBitsOf). */
+  variables?: ProgramVariable[];
   /** Source text per code address, when the program came from the assembler (for the Learn view). */
   listing?: { addr: number; line: number; text: string }[];
   /** Assembly source, when the program came from the assembler. */
