@@ -126,7 +126,7 @@ export function benchSection(): HTMLElement {
   pick.setAttribute('role', 'group');
   pick.setAttribute('aria-label', 'benchmark program');
   head.append(h('h3', 'cmp-h', 'Benchmarks: memory held against steps to undo'), pick);
-  const sub = h('p', 'dim cmp-sub', 'Measured on the real engines and their conventional twins by bench/twins (bench/TWINS.md), not live. Both axes are logarithmic.');
+  const sub = h('p', 'dim cmp-sub', 'Measured offline on the real engines and their conventional twins, not live. Both axes use a log scale.');
   const chart = h('div', 'cmp-chart');
   const table = h('div', 'cmp-table');
   const note = h('p', 'cmp-verdict');
@@ -150,10 +150,10 @@ export function benchSection(): HTMLElement {
       chart.replaceChildren(benchChart(pts));
       for (const p of pts) row(p.name, [formatBytes(p.bytes), p.back1, `${n0(p.seekMean ?? 0)} steps`], p.strategy === 'reversible');
       note.textContent =
-        `${r.frames} frames of Pong. The reversible program holds ${formatBytes(r.reversibleGarbageBytes)} (its input log) and its machine holds ${formatBytes(r.reversibleMachineHistoryBytes)}, ` +
-        `but it runs ${(r.reversibleStepsPerFrame / r.conventionalStepsPerFrame).toFixed(1)} times the instructions of its conventional twin (${r.reversibleStepsPerFrame.toFixed(0)} against ${r.conventionalStepsPerFrame.toFixed(0)} steps a frame). ` +
-        'The twin cannot run in step with it, so the two are lined up by frame, not by step. The naive diary is our logging VM at 48 bytes a step; quote the tight diary and the checkpoints as the comparison. ' +
-        'Checkpointing is a serious competitor: a snapshot every 10,000 steps holds about as much as the reversible program, and seeks far faster, but going back one step can mean replaying thousands.';
+        `${r.frames} frames of Pong. The reversible program keeps ${formatBytes(r.reversibleGarbageBytes)} (its key log) and its machine keeps ${formatBytes(r.reversibleMachineHistoryBytes)}. ` +
+        `It runs ${(r.reversibleStepsPerFrame / r.conventionalStepsPerFrame).toFixed(1)} times as many instructions as the conventional twin (${r.reversibleStepsPerFrame.toFixed(0)} against ${r.conventionalStepsPerFrame.toFixed(0)} a frame), ` +
+        'and the twin cannot run in step with it, so the two are compared by frame. The naive diary is our logging engine at 48 bytes a step; the tight diary and the checkpoints are the fairer rivals. ' +
+        'Checkpointing is the strongest: a snapshot every 10,000 steps uses about as much memory and seeks much faster, but going back one step can mean replaying thousands.';
     } else {
       const r = results.sort;
       chart.replaceChildren();
@@ -161,8 +161,8 @@ export function benchSection(): HTMLElement {
       row('Tight diary', [formatBytes(r.tightDiaryBytes), '1 undo step', 'not measured']);
       row('Reversible', [`${r.garbageFlagsSet} of ${r.garbageFlagsPossible} garbage flags`, '1 inverse step', 'not measured'], true);
       note.textContent =
-        `Sorting 8 numbers: the reversible sort holds ${formatBytes(r.reversibleMachineHistoryBytes)} in the machine and keeps at most ${r.garbageFlagsPossible} bits of garbage (${r.garbageFlagsSet} are set), ` +
-        `and runs ${(r.reversibleSteps / r.conventionalSteps).toFixed(1)} times the instructions of its conventional twin (${r.reversibleSteps} against ${r.conventionalSteps}). The benchmark did not measure seeking or checkpoints for sort, so there is no chart.`;
+        `Sorting 8 numbers. The reversible sort keeps ${formatBytes(r.reversibleMachineHistoryBytes)} in the machine and up to ${r.garbageFlagsPossible} bits of garbage (${r.garbageFlagsSet} set). ` +
+        `It runs ${(r.reversibleSteps / r.conventionalSteps).toFixed(1)} times as many instructions as the conventional twin (${r.reversibleSteps} against ${r.conventionalSteps}). Seeking and checkpoints were not measured for sort, so there is no chart.`;
     }
   };
   const buttons = (['pong', 'sort'] as const).map((id) => {

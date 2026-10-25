@@ -24,7 +24,9 @@ export function visualisePanel(inputBar?: HTMLElement): VisualisePanel {
   const el = h('div', 'vis');
 
   const note = h('div', 'vis-note');
-  note.setAttribute('role', 'status');
+  // the note changes at every phase of an animation: screen readers get the settled state only, from a separate region
+  const announce = h('div', 'sr-only');
+  announce.setAttribute('role', 'status');
 
   const memory = mainMemory();
   const diagram = new Diagram({
@@ -33,13 +35,13 @@ export function visualisePanel(inputBar?: HTMLElement): VisualisePanel {
     onMem: (addr, mode) => memory.touchData(addr, mode),
   });
   const dpBox = h('div', 'vis-dp');
-  dpBox.append(diagram.el, h('p', 'vis-caption dim', 'Illustrative: the VM exposes no datapath events, so each move is inferred from the instruction.'));
+  dpBox.append(diagram.el, h('p', 'vis-caption dim', 'A picture, not a trace: the VM does not report datapath moves, so each one is worked out from the instruction.'));
 
   const main = h('div', 'vis-main');
   main.append(dpBox, memory.el);
   const off = h('div', 'empty vis-off');
-  if (inputBar) el.append(note, inputBar, main, off);
-  else el.append(note, main, off);
+  if (inputBar) el.append(note, announce, inputBar, main, off);
+  else el.append(note, announce, main, off);
 
   let program: object | null | undefined;
   let code: Uint32Array = new Uint32Array(0);
@@ -57,11 +59,14 @@ export function visualisePanel(inputBar?: HTMLElement): VisualisePanel {
     note.textContent = snap.pc < code.length
       ? `Next: ${mnemonic(decodeWord(code[snap.pc]))} at P${snap.pc}. Press Step to watch it run.`
       : `PC ${snap.pc} is outside the program.`;
+    announce.textContent = note.textContent;
   }
 
   function animate(ctx: Ctx): boolean {
     const { snap: cur, prev } = ctx;
     if (!prev) return false;
+    // reduced motion: no travelling sphere. The state is shown at once, and the note still says what the instruction did.
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
     const reversed = cur.t < prev.t || prev.direction === -1;
     const pc = reversed ? cur.pc : prev.pc;
     if (pc >= code.length) return false;

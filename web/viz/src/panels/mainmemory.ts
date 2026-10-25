@@ -95,7 +95,7 @@ export function mainMemory(): MainMemory {
   const stackWords = new Words('S', STACK_BASE, STACK_WORDS);
   data.body.append(dataWords.el);
   stack.body.append(stackWords.el);
-  const note = h('p', 'mm-note dim', 'Shown as one memory. The real machine keeps the program apart from the data and never writes to it: a Harvard architecture, by design.');
+  const note = h('p', 'mm-note dim', 'One table for display. The machine keeps the program in a separate, read-only memory (a Harvard design, on purpose).');
   el.append(prog.box, data.box, stack.box, note);
 
   let rows: HTMLElement[] = [];

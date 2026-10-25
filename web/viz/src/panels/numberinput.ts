@@ -54,8 +54,8 @@ export function numberInputPanel(onSend: (value: number) => void): Panel {
       const count = vm.memory(IN_COUNT, 1)[0];
       const values = count > 0 ? Array.from(vm.memory(IN_EVENTS, Math.min(count, SHOW)), (v) => String(v | 0)) : [];
       seen.textContent = count === 0
-        ? 'The input window is empty at this time.'
-        : `The program can see ${count === 1 ? 'one number' : `${count} numbers`}: ${values.join(', ')}${count > SHOW ? ', …' : ''}`;
+        ? 'No numbers sent yet.'
+        : `Numbers the program can read now: ${values.join(', ')}${count > SHOW ? ', …' : ''}`;
     },
   };
 }

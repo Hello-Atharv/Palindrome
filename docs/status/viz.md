@@ -222,3 +222,22 @@ cost-report path, and a drawing of bench/results.json. All in web/viz; nothing o
   twin it is invisible but keeps its place, so nothing beside it moves (checked in a browser). In a narrow editor Follow and Build and load
   shrink to their checkbox and icon. The editor exposes its header row as `editor.tab` for this.
 - Checks: viz typecheck, 85/85 tests, build, scanner 0, layout check 60/60; mock_vm 55/55. `npm run check` not run (no CMake here).
+
+## Interface review fixes, plain copy, Back / Step labels (2026-10-25, web/viz only)
+From a read-only review of the whole UI (accessibility, layout, writing, typography, colour, polish). Four blockers were fixed:
+- Stacked layout (window 860px or narrower, also 200% zoom and phones): the Visualisation and Output panes had collapsed to zero width
+  (pinned grid columns left over after the one-column rule). Fixed; `scripts/layout-check.mjs` now also runs 640x360 and 320x640
+  (66 layouts, no overlap, no sideways scroll). `100vh` is now `100dvh`.
+- Reduced motion: the travelling sphere ignored `prefers-reduced-motion`. It now shows the new state at once; the note still says what
+  the instruction did. The note is no longer a live region (it changed at every animation phase); a separate hidden status region
+  announces the settled state only.
+- The editor divider was pointer-only. It is now a focusable separator: arrows resize (Shift for bigger steps), Home resets.
+- The "Send a number" placeholder measured 4.11:1; it now uses the muted token (6.15:1).
+Also: slider `aria-valuetext` ("frame 3, t 2,967"), the truncated file name has a title, the source is labelled "rev source" or
+"assembly source", hover styles only on pointers that can hover, one pressed treatment (scale 0.96) for all buttons, overscroll
+containment on the memory table and console, tabular digits on changing numbers, 24px minimum targets, no source paths in tooltips.
+- Naming: the engine is "Diary" everywhere; "Naive diary" labels the strategy in costs, the table and the chart (SPEC 12.4).
+- Copy rewritten in plainer words: program blurbs, game notes, captions, the benchmark notes, "Numbers the program can read now".
+- Design: Back (cyan) and Step (amber) carry a word when the debug bar has room; the header says in one line what the tool does.
+- Checks: viz typecheck, 94/94 tests, build, scanner 0, layout 66/66; mock_vm 55/55.
+- Nothing needed from core. No non-UI bug found in this round.

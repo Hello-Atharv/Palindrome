@@ -13,7 +13,7 @@ const browser = await chromium.launch();
 const failures = [];
 let checks = 0;
 
-const WINDOWS = [[1280, 720], [1024, 700], [1440, 900], [900, 640]];
+const WINDOWS = [[1280, 720], [1024, 700], [1440, 900], [900, 640], [640, 360], [320, 640]]; // the last two: the stacked layout, 200% zoom and a phone
 const EDITOR_X = [270, 360, 460, 560, 700]; // where the divider is dragged to
 const TABS = { visualisation: 1, output: 2, compare: 3 };
 
@@ -52,6 +52,7 @@ for (const [w, h] of WINDOWS) {
 
       // 1. the work area keeps at least 560px (unless the window itself is narrower)
       if (!stacked && work.width < 559) failures.push(`${where}: the work area is only ${Math.round(work.width)}px wide`);
+      if (stacked && work.width < w - 2) failures.push(`${where}: the work area is only ${Math.round(work.width)}px wide in a ${w}px window (collapsed)`);
 
       // 2. nothing in the pane sticks out past its right edge or is clipped by it
       const sticks = await page.evaluate((tabName) => {
@@ -78,9 +79,9 @@ for (const [w, h] of WINDOWS) {
         }
         // the diagram keeps its shape and a readable size, and the memory column is not squeezed to nothing
         const dp = await rect('.vis-dp .dp');
-        if (dp && dp.width < 300) failures.push(`${where}: the diagram is only ${Math.round(dp.width)}px wide`);
+        if (dp && dp.width < Math.min(300, w - 40)) failures.push(`${where}: the diagram is only ${Math.round(dp.width)}px wide`);
         const mm = await rect('.vis .mm');
-        if (mm && mm.width < 320) failures.push(`${where}: the memory table is only ${Math.round(mm.width)}px wide`);
+        if (mm && mm.width < Math.min(320, w - 40)) failures.push(`${where}: the memory table is only ${Math.round(mm.width)}px wide`);
         // the note text is not squeezed into a column
         const note = await rect('.vis-note');
         if (note && note.width < 240) failures.push(`${where}: the note is only ${Math.round(note.width)}px wide`);

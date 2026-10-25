@@ -130,7 +130,7 @@ describe('add two numbers (a program that reads the user\'s input)', () => {
     send('nope');
     expect(form.querySelector<HTMLElement>('.numin-error')!.hidden).toBe(false);
     viz.refresh();
-    expect(form.querySelector('.numin-seen')!.textContent).toContain('2 numbers: 7, 5');
+    expect(form.querySelector('.numin-seen')!.textContent).toContain('Numbers the program can read now: 7, 5');
     expect(Array.from(viz.vm.memory(0x30002, 2))).toEqual([7, 5]);
   });
 
@@ -218,7 +218,7 @@ describe('editor colours and the visualisation tables', () => {
     expect(words[1].slice(0, 2)).toEqual(['S65536', 'S65540']);
     expect(new Set(words.flat().map((l) => l!.length)).size).toBe(1); // every label the same width
     expect(root.querySelector('.vis .mm-prow .mm-hex')!.textContent).toMatch(/^0x[0-9a-f]{8}$/);
-    expect(root.querySelector('.vis .mm')!.textContent).toContain('Harvard architecture, by design');
+    expect(root.querySelector('.vis .mm')!.textContent).toContain('Harvard design, on purpose');
   });
 
   it('has no hex or unsigned choices: numbers are signed decimal', () => {

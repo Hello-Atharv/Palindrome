@@ -79,7 +79,7 @@ describe('compare', () => {
     expect(root.querySelector<HTMLElement>('.cmp-mismatch')!.hidden).toBe(true);
     const hist = [...root.querySelectorAll('.cmp-card')].map((c) => c.querySelector('.cmp-stats dd')!.textContent);
     expect(hist).toEqual(['864 B', '0 B']); // 18 steps x 48 B, and nothing
-    expect([...root.querySelectorAll('.cmp-title')].map((e) => e.textContent)).toEqual(['Naive diary', 'Reversible']);
+    expect([...root.querySelectorAll('.cmp-title')].map((e) => e.textContent)).toEqual(['Diary', 'Reversible']);
     await viz.setCompare(false);
     expect(viz.machines).toHaveLength(1);
   });

@@ -11,7 +11,7 @@
 .vis-off { margin: var(--s-12); }
 
 /* main memory: Program, Data and Stack under headers that stay in view while their rows scroll */
-.mm { --grid: #3b4653; position: relative; overflow: auto; background: var(--bg); border: 1px solid var(--grid); border-radius: var(--radius); font: 13px/22px var(--mono); }
+.mm { --grid: #3b4653; position: relative; overflow: auto; overscroll-behavior: contain; background: var(--bg); border: 1px solid var(--grid); border-radius: var(--radius); font: 13px/22px var(--mono); }
 .mm-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-8); height: 28px; margin: 0; padding: 0 var(--s-12); background: var(--panel-2); border-bottom: 1px solid var(--grid); font: 600 14px/28px var(--sans); }
 .mm-sec + .mm-sec .mm-head { border-top: 1px solid var(--grid); }
 .mm-hint { font-weight: 400; font-size: 13px; }

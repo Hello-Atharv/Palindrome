@@ -105,7 +105,7 @@ export function learnVerdict(info: ProgramInfo | null): { ok: boolean; why: stri
   if (info.codeLen > LEARN_MAX_CODE || info.dataLen > LEARN_MAX_DATA) {
     return {
       ok: false,
-      why: `This program is too large to animate (${info.codeLen} instructions, ${info.dataLen} data words; the limit is ${LEARN_MAX_CODE} and ${LEARN_MAX_DATA}). The datapath animation is for simple examples. Step through this one in the editor and watch the Output tab.`,
+      why: `Too large to animate (${info.codeLen} instructions, ${info.dataLen} data words; the limit is ${LEARN_MAX_CODE} and ${LEARN_MAX_DATA}). Step through it in the editor and watch the Output tab instead.`,
     };
   }
   return { ok: true, why: '' };

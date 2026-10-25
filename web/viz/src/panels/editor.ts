@@ -61,6 +61,11 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
 
   const tab = h('div', 'ed-tab');
   const fileName = h('span', 'ed-file', 'no program');
+  // the name can be cut short in a narrow header: the title carries all of it
+  const setFile = (name: string): void => {
+    fileName.textContent = name;
+    fileName.title = name;
+  };
   const dirty = h('span', 'ed-dirty');
   dirty.title = 'Changed since it was last built';
   dirty.hidden = true;
@@ -177,6 +182,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
   function setContent(value: string, editable: boolean): void {
     text.value = value;
     text.readOnly = !editable;
+    text.setAttribute('aria-label', language === 'rev' ? 'rev source' : 'assembly source');
     dirty.hidden = true;
     errorLines = new Set();
     problems.hidden = true;
@@ -304,11 +310,11 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
         lineOfAddr = new Map();
         if (!info) {
           setContent('', false);
-          fileName.textContent = 'no program';
+          setFile('no program');
         } else if (info.source !== undefined) {
           name = info.name;
           language = info.language ?? 'asm';
-          fileName.textContent = `${info.name.replace(' (rev)', '')}${language === 'rev' ? '.rev' : '.s'}`;
+          setFile(`${info.name.replace(' (rev)', '')}${language === 'rev' ? '.rev' : '.s'}`);
           for (const r of info.listing ?? []) {
             if (r.line > 0 && !addrOfLine.has(r.line)) addrOfLine.set(r.line, r.addr);
             if (r.line > 0 && !lineOfAddr.has(r.addr)) lineOfAddr.set(r.addr, r.line);
@@ -317,7 +323,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
         } else {
           name = info.name;
           language = 'asm';
-          fileName.textContent = `${info.name} (disassembly)`;
+          setFile(`${info.name} (disassembly)`);
           const code = info.codeLen > 0 ? vm.code(0, info.codeLen) : new Uint32Array(0);
           const rows = Array.from(code, (w, a) => {
             const d = disassemble(w, info.labels);

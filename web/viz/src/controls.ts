@@ -65,8 +65,11 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
   el.setAttribute('aria-label', 'debug controls');
   const stop = iconButton('stop', 'Stop and go back to the start', 'Alt+0');
   const runBack = iconButton('playBack', 'Run backwards in time', '', 'run-back');
-  const back = iconButton('stepBack', 'Step back one instruction', 'Alt+,');
-  const step = iconButton('step', 'Step forward one instruction', 'Alt+.');
+  const back = iconButton('stepBack', 'Step back one instruction', 'Alt+,', 'labelled step-back');
+  const step = iconButton('step', 'Step forward one instruction', 'Alt+.', 'labelled step-fwd');
+  // the two buttons the whole project is about get a word, when the bar is wide enough to show it
+  back.append(h('span', 'ibtn-label', 'Back'));
+  step.append(h('span', 'ibtn-label', 'Step'));
   const backFrame = iconButton('backFrame', 'Back one frame', '', 'frame-btn');
   const stepFrame = iconButton('stepFrame', 'Forward one frame', '', 'frame-btn');
   backFrame.hidden = true;
@@ -243,7 +246,7 @@ export function buildEngineSwitch(available: readonly VmKind[], kind: VmKind, on
     b.dataset.kind = d.kind;
     const ok = available.includes(d.kind);
     b.disabled = !ok;
-    b.title = ok ? d.tip : 'This engine is not available here: it needs the WebAssembly build (web/wasm)';
+    b.title = ok ? d.tip : 'This engine is not available here: it needs the WebAssembly build';
     b.addEventListener('click', () => onSelect(d.kind));
     el.append(b);
     return { kind: d.kind, b, ok, tip: b.title };

@@ -19,8 +19,8 @@ const CONSOLE_LINES = 4;
 
 /** SPEC 12.4: the logging VM is a naive diary and is called that wherever it is shown. */
 const ENGINES = {
-  logging: { title: 'Naive diary', sub: 'the logging engine: 48 bytes for every step' },
-  reversible: { title: 'Reversible', sub: 'keeps no history of its steps' },
+  logging: { title: 'Diary', strategy: 'Naive diary', sub: 'the naive diary: the logging engine keeps 48 bytes for every step' },
+  reversible: { title: 'Reversible', strategy: 'Reversible', sub: 'keeps no history of its steps' },
 } as const;
 const COLOUR = ENGINE_COLOUR;
 
@@ -78,7 +78,7 @@ export function historyChart(results: readonly TrackResult[]): SVGSVGElement {
   const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'cmp-chart-svg', role: 'img' });
   const steps = Math.max(1, ...results.map((r) => r.steps));
   const top = niceMax(Math.max(0, ...results.map((r) => Math.max(...r.samples.map((s) => s.bytes)))));
-  svg.setAttribute('aria-label', `VM history in bytes against steps, up to ${steps} steps. ${results.map((r) => `${ENGINES[r.kind].title}: ${formatBytes(r.historyBytes)}`).join('. ')}.`);
+  svg.setAttribute('aria-label', `VM history in bytes against steps, up to ${steps} steps. ${results.map((r) => `${ENGINES[r.kind].strategy}: ${formatBytes(r.historyBytes)}`).join('. ')}.`);
   const x = (t: number): number => L + (t / steps) * (W - L - R);
   const y = (b: number): number => H - B - (b / top) * (H - T - B);
 
@@ -105,7 +105,7 @@ export function historyChart(results: readonly TrackResult[]): SVGSVGElement {
     endY.push(ly);
     svg.append(
       svgEl('circle', { cx: x(last.t), cy: y(last.bytes), r: 4, fill: COLOUR[r.kind] }),
-      svgEl('text', { x: x(last.t) + 10, y: ly + 4, class: 'cmp-end', fill: COLOUR[r.kind] }, `${ENGINES[r.kind].title} ${formatBytes(r.historyBytes)}`),
+      svgEl('text', { x: x(last.t) + 10, y: ly + 4, class: 'cmp-end', fill: COLOUR[r.kind] }, `${ENGINES[r.kind].strategy} ${formatBytes(r.historyBytes)}`),
     );
   });
   return svg;
@@ -187,7 +187,7 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
   measure.type = 'button';
   measure.append(icon('play'), h('span', '', 'Measure both engines'));
   chartHead.append(h('h3', 'cmp-h', 'VM history against time'), measure);
-  const task = h('p', 'dim cmp-sub', 'Runs the program on a fresh copy of each engine until it halts, or for its first 100,000 steps, then runs it back to t = 0, and repeats until the times are steady.');
+  const task = h('p', 'dim cmp-sub', 'Each engine runs the program forward until it halts (or for 100,000 steps), then back to the start. This repeats until the timings settle.');
   const chartSlot = h('div', 'cmp-chart');
   const table = h('div', 'cmp-table');
   table.hidden = true;
@@ -195,7 +195,7 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
   verdict.hidden = true;
   chartBox.append(chartHead, task, chartSlot, table, verdict);
 
-  const note = h('p', 'cmp-note dim', 'Both engines run the same program on the same instruction set. This shows that rewinding needs no history memory. It does not show that reversible programs are cheaper overall: they carry garbage and extra instructions.');
+  const note = h('p', 'cmp-note dim', 'Both engines run the same program. Rewinding costs the reversible engine no history. That does not make reversible programs cheaper overall: they run more instructions and keep some garbage.');
   body.append(mismatch, cards, warn, chartBox, benchSection(), note);
   el.append(controls, body);
 
@@ -255,9 +255,9 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
     if (a && b) {
       const slow = b.backNs / Math.max(a.backNs, 1e-9);
       verdict.textContent =
-        `${a.steps.toLocaleString('en-GB')} steps${a.capped ? ' (the first part of a longer run)' : ''}, averaged over ${a.passes.toLocaleString('en-GB')} passes. ` +
-        `The diary keeps ${formatBytes(a.historyBytes)} to be able to go back; the reversible engine keeps ${formatBytes(b.historyBytes)}. ` +
-        `Its back track takes ${slow >= 1 ? `${slow.toFixed(1)} times as long` : `${(1 / slow).toFixed(1)} times less time`} as the diary's (${formatMs(b.backMs)} against ${formatMs(a.backMs)}). ` +
+        `${a.steps.toLocaleString('en-GB')} steps${a.capped ? ' (the start of a longer run)' : ''}, averaged over ${a.passes.toLocaleString('en-GB')} passes. ` +
+        `To go back, the diary keeps ${formatBytes(a.historyBytes)} and the reversible engine keeps ${formatBytes(b.historyBytes)}. ` +
+        `Going back takes the reversible engine ${slow >= 1 ? `${slow.toFixed(1)} times as long` : `${(1 / slow).toFixed(1)} times less time`} as the diary (${formatMs(b.backMs)} against ${formatMs(a.backMs)}). ` +
         `${a.restored && b.restored ? 'Both engines returned to exactly the starting state.' : 'An engine did not return to the starting state.'}`;
     }
     verdict.hidden = false;

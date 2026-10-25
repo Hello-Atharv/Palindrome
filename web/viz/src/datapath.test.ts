@@ -166,6 +166,6 @@ describe('learnVerdict', () => {
     expect(learnVerdict(info(189, 27)).ok).toBe(false); // sort
     expect(learnVerdict(info(37, 35)).ok).toBe(false); // cipher
     expect(learnVerdict(null).ok).toBe(false);
-    expect(learnVerdict(info(189, 27)).why).toContain('too large');
+    expect(learnVerdict(info(189, 27)).why).toContain('Too large to animate');
   });
 });

@@ -222,7 +222,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     cmpControls,
   );
   const canCompare = !!createVm && engines.includes('logging') && engines.includes('reversible');
-  compare.setAvailable(canCompare, 'Needs both engines, which needs the WebAssembly build (web/wasm)');
+  compare.setAvailable(canCompare, 'Needs both engines, which needs the WebAssembly build');
 
   // breakpoints: while nobody else is listening to the editor, a click on the gutter toggles one here
   const breakpoints = new Set<number>();
@@ -305,8 +305,9 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   // header: name, engine, program
   const header = h('header', 'viz-header');
   const brand = h('h1', 'brand', 'Reversible machine');
+  const tagline = h('span', 'tagline dim', 'Step forward, then back: every instruction can be undone.');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
-  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn);
+  header.append(brand, tagline, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn);
   editor.tab.append(variant.el); // right-aligned in the editor header, level with the file name and Build and load
 
   // left: the editor with the debug bar at its foot (collapsible)
@@ -375,13 +376,14 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   });
   compareBtn.addEventListener('click', () => rightTabs.select(rightTabs.active === 'compare' ? lastTab : 'compare'));
   compareBtn.disabled = !canCompare;
-  compareBtn.title = canCompare ? compareBtn.title : 'Needs both engines, which needs the WebAssembly build (web/wasm)';
+  compareBtn.title = canCompare ? compareBtn.title : 'Needs both engines, which needs the WebAssembly build';
 
   // the divider: drag it to resize the editor, double-click to reset, and its button collapses or restores the editor
   const divider = h('div', 'divider');
   divider.setAttribute('role', 'separator');
   divider.setAttribute('aria-orientation', 'vertical');
-  divider.setAttribute('aria-label', 'Drag to resize the editor');
+  divider.setAttribute('aria-label', 'Resize the editor: drag, or use the left and right arrow keys');
+  divider.tabIndex = 0;
   const dividerBtn = h('button', 'divider-btn');
   dividerBtn.type = 'button';
   dividerBtn.title = 'Show or hide the editor (Ctrl+B)';
@@ -417,12 +419,16 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     if (px === null) {
       root.style.removeProperty('--ide-w');
       store('viz.ideW', null);
+      divider.removeAttribute('aria-valuenow');
       return;
     }
     const max = Math.max(MIN_IDE, Math.min(split.clientWidth * 0.7, split.clientWidth - MIN_WORK - 8));
     const w = Math.round(Math.min(Math.max(px, MIN_IDE), max));
     root.style.setProperty('--ide-w', `${w}px`);
     store('viz.ideW', String(w));
+    divider.setAttribute('aria-valuemin', String(MIN_IDE));
+    divider.setAttribute('aria-valuemax', String(Math.round(max)));
+    divider.setAttribute('aria-valuenow', String(w));
   }
   divider.addEventListener('pointerdown', (ev) => {
     ev.preventDefault(); // a drag must not move focus or select text
@@ -437,6 +443,17 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     if (divider.hasPointerCapture(ev.pointerId)) divider.releasePointerCapture(ev.pointerId);
     divider.classList.remove('dragging');
   };
+  // by keyboard: the arrows move it (Shift for bigger steps), Home puts it back to the default width
+  divider.addEventListener('keydown', (ev) => {
+    if (ev.target !== divider || root.dataset.ide !== 'open') return;
+    const current = parseFloat(root.style.getPropertyValue('--ide-w')) || ide.getBoundingClientRect().width || 380;
+    const step = ev.shiftKey ? 96 : 24;
+    if (ev.key === 'ArrowLeft') setEditorWidth(current - step);
+    else if (ev.key === 'ArrowRight') setEditorWidth(current + step);
+    else if (ev.key === 'Home') setEditorWidth(null);
+    else return;
+    ev.preventDefault();
+  });
   divider.addEventListener('pointerup', endDrag);
   divider.addEventListener('pointercancel', endDrag);
   divider.addEventListener('dblclick', (ev) => {

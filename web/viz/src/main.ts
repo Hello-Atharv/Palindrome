@@ -79,38 +79,36 @@ const fromSource = (name: string, blurb: string, source: string, speed?: number)
 
 /** Simple programs first: they open in the Visualisation tab. Sort, cipher, Pong and the gradient are too big to animate. */
 const programs: ProgramEntry[] = [
-  fromSource('if / else', '.if / .else / .fi macros: watch the data move through the datapath', ifelse),
-  fromSource('add two numbers', 'send two numbers, the machine adds them and files the sum (reversible)', ADD_TWO_NUMBERS),
-  fromSource('loop', '.loop / .again macros', loop),
-  fromSource('nested loop', 'a loop with an if inside', nested),
-  fromSource('call / return', 'CALL, PROC and RET on the stack', call),
-  fromSource('memory', 'data, framebuffer, neg', memory),
-  fromSource('my program', 'a blank template: write your own assembly, then Build and load (your edits are kept in this browser)', BLANK_PROGRAM),
-  fromSource('sort', 'a reversible sort that exposes its garbage: 19 hatched words at data address 8', sort),
-  fromSource('cipher', 'Speck64/128: encrypt, then flip Reverse (direction -1) and the same program decrypts', cipher),
+  fromSource('if / else', 'watch an if / else move data through the datapath', ifelse),
+  fromSource('add two numbers', 'type two numbers; the machine adds and prints them', ADD_TWO_NUMBERS),
+  fromSource('loop', 'a loop, written with the .loop macros', loop),
+  fromSource('nested loop', 'an if inside a loop', nested),
+  fromSource('call / return', 'a procedure call and return on the stack', call),
+  fromSource('memory', 'loads, stores and the framebuffer', memory),
+  fromSource('my program', 'a blank template for your own assembly (edits are saved in this browser)', BLANK_PROGRAM),
+  fromSource('sort', 'a reversible sort; the 19 hatched words are what it cannot erase', sort),
+  fromSource('cipher', 'Speck64/128: encrypt, then run it backwards to decrypt', cipher),
   {
-    ...fromSource('pong', 'reversible Pong: W / S or the arrow keys move the paddle', pong, 10_000),
+    ...fromSource('pong', 'Pong: W / S or the arrow keys move the paddle', pong, 10_000),
     game: {
       blocks: true,
       log: { addr: 0x1000, bytesPerFrame: 8 },
       note:
-        'Press Run, then use W / S or the up and down arrows to move the paddle (cyan, left edge). Each time the ball returns to the left edge, ' +
-        'a paddle there is a hit and a yellow block lights up on the right half: that is your score. Otherwise the program halts: game over. ' +
-        'Back, Back one frame and the time bar rewind the game exactly (the keys you pressed are replayed). The input log is the only garbage ' +
-        'this program keeps, 8 bytes a frame. Direction -1 is exact only for programs that read no input, so use Back for Pong.',
+        'Press Run, then use W / S or the arrow keys to move the cyan paddle. Return the ball and a yellow block lights up: that is your score. Miss it and the game halts. ' +
+        'Back, Back one frame and the time bar rewind the game exactly, replaying your keys. The key log is the only garbage Pong keeps (8 bytes a frame). ' +
+        'Direction -1 is not exact for programs that read input, so rewind with Back.',
     },
   },
-  fromRev('pong (rev)', 'the same Pong written in the rev language: a wall and the score as a number', pongRev, {
+  fromRev('pong (rev)', 'the same Pong in rev, with a wall and a numeric score', pongRev, {
     log: { addr: 0x1000, bytesPerFrame: 8 },
     note:
-      'Press Run, then use W / S or the up and down arrows. The same game written in rev, with a permanent grey wall down the middle and your ' +
-      'score as a number on the right: it goes up each time you return the ball. Back, Back one frame and the time bar rewind the game exactly, ' +
-      'wall and score included. Edit the source and press Build and load.',
+      'Press Run, then use W / S or the arrow keys. This is the same game in rev, with a grey wall and your score as a number. ' +
+      'Back, Back one frame and the time bar rewind it exactly, score included. Edit the source and press Build and load.',
   }, 10_000),
-  fromRev('sort (rev)', 'the same sorting network written in rev: 36 lines instead of 340; the list is in data memory, not on the screen', sortRev),
-  fromRev('hello (rev)', 'a rev program that prints: step back and the text un-prints (the console, SPEC 11.9)', hello),
-  fromRev('fibonacci (rev)', 'Fibonacci in rev, with nothing thrown away', fib),
-  { name: 'gradient', blurb: 'fills the framebuffer in a loop (hand-built image)', load: () => gradient().image },
+  fromRev('sort (rev)', 'the same sorting network in rev: 36 lines instead of 340 (the list lives in data memory)', sortRev),
+  fromRev('hello (rev)', 'prints text; step back and it un-prints', hello),
+  fromRev('fibonacci (rev)', 'Fibonacci in rev; nothing is thrown away', fib),
+  { name: 'gradient', blurb: 'fills the screen in a loop (hand-built image)', load: () => gradient().image },
 ];
 
 /** A program that exists in assembly and in rev: the two are one entry in the picker, with a switch between them. */

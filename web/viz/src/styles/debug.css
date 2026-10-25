@@ -5,22 +5,22 @@
 .tsep { width: 1px; height: 18px; background: var(--border); margin: 0 var(--s-4); }
 .slot-toolbar { display: flex; align-items: center; gap: var(--s-4); }
 
-.dbg-status { display: flex; align-items: center; gap: var(--s-12); min-height: 18px; flex-wrap: wrap; font-size: 13px; }
+.dbg-status { font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: var(--s-12); min-height: 18px; flex-wrap: wrap; font-size: 13px; }
 .dbg-fork { display: inline-flex; align-items: center; gap: var(--s-4); color: var(--branch); }
 
 /* the run-time bar: t at the left, a track with a knob, the state at the right. Click or drag the track to move through time. */
 .tbar { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
-.tbar-label { font-size: 13px; line-height: 16px; }
+.tbar-label { font-size: 13px; line-height: 16px; font-variant-numeric: tabular-nums; }
 .tbar-row { display: flex; align-items: center; gap: var(--s-12); height: 38px; padding: 0 var(--s-12); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
 .tbar-t { flex: none; display: inline-flex; align-items: baseline; gap: var(--s-4); }
 .tbar-num { min-width: 4ch; font-size: 15px; font-weight: 600; }
-.tbar-track { position: relative; flex: 1; min-width: 48px; height: 22px; cursor: pointer; touch-action: none; user-select: none; }
-.tbar-track::before { content: ''; position: absolute; left: 0; right: 0; top: 9px; height: 4px; border-radius: 2px; background: var(--border); }
-.tbar-fill, .tbar-future, .tbar-lost { position: absolute; top: 9px; height: 4px; border-radius: 2px; }
+.tbar-track { position: relative; flex: 1; min-width: 48px; height: 24px; cursor: pointer; touch-action: none; user-select: none; }
+.tbar-track::before { content: ''; position: absolute; left: 0; right: 0; top: 10px; height: 4px; border-radius: 2px; background: var(--border); }
+.tbar-fill, .tbar-future, .tbar-lost { position: absolute; top: 10px; height: 4px; border-radius: 2px; }
 .tbar-fill { left: 0; background: color-mix(in srgb, var(--knob) 60%, var(--border)); }
 .tbar-future { background: color-mix(in srgb, var(--muted) 50%, var(--border)); }
 .tbar-lost { background: color-mix(in srgb, var(--branch) 60%, transparent); }
-.tbar-knob { position: absolute; top: 3px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--knob); box-shadow: 0 0 0 3px var(--bg); }
+.tbar-knob { position: absolute; top: 4px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--knob); box-shadow: 0 0 0 3px var(--bg); }
 .viz { --knob: var(--fwd); }
 .viz[data-run='back'] { --knob: var(--back); }
 .tbar-state { flex: none; display: inline-flex; align-items: center; gap: var(--s-4); max-width: 42%; overflow: hidden; white-space: nowrap; font-size: 13px; color: var(--muted); }

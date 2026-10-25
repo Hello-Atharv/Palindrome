@@ -134,6 +134,7 @@ export function timeBar(onSeek: (t: number) => void): TimeBar {
       track.setAttribute('aria-valuemin', String(start));
       track.setAttribute('aria-valuemax', String(latest));
       track.setAttribute('aria-valuenow', String(s.t));
+      track.setAttribute('aria-valuetext', game ? `frame ${s.frame!.toLocaleString('en-GB')}, t ${s.t.toLocaleString('en-GB')}` : `t ${s.t.toLocaleString('en-GB')}`);
 
       // one state, in order of importance: a stopped state beats the run state
       const key = s.run !== 'paused' ? s.run : s.status !== 'ok' ? s.status : s.t === 0 ? 'ready' : 'paused';
