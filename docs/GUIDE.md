@@ -318,8 +318,9 @@ cipher, Speck.
 
 ## 16. What's left
 
-Must: the benchmark chart, a full demo rehearsal, a final read of the writeup. Maybe: a showpiece (two-player rollback), shrinking
-compiler overhead, a "ball marks the wall" idea. Not planned: more demos or language features.
+Done since this was first written: the benchmark chart, the browser UI with a live `rev` editor, the input-race fix, the console. Still to do:
+a full demo rehearsal and a final read of the writeup. Maybe: shrinking compiler overhead. Not planned: more demos, language features or a
+showpiece.
 
 ---
 

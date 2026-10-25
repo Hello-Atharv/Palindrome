@@ -1,4 +1,4 @@
-# A computer that can't forget
+# Palindrome: a computer that can't forget
 
 OxHack 2026, theme **time**. A small computer in which every instruction can be undone, so any program runs backwards with
 no history log, plus the whole toolchain around it: an assembler, a language and compiler, a debugger that steps *back*, a
@@ -7,18 +7,20 @@ verifier, a browser UI, a VS Code extension, and a benchmark that compares the p
 Reversible computing is old (Landauer, Bennett, Janus, Pendulum). We did not invent it; we built a complete, tested stack for it
 and measured it honestly. See "What this is not" below.
 
+**See it now:** https://reversible-machine.vercel.app (pick `pong`, press Run, lose, then step back).
+
 ## Try it in two minutes
 ```
 npm run setup              # install the JavaScript parts (once)
-npm run build              # build the C++ engines (needs CMake and a C++17 compiler)
 npm run rvm -- debug examples/rev/sort3.rev --script "s; s; s; p; rwatch f1; b; b"
 ```
 That compiles a sort written in `rev`, runs it, then runs it **backwards** to the line that last wrote `f1`, and steps back to the start
-(the machine keeps 0 bytes of history for any of it). Other things to try:
+(the machine keeps 0 bytes of history for any of it). Nothing here needs a C++ compiler: the engines ship as WebAssembly. Other things to try:
 ```
 npm run rvm -- report examples/demos/pong.rev     # what every source line of Pong costs, and the garbage it keeps
 npm run rvm -- verify examples/demos/pong.rev     # both engines, 200 random time jumps, exact undo, direction -1
 npm run viz                                 # the browser UI: play Pong, scrub time, edit rev live, compare engines
+npm run build                               # the C++ engines, only for the C++ tests (needs CMake and a C++17 compiler)
 npm run test:all                            # engines, assembler, compiler, CLI, extension, benchmarks (about 300 tests, about a minute)
 npm run check                               # test:all plus the browser UI and its mock VM (run this before every push)
 ```

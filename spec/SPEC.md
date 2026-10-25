@@ -384,7 +384,7 @@ number as if it were measured.
 | `undo_steps(k)` | instructions | Instructions executed to move from `t` to `t-k` (step back k times). | built (timed) |
 | `seek_steps(a,b)` | instructions | Instructions executed to move from any `t=a` to any `t=b`. | built (`bench/twins`) |
 | `history_bytes` | bytes | Bytes the **machine** keeps so that it can step back (`rvm_history_bytes`). Diary: grows with `t`. Reversible: 8 per direction flip. | built |
-| `garbage_bits` | bits | Bits the **program** keeps only because it cannot erase them. Upper bound: 32 x (non-zero words in the program's declared garbage region). Declared by label `garbage_*` or by the compiler's report. | built for sort (by hand); planned in general |
+| `garbage_bits` | bits | Bits the **program** keeps only because it cannot erase them. Upper bound: 32 x (non-zero words in the program's declared garbage region). Declared by label `garbage_*` or by the compiler's report. | built: the compiler's report (`rvmc --report`) and the browser UI count the non-`out` variables that no longer hold their starting value, plus the console |
 | `bits_erased` | bits | What a conventional machine destroys running the same computation (12.2). | built (`bench/twins`) |
 | `overhead_steps` | ratio | `steps(reversible program) / steps(conventional twin)` for the same task and input. | built (sort, Pong) |
 | `overhead_code` | ratio | Same, for program size in instructions. | built (sort, Pong) |

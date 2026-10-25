@@ -58,7 +58,8 @@ up as garbage, and that the whole run was undone and replayed to the identical s
   caught it. The spec now says "wait for plus one", not "wait for a change".
 - Running a program **backwards by direction** is not exact when it reads input, because the input window follows machine time. Stepping
   back in time is always exact. We say so in the spec and in the tool output rather than hiding it.
-- The editor extension's glue code has not been run inside a real VS Code window; everything it calls is tested.
+- The editor extension's glue code is covered by tests only up to the VS Code API; it has been run by hand in a real VS Code window
+  once, so treat it as less proven than the rest.
 
 ## Why we think it was worth doing
 Time travel in a debugger is usually sold as magic and priced as a diary. Here the price is visible at every layer: in the spec (section 12
