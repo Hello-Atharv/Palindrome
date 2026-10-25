@@ -288,21 +288,20 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
       table.append(tr);
     };
     /** A strategy that is not a live engine: measured offline on the conventional program (bench/twins), shown for Pong and sort. */
-    const offlineRow = (name: string, cells: OfflineCells | null, none: string): void => {
+    const offlineRow = (name: string, cells: OfflineCells): void => {
       const tr = startRow(name, ' offline');
-      if (!cells) tr.append(cell(none, 'tplanned dim'));
-      else for (const v of cells) tr.append(cell(v, 'tcell mono'));
+      for (const v of cells) tr.append(cell(v, 'tcell mono'));
       table.append(tr);
     };
     live('Naive diary', diaryR);
     live('Reversible', revR);
-    const anywhere = 'measured offline on the conventional program, for Pong and sort only: see Benchmarks';
-    offlineRow('Tight diary', offline?.tight ?? null, anywhere);
-    offlineRow('Checkpoint and replay', offline ? offline.checkpoint : null, offline ? 'not measured for sort: see Benchmarks' : anywhere);
-    tableNote.textContent = offline
-      ? `The last two rows are measured offline, not in this live run: ${offline.scope}. See Benchmarks.`
-      : 'The last two rows are measured offline on the conventional program, not in this live run. See Benchmarks.';
-    tableNote.hidden = false;
+    // the tight diary and checkpointing are not live engines: they are shown only where the benchmark measured this program (Pong and sort)
+    if (offline) {
+      offlineRow('Tight diary', offline.tight);
+      if (offline.checkpoint) offlineRow('Checkpoint and replay', offline.checkpoint);
+      tableNote.textContent = `The last ${offline.checkpoint ? 'two rows are' : 'row is'} measured offline, not in this live run: ${offline.scope}. See Benchmarks.`;
+    }
+    tableNote.hidden = !offline;
     table.hidden = false;
 
     const a = diaryR, b = revR;

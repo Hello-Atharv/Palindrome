@@ -218,9 +218,8 @@ describe('the Virtual Machine History Over Time section', () => {
     expect(l[4]).toBe('Both engines returned to exactly the starting state.');
     expect(l[5]).toBe('The live diary here is the naive one: 48 B a step. A tight diary was measured offline for Pong and sort only: see Benchmarks.');
     const r = rows(root);
-    expect(r.map((x) => x[0])).toEqual(['Strategy', 'Naive diary', 'Reversible', 'Tight diary', 'Checkpoint and replay']);
-    expect(r[3][1]).toBe('measured offline on the conventional program, for Pong and sort only: see Benchmarks');
-    expect(root.querySelector('.cmp-table-note')!.textContent).toContain('measured offline on the conventional program, not in this live run');
+    expect(r.map((x) => x[0])).toEqual(['Strategy', 'Naive diary', 'Reversible']); // no tight diary or checkpoint rows: nothing was measured for this program
+    expect(root.querySelector<HTMLElement>('.cmp-table-note')!.hidden).toBe(true);
   });
 
   it('fills the tight diary and checkpoint rows for Pong from the benchmark, and names the tight diary next to the naive one', async () => {
@@ -244,7 +243,7 @@ describe('the Virtual Machine History Over Time section', () => {
     const table = root.querySelector<HTMLElement>('.cmp-live .cmp-table')!;
     expect(table.getAttribute('role')).toBe('table');
     expect(table.querySelectorAll('[role="columnheader"]').length).toBe(6);
-    expect(table.querySelectorAll('[role="rowheader"]').length).toBe(4);
+    expect(table.querySelectorAll('[role="rowheader"]').length).toBe(2); // naive diary and reversible; the offline rows only appear for Pong and sort
     expect(root.querySelector('.cmp-verdict')!.getAttribute('aria-live')).toBe('polite');
   });
 });
