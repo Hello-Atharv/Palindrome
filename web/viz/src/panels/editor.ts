@@ -4,6 +4,7 @@ import { h } from '../dom';
 import { tokenize } from '../highlight';
 import type { Language } from '../highlight';
 import { icon } from '../icons';
+import { indentEdit } from '../indent';
 import type { Ctx, Panel } from './panel';
 import { checkRev, costReport } from '../revtools';
 import type { RevDiagnostic } from '../revtools';
@@ -254,6 +255,24 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
       ev.preventDefault();
       buildNow();
     }
+  });
+  // Tab indents (a code editor, not a form). Esc then Tab leaves the editor, so the keyboard is never trapped.
+  let tabLeaves = false;
+  text.title = 'Tab indents, Shift+Tab outdents. To move focus out of the editor press Esc, then Tab.';
+  text.addEventListener('blur', () => { tabLeaves = false; });
+  text.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') { tabLeaves = true; return; }
+    if (ev.key !== 'Tab' || ev.ctrlKey || ev.metaKey || ev.altKey || text.readOnly) return;
+    if (tabLeaves) { tabLeaves = false; return; } // Esc was pressed first: let the browser move focus on
+    ev.preventDefault();
+    const edit = indentEdit(text.value, text.selectionStart, text.selectionEnd, ev.shiftKey);
+    text.setSelectionRange(edit.from, edit.to);
+    // insertText keeps the browser's undo history (setRangeText would break Ctrl+Z); fall back if it is unavailable
+    if (!document.execCommand('insertText', false, edit.text)) {
+      text.setRangeText(edit.text, edit.from, edit.to, 'end');
+      text.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    text.setSelectionRange(edit.selStart, edit.selEnd);
   });
   text.addEventListener('input', () => {
     dirty.hidden = false;
