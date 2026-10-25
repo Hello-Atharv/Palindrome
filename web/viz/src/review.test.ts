@@ -261,3 +261,11 @@ describe('the Benchmarks tab text', () => {
     expect(bench.querySelector('.cmp-table')!.getAttribute('role')).toBe('table');
   });
 });
+
+describe('the project name', () => {
+  it('is Palindrome in the header, and no old name is left in the page', async () => {
+    const { root } = await mount([small]);
+    expect(root.querySelector('.viz-header .brand')!.textContent).toBe('Palindrome');
+    expect(root.querySelector('.viz-header')!.textContent).not.toMatch(/Reversible machine/);
+  });
+});

@@ -304,7 +304,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
 
   // header: name, engine, program
   const header = h('header', 'viz-header');
-  const brand = h('h1', 'brand', 'Reversible machine');
+  const brand = h('h1', 'brand', 'Palindrome');
   const tagline = h('span', 'tagline dim', 'Step forward, then back: every instruction can be undone.');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
   header.append(brand, tagline, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn);
