@@ -54,7 +54,7 @@ bit-packed diary is faster. The method, and the caveats, are in [Benchmarks](../
 
 ## What it is not
 - **Not a new idea.** Reversible computing goes back to Landauer (1961) and Bennett (1973); Janus is a reversible language from the 1980s.
-  We built a complete, tested stack based on similar principles for it and measured it.
+  We built a complete, tested stack based on similar principles and measured it.
 - **Not a proof.** The tests and `rvm verify` find violations; they do not prove there are none.
 - **Not exact everywhere.** Stepping back in time is always exact. Running a program *as its own inverse* (direction -1) is exact only for
   programs that read no input.
