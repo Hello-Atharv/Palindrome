@@ -43,7 +43,7 @@ export function timelinePanel(transport: Transport, onSeek: (t: number) => void)
       const { snap, branch, vm } = ctx;
       bar.update(ctx);
       fork.hidden = !branch;
-      hist.textContent = `${vm.kind === 'logging' ? 'Diary' : 'Reversible'} history ${formatBytes(snap.historyBytes)}`;
+      hist.replaceChildren(h('strong', 'dbg-engine', `${vm.kind === 'logging' ? 'Diary' : 'Reversible'} engine`), document.createTextNode(`, history ${formatBytes(snap.historyBytes)}`));
     },
   };
 }

@@ -47,7 +47,7 @@ describe('engine switch', () => {
     expect(viz.vm.registers().pc).toBe(before.pc);
     expect(viz.vm.memory(0x30001, 1)[0]).toBe(1); // the key press came along
     expect(viz.vm.historyBytes).toBe(0);
-    expect(root.querySelector('.dbg-hist')!.textContent).toBe('Reversible history 0 B');
+    expect(root.querySelector('.dbg-hist')!.textContent).toBe('Reversible engine, history 0 B');
     expect(viz.machines).toHaveLength(1);
   });
 
@@ -178,5 +178,25 @@ describe('benchmark chart', () => {
     expect(labels.filter((l) => l!.startsWith('every')).length).toBe(3);
     expect(svg.querySelector('title, desc') === null).toBe(true);
     expect(svg.getAttribute('aria-label')).toContain('Naive diary');
+  });
+});
+
+describe('engine colours', () => {
+  it('one colour per engine: the shell publishes them as CSS variables, and the engine switch marks the pressed engine with its own', async () => {
+    const { ENGINE_COLOUR } = await import('./engineColour');
+    expect(root.style.getPropertyValue('--engine-diary')).toBe(ENGINE_COLOUR.logging);
+    expect(root.style.getPropertyValue('--engine-rev')).toBe(ENGINE_COLOUR.reversible);
+    expect(ENGINE_COLOUR.logging).not.toBe(ENGINE_COLOUR.reversible);
+    const pressed = () => root.querySelector<HTMLElement>('.engine-switch .seg[aria-pressed="true"]')!.dataset.kind;
+    expect(pressed()).toBe('logging');
+    expect(root.dataset.engine).toBe('logging');
+    await viz.setEngine('reversible');
+    expect(pressed()).toBe('reversible');
+    expect(root.dataset.engine).toBe('reversible');
+    expect(root.querySelector('.dbg-engine')!.textContent).toBe('Reversible engine');
+    await viz.setCompare(true);
+    expect(root.dataset.compare).toBe('true'); // the strip shows both colours
+    await viz.setCompare(false);
+    expect(root.dataset.compare).toBe('false');
   });
 });

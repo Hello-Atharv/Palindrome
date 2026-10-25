@@ -61,3 +61,7 @@
 
 /* Compare takes the whole window: the editor is out of the way while it is open */
 .compare-btn[aria-pressed='true'] { border-color: var(--text); background: var(--border); }
+
+/* a strip under the header in the colour of the engine in use (both colours while Compare runs both) */
+.viz-header { position: relative; }
+.viz-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--engine-bar); }

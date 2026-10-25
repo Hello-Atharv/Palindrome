@@ -137,7 +137,8 @@ describe('the .s / .rev switch', () => {
     const viz = mountViz(root, await createWasmVm('logging'), { programs: [asmEntry, plain], createVm: createWasmVm, engines: ['logging', 'reversible'], assemble: assembleHook, compile: compileHook });
     const sw = root.querySelector<HTMLElement>('.variant')!;
     const pressed = () => [...sw.querySelectorAll('button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
-    expect(sw.hidden).toBe(false);
+    expect(sw.classList.contains('off')).toBe(false);
+    expect(root.querySelector('.editor .ed-tab')!.contains(sw)).toBe(true); // in the editor header, level with the file name
     expect(pressed()).toEqual(['.s']);
     expect(viz.program?.language).toBeUndefined();
 
@@ -154,7 +155,8 @@ describe('the .s / .rev switch', () => {
 
     root.querySelector<HTMLSelectElement>('.viz-header .program-select')!.value = '1'; // a program with no twin
     root.querySelector<HTMLSelectElement>('.viz-header .program-select')!.dispatchEvent(new Event('change'));
-    expect(sw.hidden).toBe(true);
+    expect(sw.classList.contains('off')).toBe(true); // invisible, but it keeps its place
+    expect(root.querySelector('.editor .ed-tab')!.contains(sw)).toBe(true);
   });
 });
 

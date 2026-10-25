@@ -3,6 +3,7 @@ import { formatDiagnostics } from './assembler';
 import type { AssembleFn, AsmOutcome } from './assembler';
 import { FrameTracker } from '../../wasm/src/frames';
 import { FRAME_ADDR } from './constants';
+import { ENGINE_COLOUR } from './engineColour';
 import { buildEngineSwitch, buildProgramBar, buildProgramSelect, buildTransport, buildVariantSwitch } from './controls';
 import type { PaceChoice } from './controls';
 import { h } from './dom';
@@ -305,7 +306,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const header = h('header', 'viz-header');
   const brand = h('h1', 'brand', 'Reversible machine');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
-  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el, variant.el, compareBtn);
+  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn);
+  editor.tab.append(variant.el); // right-aligned in the editor header, level with the file name and Build and load
 
   // left: the editor with the debug bar at its foot (collapsible)
   const ide = h('aside', 'ide');
@@ -388,6 +390,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const split = h('div', 'split');
   split.append(ide, divider, work);
   root.classList.add('viz');
+  root.style.setProperty('--engine-diary', ENGINE_COLOUR.logging);
+  root.style.setProperty('--engine-rev', ENGINE_COLOUR.reversible);
   root.dataset.ide = 'open';
   root.replaceChildren(header, banners.el, split);
 
@@ -485,6 +489,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     root.dataset.dir = cur.direction === 1 ? 'fwd' : 'rev';
     root.dataset.status = s;
     root.dataset.engine = vmNow.kind;
+    root.dataset.compare = String(machines.length > 1);
     engineSwitch.setKind(vmNow.kind);
     engineSwitch.setLocked(rightTabs.active === 'compare');
     transports.forEach((t) => t.setDirection(cur.direction));

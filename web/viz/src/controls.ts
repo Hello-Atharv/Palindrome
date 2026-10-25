@@ -229,7 +229,7 @@ export interface EngineSwitch {
  * (no WASM module) stays disabled with a tooltip that says why.
  */
 export function buildEngineSwitch(available: readonly VmKind[], kind: VmKind, onSelect: (k: VmKind) => void): EngineSwitch {
-  const el = h('div', 'segmented');
+  const el = h('div', 'segmented engine-switch');
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', 'engine');
   const defs: { kind: VmKind; label: string; tip: string }[] = [
@@ -240,6 +240,7 @@ export function buildEngineSwitch(available: readonly VmKind[], kind: VmKind, on
   const buttons = defs.map((d) => {
     const b = h('button', 'seg', d.label);
     b.type = 'button';
+    b.dataset.kind = d.kind;
     const ok = available.includes(d.kind);
     b.disabled = !ok;
     b.title = ok ? d.tip : 'This engine is not available here: it needs the WebAssembly build (web/wasm)';
@@ -271,7 +272,7 @@ export function buildVariantSwitch(onPick: (lang: 'asm' | 'rev') => void): Varia
   const el = h('div', 'segmented variant');
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', 'language of this program');
-  el.hidden = true;
+  el.classList.add('off'); // it keeps its place in the editor header, invisible, so nothing beside it moves
   const defs = [
     { lang: 'asm' as const, label: '.s', tip: 'The assembly version of this program' },
     { lang: 'rev' as const, label: '.rev', tip: 'The version written in the rev language' },
@@ -290,7 +291,8 @@ export function buildVariantSwitch(onPick: (lang: 'asm' | 'rev') => void): Varia
   return {
     el,
     show(current) {
-      el.hidden = current === null;
+      el.classList.toggle('off', current === null);
+      buttons.forEach(({ b }) => (b.tabIndex = current === null ? -1 : 0));
       buttons.forEach(({ lang, b }) => b.setAttribute('aria-pressed', String(lang === current)));
     },
   };

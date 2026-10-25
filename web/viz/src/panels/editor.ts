@@ -40,6 +40,8 @@ export interface EditorHooks {
 }
 
 export type EditorPanel = Panel & {
+  /** The header row (file name, Follow, Build and load): the shell adds the .s / .rev switch at its right end. */
+  tab: HTMLElement;
   api: ListingApi;
   /** The shell's own click handler, used only while nobody else listens (it toggles breakpoints). */
   onDefaultClick(fn: (e: LineClick) => void): void;
@@ -69,6 +71,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
   const build = h('button', 'btn primary ed-build');
   build.type = 'button';
   build.title = 'Assemble the source and load it (resets to t = 0). Ctrl+Enter';
+  build.setAttribute('aria-label', 'Build and load');
   build.append(icon('build'), h('span', '', 'Build and load'));
   tab.append(fileName, dirty, h('span', 'grow'), follow);
   if (hooks.canBuild) tab.append(build);
@@ -261,6 +264,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
 
   return {
     el,
+    tab,
     api,
     onDefaultClick(fn) { fallback = fn; },
     get outsideListeners() { return outside.size; },

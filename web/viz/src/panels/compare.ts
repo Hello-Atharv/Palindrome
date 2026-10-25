@@ -1,6 +1,7 @@
 import { consoleText } from '../../../../lang/src/console';
 import type { RVM, VmKind } from '../../../../spec/vm_api';
 import { formatBytes, h } from '../dom';
+import { ENGINE_COLOUR } from '../engineColour';
 import { icon } from '../icons';
 import { formatMs, formatNs, garbageBitsOf } from '../track';
 import type { TrackResult } from '../track';
@@ -21,7 +22,7 @@ const ENGINES = {
   logging: { title: 'Naive diary', sub: 'the logging engine: 48 bytes for every step' },
   reversible: { title: 'Reversible', sub: 'keeps no history of its steps' },
 } as const;
-const COLOUR: Record<VmKind, string> = { logging: '#8fa8ff', reversible: '#3fb950' };
+const COLOUR = ENGINE_COLOUR;
 
 export interface CompareHooks {
   /** The two machines disagreed at this t (the shell pauses the run). */

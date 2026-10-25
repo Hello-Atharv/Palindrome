@@ -10,6 +10,7 @@
   --fwd: #ffb454;
   --back: #4cc9f0;
   --branch: #c77dff;
+  /* --engine-diary and --engine-rev (one colour per engine) are set by the shell from src/engineColour.ts */
   --ok: #3fb950;
   --fault: #ff6b6b;
   --halted: #8b949e;
@@ -29,6 +30,10 @@
   --flash: var(--fwd);
   --motion: var(--muted);
 }
+/* the engine in use; while both run (Compare) the strip shows both */
+.viz { --engine: var(--engine-diary); --engine-bar: var(--engine-diary); }
+.viz[data-engine='reversible'] { --engine: var(--engine-rev); --engine-bar: var(--engine-rev); }
+.viz[data-compare='true'] { --engine-bar: linear-gradient(90deg, var(--engine-diary) 50%, var(--engine-rev) 50%); }
 .viz[data-motion='fwd'] { --flash: var(--fwd); }
 .viz[data-motion='back'], .viz[data-dir='rev'] { --flash: var(--back); }
 .viz[data-run='fwd'] { --motion: var(--fwd); }

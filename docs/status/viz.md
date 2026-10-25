@@ -212,3 +212,13 @@ cost-report path, and a drawing of bench/results.json. All in web/viz; nothing o
 - Re-ran my LND scan after the input-race fix (a5ea87e): pong.rev, second key at every 3rd step between t=1500 and 4500, both engines:
   no failures (40 on the logging engine before the fix).
 - Checks: viz typecheck, 84/84 tests, build; mock_vm 55/55; Pong browser check passes.
+
+## Engine cues, and the .s | .rev switch moved (2026-10-25, web/viz only)
+- Which engine is in use is now obvious in three places, all from one pair of colours (`src/engineColour.ts`, published as the CSS variables
+  `--engine-diary` periwinkle and `--engine-rev` green, also used by the Compare cards and chart): the pressed engine button takes its
+  colour, a 3 px strip under the header shows it (both colours while Compare runs), and the debug bar names it ("Reversible engine,
+  history 0 B"). The time colours (amber, cyan, violet) are untouched.
+- The .s | .rev switch is now at the right end of the editor header row, level with the file name and Build and load. For a program with no
+  twin it is invisible but keeps its place, so nothing beside it moves (checked in a browser). In a narrow editor Follow and Build and load
+  shrink to their checkbox and icon. The editor exposes its header row as `editor.tab` for this.
+- Checks: viz typecheck, 85/85 tests, build, scanner 0, layout check 60/60; mock_vm 55/55. `npm run check` not run (no CMake here).

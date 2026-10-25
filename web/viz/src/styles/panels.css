@@ -159,3 +159,21 @@
 .speed-custom-field { width: 9ch; appearance: textfield; -moz-appearance: textfield; height: 26px; padding: 0 var(--s-8); border: 1px solid var(--muted); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 13px; }
 .speed-custom-field:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
 .speed-custom-field::-webkit-inner-spin-button, .speed-custom-field::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- which engine: the pressed engine button, the header strip and the debug bar all use the engine's colour ---- */
+.engine-switch .seg[data-kind='logging'][aria-pressed='true'] { background: color-mix(in srgb, var(--engine-diary) 26%, var(--panel-2)); color: var(--text); box-shadow: inset 0 -3px 0 var(--engine-diary); }
+.engine-switch .seg[data-kind='reversible'][aria-pressed='true'] { background: color-mix(in srgb, var(--engine-rev) 26%, var(--panel-2)); color: var(--text); box-shadow: inset 0 -3px 0 var(--engine-rev); }
+.engine-switch .seg[aria-pressed='true'] { font-weight: 600; }
+.dbg-engine { color: var(--engine); font-weight: 600; }
+
+/* ---- the .s | .rev switch at the right end of the editor header: it always takes its place, so nothing beside it moves ---- */
+.ed-file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-tab { flex-wrap: nowrap; }
+.ed-tab > * { flex: none; }
+.ed-tab > .ed-file { flex: 0 1 auto; }
+.variant { margin-left: var(--s-4); }
+.variant .seg { height: 26px; padding: 0 var(--s-8); font-size: 13px; }
+.variant.off { visibility: hidden; }
+.editor { container-type: inline-size; }
+/* a narrow editor: Follow and Build and load shrink to their checkbox and icon so the switch still fits */
+@container (max-width: 400px) { .ed-follow span, .ed-build span { display: none; } .ed-build { padding: 0 var(--s-8); } }
