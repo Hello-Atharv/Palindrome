@@ -28,6 +28,11 @@ break N / delete N / info break                                goto T   jump to 
 watch X   rwatch X   run forward / BACKWARD until X changes: rwatch answers "who last wrote this?"
 p [X]  regs  mem A [n]  list  where  history                   X = a variable, r0..r15, or [address]
 ```
+`--demo file` runs a **narrated session**: lines starting with `#` are explanations, every other line is a command, and each command waits for
+Enter, so a presenter can talk between steps (piped, it runs straight through). `demo/tour.dbg` with `lang/examples/tour.rev` is the one we use:
+`npm run rvm -- debug lang/examples/tour.rev --demo demo/tour.dbg`. After the script ends you are left at the `(rvm)` prompt to carry on by hand.
+A `#` after a command is a comment too, so annotated command lists can be pasted.
+
 `rwatch f1` runs the program backwards until `f1` changes and stops at the instruction that wrote it, printing the source line and
 the old and new values. On the reversible engine that needs no recorded history (`history` shows 0 bytes); on the logging engine it
 works too, from the diary. Both engines print the same transcript (tested).

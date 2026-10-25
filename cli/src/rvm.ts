@@ -3,9 +3,9 @@
 //   rvm run    prog.(rev|s) [--engine logging|reversible] run to the halt and print the variables
 //   rvm report prog.rev                                   cost report (steps per line, garbage, history, round trip)
 //   rvm verify prog.(rev|s)                               check the program against the contract on both engines
-//   rvm debug  prog.(rev|s) [--engine ...] [--script "s; s; rwatch x"]   debugger with step back
+//   rvm debug  prog.(rev|s) [--engine ...] [--script "s; s; rwatch x"] [--demo file]   debugger with step back (--demo: a narrated session)
 // From the repo root:  npm run rvm -- <command> ...
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 
 import { createWasmVm } from '../../web/wasm/src/index.js';
@@ -13,12 +13,12 @@ import { consoleText } from '../../lang/src/console.js';
 import { analyze, formatReport } from '../../lang/src/report.js';
 import { Debugger } from './debugger.js';
 import { loadFile } from './load.js';
-import { repl, runCommand } from './repl.js';
+import { repl, runCommand, runDemo } from './repl.js';
 import { formatVerify, verify } from './verify.js';
 
 const args = process.argv.slice(2).filter((a) => a !== '--');
 const [command, ...rest] = args;
-const valueOpts = new Set(['-o', '--asm', '--engine', '--script', '--max-steps']);
+const valueOpts = new Set(['-o', '--asm', '--engine', '--script', '--demo', '--max-steps']);
 const opt = (name: string): string | undefined => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
 const files = rest.filter((a, i) => !a.startsWith('-') && !valueOpts.has(rest[i - 1]));
 
@@ -79,7 +79,11 @@ try {
       vm.loadProgram(prog.image);
       const dbg = new Debugger(vm, prog);
       const script = opt('--script');
-      if (script) {
+      const demo = opt('--demo');
+      if (demo) {
+        await runDemo(dbg, readFileSync(demo, 'utf8'), !!process.stdin.isTTY);
+        if (process.stdin.isTTY) await repl(dbg); // then hand over to you
+      } else if (script) {
         console.log(`${name}: ${engine} engine`);
         for (const cmd of script.split(';')) {
           console.log(`(rvm) ${cmd.trim()}`);

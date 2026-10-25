@@ -23,6 +23,20 @@ describe('bundled tools', () => {
     expect(out).toMatch(/t=0 {2}line 4/);
   }, 60_000);
 
+  it('the narrated tour runs straight through (piped, so no pauses) and shows the key moments', () => {
+    const out = execFileSync(
+      process.execPath,
+      [here('dist/rvm.mjs'), 'debug', here('../lang/examples/tour.rev'), '--demo', here('../demo/tour.dbg')],
+      { cwd: tmpdir(), encoding: 'utf8' },
+    );
+    expect(out).not.toMatch(/unknown command|don't know what|needs a/);
+    expect(out).toMatch(/f was last written by line 15/);
+    expect(out).toMatch(/0 -> 1/);
+    expect(out).toMatch(/0 bytes of history/);
+    expect(out).toMatch(/big\ntotal = 36/); // the console after running to the end
+    expect(out).toMatch(/\(nothing printed yet\)/); // and un-printed again after stepping back
+  }, 60_000);
+
   it('the compiler tool reports errors with a line number and a non-zero exit', () => {
     let failed = false;
     try {

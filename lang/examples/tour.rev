@@ -1,0 +1,20 @@
+// TOUR: the whole language in one short program, built to be stepped through in the debugger.
+//   npm run rvm -- debug lang/examples/tour.rev --demo demo/tour.dbg
+// The one rule: nothing is ever overwritten. You update in place with += -= ^=, or swap with <=>.
+var a = 7, b = 2;              // variables, with starting values
+var f = 0, i = 0, n = 3;       // f will be a flag, i counts, n is how many
+var total = 0;
+var nums[3] = {4, 8, 15};      // an array, kept in memory
+out a, b, total;               // the results. Anything else left non-zero is garbage.
+
+proc bump { total += 100; }    // a procedure: run it forwards with call, backwards with uncall
+
+main {
+  total += a + b;                                                  // 1. update in place: total is now 9
+  if (total > 8) { print "big\n"; } else { print "small\n"; }      // 2. an if. No fi needed: the test survives the branches
+  if (a > b) { a <=> b; f += 1; } fi (f != 0);                     // 3. this if changes what it tests, so a flag says which way it went
+  from (i == 0) loop { total += nums[i]; i += 1; } until (i == n); // 4. a loop
+  print "total = ", total, "\n";                                   // 5. printing: the console is memory, so stepping back un-prints
+  call bump;                                                       // 6. a procedure forwards...
+  uncall bump;                                                     //    ...and backwards: it cancels out
+}

@@ -1,6 +1,7 @@
 // Text commands for the debugger. `runCommand` turns one command line into output text, so it can be tested and driven from
 // a script; `repl` wraps it in a prompt.
 import { createInterface } from 'node:readline';
+import { createInterface as createPromptInterface } from 'node:readline/promises';
 
 import { consoleText } from '../../lang/src/console.js';
 import { Debugger, type Stop, type Where, type WatchHit } from './debugger.js';
@@ -169,4 +170,28 @@ export async function repl(dbg: Debugger): Promise<void> {
     if (interactive) rl.prompt();
   }
   rl.close();
+}
+
+/**
+ * A narrated session: `script` is a list of commands with explanations. Lines starting with # are narration and are printed; every
+ * other line is a debugger command. When interactive, each command waits for Enter, so a presenter can talk between steps.
+ * (Piped or in a test, it just runs straight through.)
+ */
+export async function runDemo(dbg: Debugger, script: string, interactive: boolean): Promise<void> {
+  const rl = interactive ? createPromptInterface({ input: process.stdin, output: process.stdout }) : null;
+  console.log(`${dbg.info.file}: ${dbg.vm.kind} engine.${interactive ? ' Press Enter to run each step.' : ''}`);
+  for (const raw of script.split('\n')) {
+    const line = raw.trim();
+    if (line === '') continue;
+    if (line.startsWith('#')) {
+      console.log('\n' + line);
+      continue;
+    }
+    if (rl) await rl.question('');
+    console.log(`(rvm) ${line}`);
+    const result = runCommand(dbg, line);
+    process.stdout.write(result.out);
+    if (result.quit) break;
+  }
+  rl?.close();
 }

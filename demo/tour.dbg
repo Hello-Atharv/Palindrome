@@ -1,0 +1,36 @@
+# ===== A TOUR of the rev language and the debugger. Press Enter to run each step; lines starting with # are narration. =====
+# Run it:  npm run rvm -- debug lang/examples/tour.rev --demo demo/tour.dbg   (open lang/examples/tour.rev beside it)
+#
+# The program has not started yet. "where" shows the time and the line about to run.
+where
+# A breakpoint on line 13, the first statement of main, then "c" (continue) runs up to it.
+break 13
+c
+# "s" runs the line you are standing on and stops at the next one. Line 13 is: total += a + b
+s
+# "p" prints the variables. total is 9. Nothing was overwritten: it was updated in place.
+p
+# Line 14 is an if with no fi (its test survives the branches). It prints "big" to the console.
+s
+console
+# Line 15 swaps a and b when they are out of order, and sets a flag f. That flag is GARBAGE: the price of the swap.
+s
+p
+# THE POINT OF THE PROJECT. Who last wrote f? Run time BACKWARDS until it changes.
+rwatch f
+# We are just before f += 1 ran: f is back to 0 (the swap on the same line has happened, the flag has not). No log was kept.
+p
+# "b" steps back a whole source line. The swap undoes, and so does the "big" that line 14 printed.
+b
+p
+console
+# Time is a dial. Run forward to the end...
+c
+console
+p
+# How much history did the machine keep for all of that?
+history
+# ...and now backwards ("rc" = reverse continue). It stops at our breakpoint on line 13, and the printed text has un-printed.
+rc
+console
+# Zero bytes. That is the idea; the rest of the project is about what it costs. Now try commands yourself: help lists them, quit leaves.
