@@ -7,7 +7,7 @@ verifier, a browser UI, a VS Code extension, and a benchmark that compares the p
 Reversible computing is old (Landauer, Bennett, Janus, Pendulum). We did not invent it; we built a complete, tested stack for it
 and measured it honestly. See "What this is not" below.
 
-**See it now:** https://reversible-machine.vercel.app (pick `pong`, press Run, lose, then step back).
+**See it now:** https://reversible-machine.vercel.app (pick `pong`, press Run, lose, then step back). Short on time? Click **Tour** at the top of the app, or read [docs/TOUR.md](docs/TOUR.md): five minutes. Every command and feature is listed in [docs/REFERENCE.md](docs/REFERENCE.md), and all the documentation is also inside the app, in the **Docs** tab.
 
 ## Try it in two minutes
 ```

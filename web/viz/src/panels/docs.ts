@@ -12,7 +12,12 @@ export function docsPanel(): { el: HTMLElement; open(path: string, hash?: string
   const nav = h('nav', 'docs-nav');
   nav.setAttribute('aria-label', 'documents');
   const buttons = new Map<string, HTMLButtonElement>();
+  let group = '';
   for (const d of DOCS) {
+    if (d.group !== group) {
+      group = d.group;
+      nav.append(h('div', 'docs-group', group));
+    }
     const b = h('button', 'docs-item');
     b.type = 'button';
     b.append(h('span', 'docs-item-title', d.title), h('span', 'docs-item-blurb', d.blurb));

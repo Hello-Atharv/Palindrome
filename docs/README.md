@@ -4,7 +4,9 @@ Everything written for humans lives here, or is linked from here. Read in this o
 
 | Read | What it is |
 |---|---|
-| [GUIDE.md](GUIDE.md) | **Start here.** Every idea from zero: why normal computers forget, what reversible means, the machine, garbage, the language, what it costs. |
+| [TOUR.md](TOUR.md) | **Start here.** A five-minute guided tour of the app: what to click, what you will see, the numbers, and what it is not. |
+| [REFERENCE.md](REFERENCE.md) | Everything the toolchain can do: every command, every debugger command, every control in the app. |
+| [GUIDE.md](GUIDE.md) | Every idea from zero: why normal computers forget, what reversible means, the machine, garbage, the language, what it costs. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the pieces fit: a few shared cores, thin front ends, and the rules that keep it tidy. |
 | [LANGUAGE.md](LANGUAGE.md) | The `rev` language reference: statements, `fi`, loops, arrays, printing, the cost report. |
 | [DEMO.md](DEMO.md) | The demo script, beat by beat, and the narrated debugger segment. |

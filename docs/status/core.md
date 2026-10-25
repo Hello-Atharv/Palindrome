@@ -79,3 +79,6 @@ Updated: 2026-10-24
 - web/viz/src/panels/editor.ts: while a game is running, the current-line marker is hidden (a game is only observed at frame boundaries, where the pc is always the same line); it comes back when paused.
 - web/viz/src/programs/gradient.rev: a smooth gradient (red left to right, green top to bottom). gradient.s (the hand-written twin) is retired; pairs.test checks the picture instead.
 - spec/SPEC.md section 11 item 7: the Direction toggle is now optional (logged in CHANGELOG).
+
+## 2026-10-25 docs hub
+- docs/TOUR.md (five-minute tour, opens first) and docs/REFERENCE.md (every command, debugger command and UI control) added. The Docs tab groups documents under headings and now also bundles cli/README.md (the debugger), vscode/README.md, spec/asm_syntax.md, bench/RESULTS.md and examples/demos/README.md; a Tour button in the app header opens it. web/viz: docs.ts, panels/docs.ts, shell.ts (button + a fix: breakpoints are cleared when a program is loaded, they were silently stopping the next program).

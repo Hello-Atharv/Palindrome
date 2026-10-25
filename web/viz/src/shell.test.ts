@@ -20,6 +20,15 @@ beforeEach(async () => {
   viz = mountViz(root, vm, { programs, initialProgram: loopIndex });
 });
 
+describe('breakpoints', () => {
+  it('belong to the program they were set in: loading another one clears them, so none is left to stop it unseen', () => {
+    root.querySelector<HTMLElement>('.ed-ln[data-line="2"] .ed-num')!.click(); // the gutter, as a user clicks it
+    expect(root.querySelectorAll('.ed-ln.bp').length).toBe(1);
+    viz.loadImage('another', SAMPLES[0].build().image);
+    expect(root.querySelectorAll('.ed-ln.bp').length).toBe(0);
+  });
+});
+
 describe('shell', () => {
   it('mounts the slots and loads the first program', () => {
     for (const k of ['toolbar', 'timeline', 'side', 'left', 'code'] as const) expect(root.contains(viz.slots[k])).toBe(true);

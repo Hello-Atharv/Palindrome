@@ -286,6 +286,9 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const compareBtn = h('button', 'btn compare-btn', 'Compare engines');
   compareBtn.type = 'button';
   compareBtn.title = 'Run the program on both engines at once and compare what they keep';
+  const tourBtn = h('button', 'btn tour-btn', 'Tour');
+  tourBtn.type = 'button';
+  tourBtn.title = 'A five-minute guided tour: what to click and what you will see';
 
   // ---- DOM ----
   const slots: VizSlots = {
@@ -303,7 +306,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const brand = h('h1', 'brand', 'Palindrome');
   const tagline = h('span', 'tagline dim', 'Step forward, then back: every instruction can be undone.');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
-  header.append(brand, tagline, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn);
+  header.append(brand, tagline, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn, tourBtn);
   editor.tab.append(variant.el); // right-aligned in the editor header, level with the file name and Build and load
 
   // left: the editor with the debug bar at its foot (collapsible)
@@ -321,6 +324,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   outputPane.append(game.el, outMain, outInput);
 
   const docs = docsPanel();
+  tourBtn.addEventListener('click', () => {
+    rightTabs.select('docs'); // from Compare this also leaves it, so the tour is one click from anywhere
+    void docs.open('docs/TOUR.md');
+  });
   const rightTabs = new Tabs(
     [
       { id: 'visualisation', label: 'Visualisation', el: visualise.el },
@@ -704,6 +711,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       if (s === 'ok') {
         all((v) => v.setInputTape(EMPTY_TAPE)); // every run starts with no inputs
         program = inspectImage(name, image, source);
+        breakpoints.clear(); // a breakpoint is a code address: it means nothing in another program, and would stop it somewhere unseen
+        editor.api.setBreakpoints([]);
         program.game = entryOf(name)?.game;
         frames = program.game ? new FrameTracker(primary()) : null;
         transports.forEach((t) => t.setFrames(!!program!.game));

@@ -10,27 +10,53 @@ export interface DocEntry {
   path: string;
   title: string;
   blurb: string;
+  /** The heading it is listed under. */
+  group: string;
 }
 
-/** What the tab lists, in reading order. */
+/**
+ * What the tab lists, grouped, in reading order. A judge with five minutes reads the first group; a developer finds the rest.
+ * Package documents that live next to their code (the debugger in cli/, the extension in vscode/) are listed here too, so every
+ * document is reachable from the app.
+ */
 export const DOCS: readonly DocEntry[] = [
-  { path: 'README.md', title: 'Overview', blurb: 'What this is, how to try it, the numbers' },
-  { path: 'docs/GUIDE.md', title: 'Guide', blurb: 'Every idea from zero: start here' },
-  { path: 'docs/WRITEUP.md', title: 'Writeup', blurb: 'The story, including what went wrong' },
-  { path: 'docs/DEMO.md', title: 'Demo script', blurb: 'What to click and say, beat by beat' },
-  { path: 'docs/ARCHITECTURE.md', title: 'Architecture', blurb: 'How the pieces fit' },
-  { path: 'docs/LANGUAGE.md', title: 'The rev language', blurb: 'Statements, fi, loops, the cost report' },
-  { path: 'spec/SPEC.md', title: 'Machine spec', blurb: 'The instructions, memory map and cost model' },
-  { path: 'bench/TWINS.md', title: 'Benchmarks', blurb: 'The fair comparison, with the method' },
+  { group: 'Start here', path: 'docs/TOUR.md', title: 'Tour', blurb: 'Five minutes: what to click and what you will see' },
+  { group: 'Start here', path: 'docs/REFERENCE.md', title: 'Reference', blurb: 'Every command, control and feature' },
+  { group: 'Understand it', path: 'README.md', title: 'Overview', blurb: 'What this is, how to try it, the numbers' },
+  { group: 'Understand it', path: 'docs/GUIDE.md', title: 'Guide', blurb: 'Every idea from zero' },
+  { group: 'Understand it', path: 'docs/WRITEUP.md', title: 'Writeup', blurb: 'The story, including what went wrong' },
+  { group: 'Understand it', path: 'docs/ARCHITECTURE.md', title: 'Architecture', blurb: 'How the pieces fit' },
+  { group: 'Use it', path: 'cli/README.md', title: 'Command line and debugger', blurb: 'rvm, and every debugger command' },
+  { group: 'Use it', path: 'docs/LANGUAGE.md', title: 'The rev language', blurb: 'Statements, fi, loops, the cost report' },
+  { group: 'Use it', path: 'spec/asm_syntax.md', title: 'Assembly syntax', blurb: 'The instructions and every macro' },
+  { group: 'Use it', path: 'vscode/README.md', title: 'VS Code extension', blurb: 'Colours, errors and the cost beside each line' },
+  { group: 'Demos', path: 'docs/DEMO.md', title: 'Demo script', blurb: 'What to click and say, beat by beat' },
+  { group: 'Demos', path: 'examples/demos/README.md', title: 'Demo programs', blurb: 'The cipher, the sort, Pong, and how they work' },
+  { group: 'The contract and the numbers', path: 'spec/SPEC.md', title: 'Machine spec', blurb: 'The instructions, memory map and cost model' },
+  { group: 'The contract and the numbers', path: 'bench/TWINS.md', title: 'Benchmarks', blurb: 'The fair comparison, with the method' },
+  { group: 'The contract and the numbers', path: 'bench/RESULTS.md', title: 'Engine speed', blurb: 'How fast each engine steps and rewinds' },
 ];
 
 export const REPO_URL = 'https://github.com/Hello-Atharv/Palindrome';
 
 // Vite bundles each file as its own lazy chunk, fetched the first time it is opened.
-const sources = import.meta.glob(['../../../README.md', '../../../docs/*.md', '../../../spec/SPEC.md', '../../../bench/TWINS.md'], {
-  query: '?raw',
-  import: 'default',
-}) as Record<string, () => Promise<string>>;
+const sources = import.meta.glob(
+  [
+    '../../../README.md',
+    '../../../docs/*.md',
+    '../../../spec/SPEC.md',
+    '../../../spec/asm_syntax.md',
+    '../../../bench/TWINS.md',
+    '../../../bench/RESULTS.md',
+    '../../../cli/README.md',
+    '../../../vscode/README.md',
+    '../../../examples/demos/README.md',
+  ],
+  {
+    query: '?raw',
+    import: 'default',
+  },
+) as Record<string, () => Promise<string>>;
 
 /** The Markdown source of a document, or null if it is not bundled. */
 export async function loadDoc(path: string): Promise<string | null> {
