@@ -13,6 +13,7 @@ constexpr uint32_t kFbBase = 0x20000;
 constexpr uint32_t kFbWords = 64 * 32;
 constexpr uint32_t kInBase = 0x30000;  // RO input window
 constexpr uint32_t kInEnd = 0x40000;
+constexpr uint32_t kInLatestOff = 0xFFFF;  // window word holding the latest event (0 if none): one read, so no race
 constexpr uint32_t kMaxCodeWords = 65536;
 constexpr uint32_t kMaxDataWords = 65536;
 

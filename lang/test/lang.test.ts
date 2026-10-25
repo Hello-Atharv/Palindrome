@@ -283,10 +283,18 @@ describe('arrays, memory variables, placement and input', () => {
   });
 
   it('reads the latest key event and the event count', async () => {
-    const none = await check('var e = 0, l = 0; main { e += events; l += latest; }');
+    const none = await check('var e = 0, l = 0; main { e ^= events; l ^= latest; }');
     expect([none.get('e'), none.get('l')]).toEqual([0, 0]);
-    const some = await check('var e = 0, l = 0; main { e += events; l += latest; }', [0x57, 0x53, 0x181]);
+    const some = await check('var e = 0, l = 0; main { e ^= events; l ^= latest; }', [0x57, 0x53, 0x181]);
     expect([some.get('e'), some.get('l')]).toEqual([3, 0x181]);
+  });
+  it('rejects input anywhere but straight into a register (it can change between two reads)', () => {
+    for (const src of ['var l = 0; main { l += latest; }', 'var a = 0, b = 0; main { a ^= latest + 1; }', 'var a @ mem = 0; main { a ^= latest; }']) {
+      const r = compile(src);
+      expect(r.ok, src).toBe(false);
+      expect(r.diagnostics.map((d) => d.message).join(';'), src).toMatch(/straight into a register/);
+    }
+    expect(compile('var a = 0; main { if (latest == 5) { skip; } else { skip; } fi (a != 0); }').ok).toBe(false); // conditions never took input
   });
 
   it('initial data and memory survive a full run backwards', async () => {

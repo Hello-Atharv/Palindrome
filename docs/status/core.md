@@ -65,3 +65,8 @@ Updated: 2026-10-24
 - Stack bounds enforced in both engines (CALL/RET and inverses fault outside 0x10000..0x1FFFF); WASM rebuilt.
 - rev: a constant array index outside the array is a compile error.
 - Console: capacity limit (4,095 entries) documented in SPEC 11.9; consoleOverflowed() + rvm run warning. Not prevented at runtime (a guard needs a third scratch register in .print; open).
+
+## 2026-10-25 input race fix
+- Found by Atharv's UI report plus a key-race test: pong.rev read the input twice, so a key landing between the reads left a temporary non-zero and the logging engine failed an LND assertion. Fixed: events/latest only straight into a register (`v ^= latest;`), new window word LATEST at IN_BASE+0xFFFF (spec/input_tape.md), pong.rev records then clears from the record. web/wasm/test/keyrace.test.ts injects keys at every offset of a frame.
+- Needs from viz (Atharv): web/mock_vm/src/tape.ts must also return LATEST at window offset 0xFFFF so the mock matches the engines.
+- Open: pong.s did not fail in any of my tests, so his earlier pong.s LND report is unexplained (his later 180-session driver found none).

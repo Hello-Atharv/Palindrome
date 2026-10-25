@@ -108,14 +108,16 @@ main {
   from (lp == 0) loop {
     // ---- the paddle: read the latest key event, record it, move ----
     call draw_paddle;
-    ev ^= latest;
-    log[lp] ^= latest;
-    log[lp + 1] ^= events;
+    ev ^= latest;          // input is read straight into a register, once, and recorded: it can change between two reads
+    log[lp] ^= ev;
     if (ev == 0x57) { pp -= 0x8000000; } else { skip; }
     if (ev == 0x80) { pp -= 0x8000000; } else { skip; }
     if (ev == 0x53) { pp += 0x8000000; } else { skip; }
     if (ev == 0x81) { pp += 0x8000000; } else { skip; }
-    ev ^= latest;
+    ev ^= log[lp];         // cleared from the record, not by reading the input again
+    ev ^= events;          // the event count is recorded the same way
+    log[lp + 1] ^= ev;
+    ev ^= log[lp + 1];
     call draw_paddle;
 
     // ---- the ball: erase, move, draw ----

@@ -58,6 +58,7 @@ const IMM_MIN = -131072;
 const IMM_MAX = 131071;
 const XORI_MAX = 262143;
 const fitsImm = (v: number): boolean => v >= IMM_MIN && v <= IMM_MAX;
+const IN_LATEST = 0x3ffff; // input window: the latest event, in one word (SPEC input_tape.md)
 const IN_COUNT = 0x30001; // input window: COUNT; the latest event is at COUNT + 0x30001
 
 /** Instructions that XOR the constant c into the zero register t. */
@@ -385,6 +386,14 @@ export function generate(prog: Program, source: string, lay: Layout): Generated 
     const rop = s.op === '+=' ? 'add' : s.op === '-=' ? 'sub' : 'xor';
     if (isReg(tgt)) {
       const x = regOf(tgt.name);
+      if (e.k === 'input') { // read straight into the register: one instruction, so nothing is read twice
+        const tb = alloc();
+        ins(`xori r${tb}, ${e.which === 'latest' ? IN_LATEST : IN_COUNT}`);
+        ins(`xld r${x}, [r${tb}+0]`);
+        ins(`xori r${tb}, ${e.which === 'latest' ? IN_LATEST : IN_COUNT}`);
+        release([tb]);
+        return;
+      }
       if (e.k === 'var' && info(e.name).kind === 'reg') { ins(`${rop} r${x}, r${regOf(e.name)}`); return; }
       if (e.k === 'num') {
         const v = s.op === '+=' ? e.value | 0 : s.op === '-=' ? -e.value | 0 : e.value;
