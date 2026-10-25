@@ -19,7 +19,7 @@ main {
 ```
 npm run rvmc -- examples/rev/fib.rev --report       # compile, run on both engines, print the cost report
 npm run rvmc -- prog.rev -o prog.rvm --asm prog.s    # write the image and the generated assembly
-npm run test:lang                                    # 35 tests, run on the real engines
+npm run test:lang                                    # 73 tests, run on the real engines
 ```
 
 ## The language
