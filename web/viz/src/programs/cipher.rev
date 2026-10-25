@@ -24,6 +24,7 @@ main {
     i += 1;
   } until (i == 8);
   i -= 8;
+  print "before: ", hex screen[0], " ", hex screen[1], "\n";
 
   // one pass per block of two words
   from (i == 0) loop {
@@ -46,4 +47,5 @@ main {
     screen[i + 1] ^= y;  y ^= screen[i + 1];
     i += 2;
   } until (i == 8);
+  print "after:  ", hex screen[0], " ", hex screen[1], "\n";
 }

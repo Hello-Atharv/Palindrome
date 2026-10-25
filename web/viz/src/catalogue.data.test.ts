@@ -5,11 +5,23 @@ import { compile } from '../../../lang/src/compile';
 import { consoleText } from '../../../lang/src/console';
 import { createWasmVm } from '../../wasm/src/index';
 import { assembleHook, compileHook, programs } from './catalogue';
+import { inspectImage, learnVerdict } from './program';
 import type { ProgramEntry } from './program';
 
 const both = (e: ProgramEntry): ProgramEntry[] => [e, e.alt!];
 
 describe('the catalogue', () => {
+  it('the small teaching programs stay small enough to animate in the Visualisation tab (a print costs about 13 instructions a character, so they must not print)', () => {
+    const teaching = ['if / else', 'loop', 'nested loop', 'call / return', 'memory', 'bennett', 'my program', 'gradient', 'sort of three'];
+    for (const name of teaching) {
+      const p = programs.find((x) => x.name === name)!;
+      for (const e of [p, p.alt!]) {
+        const verdict = learnVerdict(inspectImage(e.name, e.load(), e.source));
+        expect(verdict.ok, `${e.name}: ${verdict.why}`).toBe(true);
+      }
+    }
+  });
+
   it('a program behaves the same whichever language you view it in: same game settings, same speed, same machine code', () => {
     for (const p of programs) {
       expect(p.alt!.game, p.name).toBe(p.game); // Pong keeps its frame stepping and its key-log note on the .s

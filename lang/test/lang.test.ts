@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
 
+import { formatEntry, readConsole } from '../src/console.js';
 import { compile } from '../src/compile.js';
 import { parse } from '../src/parser.js';
 import { interpret } from './interp.js';
@@ -388,7 +389,8 @@ describe('cost report', () => {
   });
 
   it('the eight-number sort in rev matches the hand-written assembly sort, and costs close to it', async () => {
-    const src = readFileSync(new URL('../../examples/rev/sort8.rev', import.meta.url), 'utf8');
+    // the comparison is about the sorting, so measure the program without its print lines (printing costs about 13 instructions a character)
+    const src = readFileSync(new URL('../../examples/rev/sort8.rev', import.meta.url), 'utf8').split('\n').filter((l) => !l.trim().startsWith('print')).join('\n');
     const c = mustCompile(src);
     const r = await analyze(c, src);
     expect(r.roundTrip).toBe(true);
@@ -399,6 +401,19 @@ describe('cost report', () => {
     // the hand-written examples/demos/sort.s is 341 instructions and 311 steps; the compiler should stay in that neighbourhood
     expect(r.steps).toBeLessThan(311 * 1.25);
     expect(r.codeWords).toBeLessThan(341 * 1.5);
+  });
+
+  it('the sort prints its list before and after and the flags, and stepping all the way back un-prints them', async () => {
+    const src = readFileSync(new URL('../../examples/rev/sort8.rev', import.meta.url), 'utf8');
+    const r = await run(mustCompile(src), 'reversible');
+    expect(r.status).toBe('halted');
+    const lines = readConsole((a, n) => r.vm.memory(a, n)).map((e) => formatEntry(e)).join('').split('\n');
+    expect(lines[0]).toBe('before: 0xb04f40 0x30cf40 0x708f40 0x20df40 0xf00f40 0x30cf40 0xc03f40 0x10ef40');
+    expect(lines[1]).toBe('sorted: 0x10ef40 0x20df40 0x30cf40 0x30cf40 0x708f40 0xb04f40 0xc03f40 0xf00f40');
+    expect(lines[2]).toMatch(/^flags:  [01]{19}$/);
+    expect(lines[2].match(/1/g)!.length).toBe(14); // the same 14 swaps as the hand-written sort
+    expect(r.vm.runTo(0)).toBe('ok');
+    expect(readConsole((a, n) => r.vm.memory(a, n))).toEqual([]);
   });
 
   it('reports an assertion the program breaks, instead of silently running', async () => {

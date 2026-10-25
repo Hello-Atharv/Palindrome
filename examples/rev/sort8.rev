@@ -3,12 +3,14 @@
 // compared with the hand-written assembly: see lang/README.md.
 // Each compare-exchange swaps if the pair is out of order, and files one bit in `garbage`: that bit is what the sort forgot.
 // Sorted list + garbage = the original list, so the program run backwards unsorts it exactly.
+// It prints the list before and after, and the 19 flags (1 = that pair was swapped): step back and the text un-prints.
 var f = 0;
 var a[8] = {0xb04f40, 0x30cf40, 0x708f40, 0x20df40, 0xf00f40, 0x30cf40, 0xc03f40, 0x10ef40};
 var garbage[19];
 out a;
 
 main {
+  print "before: ", hex a[0], " ", hex a[1], " ", hex a[2], " ", hex a[3], " ", hex a[4], " ", hex a[5], " ", hex a[6], " ", hex a[7], "\n";
   if (a[0] > a[2]) { a[0] <=> a[2]; f += 1; } fi (f != 0);
   garbage[0] ^= f; f ^= garbage[0];
   if (a[1] > a[3]) { a[1] <=> a[3]; f += 1; } fi (f != 0);
@@ -47,4 +49,6 @@ main {
   garbage[17] ^= f; f ^= garbage[17];
   if (a[5] > a[6]) { a[5] <=> a[6]; f += 1; } fi (f != 0);
   garbage[18] ^= f; f ^= garbage[18];
+  print "sorted: ", hex a[0], " ", hex a[1], " ", hex a[2], " ", hex a[3], " ", hex a[4], " ", hex a[5], " ", hex a[6], " ", hex a[7], "\n";
+  print "flags:  ", garbage[0], garbage[1], garbage[2], garbage[3], garbage[4], garbage[5], garbage[6], garbage[7], garbage[8], garbage[9], garbage[10], garbage[11], garbage[12], garbage[13], garbage[14], garbage[15], garbage[16], garbage[17], garbage[18], "\n";
 }
