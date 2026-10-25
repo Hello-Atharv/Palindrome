@@ -48,6 +48,8 @@ export interface ProgramEntry {
   source?: string;
   /** The language of `source`: assembly (default) or rev (lang/). A rev program is compiled, not assembled. */
   language?: 'asm' | 'rev';
+  /** The same program in the other language (assembly <-> rev). Each entry points at the other; only one is in the picker. */
+  alt?: ProgramEntry;
   /** Set for games: frame stepping, the frame number on the time bar, and a note with the score. */
   game?: GameInfo;
 }

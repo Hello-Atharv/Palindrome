@@ -26,8 +26,9 @@ export const BOXES = {
   MAR: { x: 330, y: 90, w: 84, h: 34 },
   MBR: { x: 330, y: 150, w: 84, h: 34 },
   CIR: { x: 0, y: 316, w: 200, h: 30 },
-  CU: { x: 0, y: 360, w: 200, h: 74 },
-  STATUS: { x: 206, y: 376, w: 80, h: 52 },
+  // the control unit sits well below the CIR and the condition box well clear of the bus, so their arrows can be seen
+  CU: { x: 0, y: 376, w: 164, h: 64 },
+  STATUS: { x: 176, y: 382, w: 80, h: 52 },
   ALU: { x: 330, y: 300, w: 220, h: 80 },
   IN: { x: 0, y: 448, w: 150, h: 30 },
   OUT: { x: 330, y: 396, w: 220, h: 52 },
@@ -62,7 +63,7 @@ export function busAnchor(n: NodeId): Pt {
 
 /** Wires that do not go through the bus. */
 const DIRECT: Record<string, Pt[]> = {
-  'CIR>CU': [P(100, 346), P(100, 360)],
+  'CIR>CU': [P(82, 346), P(82, 376)],
   'MAR>MEM': [P(414, 107), P(566, 107)],
   'MBR>MEM': [P(414, 167), P(566, 167)],
   'MEM>MBR': [P(566, 167), P(414, 167)],

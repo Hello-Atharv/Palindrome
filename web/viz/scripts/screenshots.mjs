@@ -148,11 +148,16 @@ await page.click(TAB(2));
 await shot('22-time-bar-past-capacity');
 
 // 23 Pong written in rev: frame number on the time bar, the game note, the cost report
-await load('pong (rev)');
+await load('pong');
+await page.click('.variant .seg:nth-child(2)'); // the .rev version
 await dev(() => { const v = window.__dev.viz; v.stepFrame(); v.stepFrame(); v.stepFrame(); });
-await page.click('.report .btn');
-await page.waitForFunction(() => document.querySelector('.report-text')?.textContent?.includes('round trip'), null, { timeout: 120000 });
-await shot('23-pong-rev-report');
+await shot('23-pong-rev');
+
+// 25 a custom speed
+await page.selectOption('.debugbar .transport select', 'custom');
+await page.fill('.debugbar .speed-custom-field', '2.5');
+await page.keyboard.press('Enter');
+await shot('25-custom-speed');
 
 // 24 the benchmark chart in the Compare tab
 await load('pong');

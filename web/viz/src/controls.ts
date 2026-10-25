@@ -21,6 +21,8 @@ export interface TransportActions {
   /** Stop = reset to t = 0, keeping the program. */
   stop(): void;
   setSpeed(index: number): void;
+  /** A speed typed in, in thousands of steps per second. */
+  setCustomSpeed(kps: number): void;
   setPace(p: PaceChoice): void;
   setDirection(d: Direction): void;
 }
@@ -36,7 +38,8 @@ export interface Transport {
    * else, steps per second. The caller sets the runner's speed itself.
    */
   setSpeed(mode: 'pace', value: PaceChoice): void;
-  setSpeed(mode: 'rate', value: number): void;
+  /** `custom` is a typed-in speed in thousands of steps per second, or null when one of the listed speeds is chosen. */
+  setSpeed(mode: 'rate', value: number, custom?: number | null): void;
 }
 
 const speedLabel = (r: number): string => (r === Infinity ? 'max' : r >= 1000 ? `${r / 1000}k/s` : `${r}/s`);
@@ -86,18 +89,57 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
     speed.replaceChildren(...options.map(([v, text]) => Object.assign(h('option', '', text), { value: v })));
     speed.value = value;
   };
-  const showRate = (index: number): void => {
+  // a speed of your own, in thousands of steps per second
+  const custom = h('label', 'speed-custom');
+  const customField = h('input', 'speed-custom-field mono');
+  customField.type = 'number';
+  customField.min = '0.001';
+  customField.max = '100000';
+  customField.step = 'any';
+  customField.setAttribute('aria-label', 'custom speed in thousands of steps per second');
+  custom.append(customField, h('span', 'dim', 'k/s'));
+  custom.hidden = true;
+  let curIndex = speedIndex;
+  const showRate = (index: number, kps: number | null = null): void => {
     speedMode = 'rate';
-    speed.title = 'Run speed in steps per second';
-    fill(SPEEDS.map((r, i) => [String(i), speedLabel(r)]), String(index));
+    curIndex = index;
+    speed.title = 'Run speed in steps per second, or a custom one in k/s';
+    fill([...SPEEDS.map((r, i): [string, string] => [String(i), speedLabel(r)]), ['custom', 'custom…']], kps === null ? String(index) : 'custom');
+    custom.hidden = kps === null;
+    if (kps !== null && document.activeElement !== customField) customField.value = String(kps);
   };
+  const applyCustom = (): void => {
+    const kps = Number(customField.value);
+    if (customField.value.trim() !== '' && Number.isFinite(kps) && kps > 0) a.setCustomSpeed(Math.min(kps, 100000));
+  };
+  customField.addEventListener('change', applyCustom);
+  customField.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { applyCustom(); customField.blur(); } // so the arrow keys go back to the game
+    ev.stopPropagation();
+  });
   const showPace = (p: PaceChoice): void => {
     speedMode = 'pace';
     speed.title = 'How fast the animation plays. Instant skips it.';
     fill(PACE_CHOICES.map((x) => [x, x[0].toUpperCase() + x.slice(1)]), p);
   };
   showRate(speedIndex);
-  speed.addEventListener('change', () => { speed.blur(); (speedMode === 'pace' ? a.setPace(speed.value as PaceChoice) : a.setSpeed(Number(speed.value))); });
+  speed.addEventListener('change', () => {
+    if (speedMode === 'pace') {
+      speed.blur();
+      a.setPace(speed.value as PaceChoice);
+    } else if (speed.value === 'custom') {
+      // start from the speed that was running, and let the user type over it
+      const now = SPEEDS[curIndex];
+      customField.value = String(Number.isFinite(now) ? now / 1000 : 1000);
+      custom.hidden = false;
+      applyCustom();
+      customField.focus();
+      customField.select();
+    } else {
+      speed.blur();
+      a.setSpeed(Number(speed.value));
+    }
+  });
 
   // Direction is not time travel: it makes the PROGRAM run as its own inverse (SPEC section 7).
   const dir = iconButton('reverse', 'Direction −1: run the program as its own inverse (this is not stepping back in time). Not exact for programs that read input, such as Pong: use Back there.', '', 'dir-toggle');
@@ -105,7 +147,7 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
   let d: Direction = 1;
   dir.addEventListener('click', () => a.setDirection(d === 1 ? -1 : 1));
 
-  el.append(stop, runBack, backFrame, back, step, stepFrame, run, h('span', 'tsep'), dir, speed);
+  el.append(stop, runBack, backFrame, back, step, stepFrame, run, h('span', 'tsep'), dir, speed, custom);
   return {
     el,
     setRun(m) {
@@ -125,9 +167,13 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
       backFrame.hidden = !on;
       stepFrame.hidden = !on;
     },
-    setSpeed(mode: 'pace' | 'rate', value: PaceChoice | number) {
-      if (mode === 'pace') showPace(value as PaceChoice);
-      else showRate(value as number);
+    setSpeed(mode: 'pace' | 'rate', value: PaceChoice | number, kps?: number | null) {
+      if (mode === 'pace') {
+        showPace(value as PaceChoice);
+        custom.hidden = true;
+      } else {
+        showRate(value as number, kps ?? null);
+      }
     },
   };
 }
@@ -212,4 +258,40 @@ export function buildEngineSwitch(available: readonly VmKind[], kind: VmKind, on
   };
   setKind(kind);
   return { el, setKind, setLocked };
+}
+
+export interface VariantSwitch {
+  el: HTMLElement;
+  /** Show the switch with this language pressed, or hide it (null) for a program that exists in one language only. */
+  show(current: 'asm' | 'rev' | null): void;
+}
+
+/** ".s | .rev": the same program in assembly or in the rev language. */
+export function buildVariantSwitch(onPick: (lang: 'asm' | 'rev') => void): VariantSwitch {
+  const el = h('div', 'segmented variant');
+  el.setAttribute('role', 'group');
+  el.setAttribute('aria-label', 'language of this program');
+  el.hidden = true;
+  const defs = [
+    { lang: 'asm' as const, label: '.s', tip: 'The assembly version of this program' },
+    { lang: 'rev' as const, label: '.rev', tip: 'The version written in the rev language' },
+  ];
+  const buttons = defs.map((d) => {
+    const b = h('button', 'seg mono', d.label);
+    b.type = 'button';
+    b.title = d.tip;
+    b.addEventListener('click', () => {
+      if (b.getAttribute('aria-pressed') !== 'true') onPick(d.lang);
+      b.blur();
+    });
+    el.append(b);
+    return { lang: d.lang, b };
+  });
+  return {
+    el,
+    show(current) {
+      el.hidden = current === null;
+      buttons.forEach(({ lang, b }) => b.setAttribute('aria-pressed', String(lang === current)));
+    },
+  };
 }

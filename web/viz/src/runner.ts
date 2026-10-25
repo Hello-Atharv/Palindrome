@@ -34,6 +34,8 @@ const MAX_UNDRAWN_MS = 1000;
  */
 export class Runner {
   speedIndex = DEFAULT_SPEED;
+  /** A speed typed in by the user, in steps per second. It replaces the one chosen by `speedIndex` while it is set. */
+  customHz: number | null = null;
   private mode: RunMode | null = null;
   private raf = 0;
   private last = 0;
@@ -46,6 +48,11 @@ export class Runner {
     private readonly onFrame: (status: Status, running: boolean) => void,
     private readonly options: RunnerOptions = {},
   ) {}
+
+  /** Steps per second the run is aiming for. */
+  get hz(): number {
+    return this.customHz ?? SPEEDS[this.speedIndex];
+  }
 
   get running(): boolean {
     return this.mode !== null;
@@ -88,7 +95,7 @@ export class Runner {
       this.raf = requestAnimationFrame(this.tick);
       return;
     }
-    const rate = SPEEDS[this.speedIndex];
+    const rate = this.hz;
     const deadline = now + FRAME_BUDGET_MS;
     let want: number;
     if (gate === 'single') {

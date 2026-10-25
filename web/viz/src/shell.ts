@@ -3,7 +3,7 @@ import { formatDiagnostics } from './assembler';
 import type { AssembleFn, AsmOutcome } from './assembler';
 import { FrameTracker } from '../../wasm/src/frames';
 import { FRAME_ADDR } from './constants';
-import { buildEngineSwitch, buildProgramBar, buildProgramSelect, buildTransport } from './controls';
+import { buildEngineSwitch, buildProgramBar, buildProgramSelect, buildTransport, buildVariantSwitch } from './controls';
 import type { PaceChoice } from './controls';
 import { h } from './dom';
 import { attachKeys } from './keys';
@@ -15,7 +15,6 @@ import { gamePanel } from './panels/game';
 import type { ListingApi } from './panels/editor';
 import { consolePanel } from './panels/console';
 import type { Ctx, Panel } from './panels/panel';
-import { reportPanel } from './panels/report';
 import { screenPanel } from './panels/screen';
 import { timeBarPanel, timelinePanel } from './panels/timeline';
 import { capacityFor } from './panels/timebar';
@@ -57,8 +56,6 @@ export interface VizOptions {
   assemble?: AssembleFn;
   /** The rev compiler hook (lang/src/compile.ts, adapted to the same shape). Enables Build for rev programs. */
   compile?: AssembleFn;
-  /** Cost report text for a rev program (lang/src/report.ts). Enables the Cost report button in the Output tab. */
-  report?: (source: string, name: string) => Promise<string>;
 }
 
 /** Empty containers inside the shell for other tools (the debugger) to fill. */
@@ -191,6 +188,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   let hadGame = false;
   let pace: PaceChoice = 'slow';
   let rateIndex = DEFAULT_SPEED;
+  /** A typed-in speed in thousands of steps per second, or null while one of the listed speeds is chosen. */
+  let customKps: number | null = null;
   let speedMode: 'pace' | 'rate' = 'rate';
   let restoreEditor = false;
   /** Knows where each frame ended, for a game (web/wasm/src/frames.ts). Null for every other program. */
@@ -207,7 +206,6 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const screen = screenPanel();
   const output = consolePanel();
   const game = gamePanel();
-  const report = reportPanel((src, name) => opts.report!(src, name), !!opts.report);
   const banners = bannersPanel();
   // two places to type a number for the machine (the visualisation and the output), both feed the input tape
   const numberA = numberInputPanel((n) => void api.pushInput(n));
@@ -262,8 +260,9 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     run: (m: RunMode) => api.run(m),
     pause: () => api.pause(),
     stop: () => void api.reset(),
-    setSpeed: (i: number) => { rateIndex = i; runner.speedIndex = i; syncSpeed(true); },
-    setPace: (p: PaceChoice) => { pace = p; runner.speedIndex = p === 'instant' ? INSTANT_SPEED : LEARN_SPEED; syncSpeed(true); },
+    setSpeed: (i: number) => { rateIndex = i; customKps = null; runner.speedIndex = i; runner.customHz = null; syncSpeed(true); refresh(status); },
+    setCustomSpeed: (kps: number) => { customKps = kps; runner.customHz = kps * 1000; syncSpeed(true); refresh(status); },
+    setPace: (p: PaceChoice) => { pace = p; runner.speedIndex = p === 'instant' ? INSTANT_SPEED : LEARN_SPEED; syncSpeed(true); refresh(status); },
     setDirection: (d: Direction) => void api.setDirection(d),
   };
   // the debug bar and the top of the Compare tab each have the controls; they move together
@@ -272,7 +271,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const transports = [transport, cmpTransport];
   const timeline = timelinePanel(transport, (t) => seek(t));
   const cmpTime = timeBarPanel((t) => seek(t));
-  const panels: Panel[] = [editor, screen, output, game, report, banners, timeline, cmpTime, compare, visualise, numberA, numberB];
+  const panels: Panel[] = [editor, screen, output, game, banners, timeline, cmpTime, compare, visualise, numberA, numberB];
 
   const programBar = buildProgramBar(
     programs,
@@ -284,6 +283,12 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const cmpRow = h('div', 'cmp-row');
   cmpRow.append(cmpSelect.el, cmpTransport.el);
   cmpControls.append(cmpRow, cmpTime.el);
+  // programs that exist in assembly and in rev: a switch between the two
+  const variant = buildVariantSwitch((lang) => {
+    const entry = entryOf(program?.name ?? '');
+    const target = entry && [entry, entry.alt].find((e) => e && (e.language ?? 'asm') === lang);
+    if (target) loadEntry(target);
+  });
   const compareBtn = h('button', 'btn compare-btn', 'Compare engines');
   compareBtn.type = 'button';
   compareBtn.title = 'Run the program on both engines at once and compare what they keep';
@@ -303,7 +308,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const header = h('header', 'viz-header');
   const brand = h('h1', 'brand', 'Reversible machine');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
-  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn);
+  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el, variant.el, compareBtn);
 
   // left: the editor with the debug bar at its foot (collapsible)
   const ide = h('aside', 'ide');
@@ -317,7 +322,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   outMain.append(output.el, screen.el);
   const outInput = h('div', 'out-input');
   outInput.append(numberB.el, screen.keys);
-  outputPane.append(game.el, outMain, report.el, outInput);
+  outputPane.append(game.el, outMain, outInput);
 
   const rightTabs = new Tabs(
     [
@@ -343,7 +348,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       speedMode = next;
       if (animated) runner.speedIndex = pace === 'instant' ? INSTANT_SPEED : LEARN_SPEED;
       else runner.speedIndex = rateIndex;
-      transports.forEach((t) => (animated ? t.setSpeed('pace', pace) : t.setSpeed('rate', rateIndex)));
+      runner.customHz = animated || customKps === null ? null : customKps * 1000;
+      transports.forEach((t) => (animated ? t.setSpeed('pace', pace) : t.setSpeed('rate', rateIndex, customKps)));
     }
     updateMode();
   }
@@ -442,7 +448,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
 
   // ---- state flow ----
   function updateMode(): void {
-    const fast = runState !== 'paused' && SPEEDS[runner.speedIndex] > FLASH_MAX_RATE;
+    const fast = runState !== 'paused' && runner.hz > FLASH_MAX_RATE;
     root.dataset.mode = fast ? 'heat' : 'flash';
   }
 
@@ -488,7 +494,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     const frame = vmNow.memory(FRAME_ADDR, 1)[0];
     numberB.el.hidden = !!program?.game; // a game reads keys, not typed numbers
     const frameNo = frames !== null && cur.direction > 0 ? frames.frame() : null;
-    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: rightTabs.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat', frameNo, pace, capacity: speedMode === 'pace' ? capacityFor(true, 0) : capacityFor(false, SPEEDS[runner.speedIndex]) };
+    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: rightTabs.active, stepHz: runner.hz, heat: root.dataset.mode === 'heat', frameNo, pace, capacity: speedMode === 'pace' ? capacityFor(true, 0) : capacityFor(false, runner.hz) };
     lastCtx = ctx;
     for (const p of panels) p.update(ctx);
     emit('update', { t: cur.t, maxT, branch, direction: cur.direction, snap: cur, prev, status: s });
@@ -555,10 +561,14 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const draftKey = (name: string): string => `viz.draft.${name}`;
   /** The assembler, or the rev compiler for a rev program. */
   function toolFor(name: string): AssembleFn | undefined {
-    return programs.find((p) => p.name === name)?.language === 'rev' ? opts.compile : opts.assemble;
+    return entryOf(name)?.language === 'rev' ? opts.compile : opts.assemble;
+  }
+  /** A picker entry, or the other-language twin of one. */
+  function entryOf(name: string): ProgramEntry | undefined {
+    return programs.flatMap((p) => (p.alt ? [p, p.alt] : [p])).find((p) => p.name === name);
   }
   function saveDraft(name: string, source: string): void {
-    const original = programs.find((p) => p.name === name)?.source;
+    const original = entryOf(name)?.source;
     store(draftKey(name), original === undefined || source === original ? null : source);
   }
 
@@ -567,6 +577,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     if (!p) return;
     programBar.setIndex(i);
     cmpSelect.setIndex(i);
+    loadEntry(p);
+  }
+
+  function loadEntry(p: ProgramEntry): void {
     // edits to a program are kept in the browser and come back the next time it is picked
     const draft = p.source !== undefined && toolFor(p.name) ? read(draftKey(p.name)) : null;
     if (draft !== null && api.assembleAndLoad(draft, p.name).ok) return;
@@ -668,14 +682,14 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       if (s === 'ok') {
         all((v) => v.setInputTape(EMPTY_TAPE)); // every run starts with no inputs
         program = inspectImage(name, image, source);
-        program.game = programs.find((p) => p.name === name)?.game;
+        program.game = entryOf(name)?.game;
         frames = program.game ? new FrameTracker(primary()) : null;
         transports.forEach((t) => t.setFrames(!!program!.game));
         // a frame takes hundreds of steps: a game runs fast, anything else goes back to the usual speed
-        if (program.game && !hadGame) rateIndex = GAME_SPEED;
-        else if (!program.game && hadGame) rateIndex = DEFAULT_SPEED;
+        if (program.game && !hadGame) { rateIndex = GAME_SPEED; customKps = null; }
+        else if (!program.game && hadGame) { rateIndex = DEFAULT_SPEED; customKps = null; }
         hadGame = !!program.game;
-        program.language = programs.find((p) => p.name === name)?.language;
+        program.language = entryOf(name)?.language;
         const tool = toolFor(name);
         if (source !== undefined && tool) {
           program.listing = tool(source, name).listing.map((r) => ({ addr: r.addr, line: r.line, text: r.text }));
@@ -685,7 +699,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
         if (!verdict.ok && rightTabs.active === 'visualisation') { rightTabs.select('output'); movedOffVisualisation = true; }
         else if (verdict.ok && movedOffVisualisation) { rightTabs.select('visualisation'); movedOffVisualisation = false; }
         syncSpeed(true);
-        const picked = programs.findIndex((p) => p.name === name); // -1 for a file
+        const picked = programs.findIndex((p) => p.name === name || p.alt?.name === name); // -1 for a file
+        variant.show(picked >= 0 && programs[picked].alt ? (entryOf(name)?.language ?? 'asm') : null);
         programBar.setIndex(picked);
         cmpSelect.setIndex(picked);
         notice = null;

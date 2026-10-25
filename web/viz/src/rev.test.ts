@@ -28,7 +28,7 @@ async function mount(programs: ProgramEntry[]) {
   document.body.innerHTML = '<div id="app"></div>';
   const root = document.getElementById('app')!;
   const viz = mountViz(root, await createWasmVm('reversible'), {
-    programs, createVm: createWasmVm, engines: ['logging', 'reversible'], compile: compileHook, report: async () => 'a report',
+    programs, createVm: createWasmVm, engines: ['logging', 'reversible'], compile: compileHook,
   });
   return { root, viz };
 }
@@ -37,7 +37,7 @@ describe('rev programs in the shell', () => {
   it('shows rev source with rev colours, maps the current line to the rev source, and prints to the console that rewinds', async () => {
     const { root, viz } = await mount([rev('hello (rev)', hello)]);
     expect(viz.program?.language).toBe('rev');
-    expect(root.querySelector('.ed-file')!.textContent).toBe('hello (rev).rev');
+    expect(root.querySelector('.ed-file')!.textContent).toBe('hello.rev');
     expect(root.querySelector('.ed-syn .tok-comment')).not.toBeNull();
     expect(root.querySelector('.ed-syn .tok-directive')!.textContent).toBe('var');
     expect(viz.program!.listing!.length).toBeGreaterThan(10);
@@ -52,9 +52,10 @@ describe('rev programs in the shell', () => {
     expect(consoleText((a, c) => viz.vm.memory(a, c))).toBe(''); // un-printed
   });
 
-  it('Pong in rev is a game: frame stepping works, and the cost report button is there for rev programs only', async () => {
+  it('Pong in rev is a game: frame stepping works, and there is no cost report in the Output tab', async () => {
     const { root, viz } = await mount([rev('pong (rev)', pongRev, { note: 'play' }), { name: 'plain', source: 'start: hlt\n', load: () => compile('main { }').image! }]);
-    expect(root.querySelector<HTMLElement>('.report')!.hidden).toBe(false);
+    expect(root.querySelector('.report')).toBeNull();
+    expect(root.querySelector('.out')!.textContent).not.toMatch(/cost report/i);
     viz.stepFrame();
     viz.stepFrame();
     expect(root.querySelector('.debugbar .tbar-t')!.textContent).toBe('frame2');

@@ -5,13 +5,13 @@
  */
 import { assemble } from '../../../asm/src/index';
 import { compile, formatDiagnostics as formatRevDiagnostics } from '../../../lang/src/compile';
-import { analyze, formatReport } from '../../../lang/src/report';
 import fib from '../../../examples/rev/fib.rev?raw';
 import hello from '../../../examples/rev/hello.rev?raw';
 import pongRev from '../../../examples/demos/pong.rev?raw';
 import cipher from '../../../examples/demos/cipher.s?raw';
 import pong from '../../../examples/demos/pong.s?raw';
 import sort from '../../../examples/demos/sort.s?raw';
+import sortRev from '../../../examples/rev/sort8.rev?raw';
 import call from '../../../examples/asm/call.s?raw';
 import ifelse from '../../../examples/asm/ifelse_macro.s?raw';
 import loop from '../../../examples/asm/loop_macro.s?raw';
@@ -47,13 +47,6 @@ const compileHook: AssembleFn = (source) => {
     return { addr: r.addr, word: r.word, line, text: lines[line - 1] ?? '' };
   });
   return { ok: c.ok, image: c.image, diagnostics, listing };
-};
-
-/** The cost report of a rev program as text (lang/src/report.ts runs it on fresh engines). */
-const reportHook = async (source: string, name: string): Promise<string> => {
-  const c = compile(source);
-  if (!c.ok) throw new Error(formatRevDiagnostics(`${name}.rev`, c.diagnostics));
-  return formatReport(await analyze(c, source), `${name}.rev`);
 };
 
 /** An entry compiled from rev source; compile errors become the message shown to the user. */
@@ -110,13 +103,24 @@ const programs: ProgramEntry[] = [
     note:
       'Press Run, then use W / S or the up and down arrows. The same game written in rev, with a permanent grey wall down the middle and your ' +
       'score as a number on the right: it goes up each time you return the ball. Back, Back one frame and the time bar rewind the game exactly, ' +
-      'wall and score included. Edit the source and press Build and load, and press Cost report to see what every line costs in machine steps ' +
-      'and what the program had to keep (garbage).',
+      'wall and score included. Edit the source and press Build and load.',
   }),
+  fromRev('sort (rev)', 'the same sorting network written in rev: 36 lines instead of 340; the list is in data memory, not on the screen', sortRev),
   fromRev('hello (rev)', 'a rev program that prints: step back and the text un-prints (the console, SPEC 11.9)', hello),
   fromRev('fibonacci (rev)', 'Fibonacci in rev, with nothing thrown away', fib),
   { name: 'gradient', blurb: 'fills the framebuffer in a loop (hand-built image)', load: () => gradient().image },
 ];
+
+/** A program that exists in assembly and in rev: the two are one entry in the picker, with a switch between them. */
+function pair(asmName: string, revName: string): void {
+  const i = programs.findIndex((p) => p.name === revName);
+  const [rev] = programs.splice(i, 1);
+  const asm = programs.find((p) => p.name === asmName)!;
+  asm.alt = rev;
+  rev.alt = asm;
+}
+pair('pong', 'pong (rev)');
+pair('sort', 'sort (rev)');
 
 let createVm: CreateVm = createMockVm;
 let engines: VmKind[] = ['logging'];
@@ -130,7 +134,7 @@ try {
   first = await createMockVm('logging');
 }
 
-const viz = mountViz(document.getElementById('app')!, first, { programs, createVm, engines, assemble: assembleHook, compile: compileHook, report: reportHook });
+const viz = mountViz(document.getElementById('app')!, first, { programs, createVm, engines, assemble: assembleHook, compile: compileHook });
 
 // handles for scripts/screenshots.mjs and for poking at the app from the console (dev server only)
 if (import.meta.env.DEV) Object.assign(window, { __dev: { viz, programs } });

@@ -275,7 +275,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
         } else if (info.source !== undefined) {
           name = info.name;
           language = info.language ?? 'asm';
-          fileName.textContent = `${info.name}${language === 'rev' ? '.rev' : '.s'}`;
+          fileName.textContent = `${info.name.replace(' (rev)', '')}${language === 'rev' ? '.rev' : '.s'}`;
           for (const r of info.listing ?? []) {
             if (r.line > 0 && !addrOfLine.has(r.line)) addrOfLine.set(r.line, r.addr);
             if (r.line > 0 && !lineOfAddr.has(r.addr)) lineOfAddr.set(r.addr, r.line);

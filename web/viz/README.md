@@ -30,7 +30,7 @@ program is picked again.
   Line numbers, a breakpoint gutter, the current instruction highlighted, assembler problems listed under the text.
 - **Debug bar.** Small icon buttons (stop, run back, step back, step, run/pause, reverse program) and **one speed control**: for a
   program the visualisation animates it is Slow / Normal / Fast / Instant (how fast the sphere moves; Instant skips the animation),
-  for everything else it is steps per second. A game (a program with `game` info, see below) also gets **Back one frame** and **Forward one frame**. Under it the **run-time bar**: `t N`, a track with a knob, the state. Alt+`,` step
+  for everything else it is steps per second, or **custom…**: type your own speed in thousands of steps per second (2.5 is 2,500 steps a second). A game (a program with `game` info, see below) also gets **Back one frame** and **Forward one frame**. Under it the **run-time bar**: `t N`, a track with a knob, the state. Alt+`,` step
   back, Alt+`.` step, Alt+Space run/pause, Alt+0 stop.
 - **The run-time bar** never runs the program to find its length. Its width is a capacity: 20 instructions when the animation sets
   the pace, otherwise 5 seconds at the current speed (1,000/s is 5,000 instructions; 2/s is 10; top speed is fixed at 500,000), and
@@ -53,8 +53,7 @@ program is picked again.
   does not scroll the page, and dropdowns give up focus after a change so the arrows reach the game. Direction -1 is not hidden but is
   warned about (tooltip and banner): it is not exactly self-inverse for programs that read input; use Back.
 - **rev programs.** An entry with `language: 'rev'` is compiled with `lang/src/compile.ts` (the `compile` hook of `mountViz`): the
-  editor shows rev source with rev colours, and the current line follows the compiler's line map. **Cost report** (the `report` hook,
-  `lang/src/report.ts`) runs the program on fresh engines and prints steps per line, garbage and history.
+  editor shows rev source with rev colours, and the current line follows the compiler's line map. A program that exists in both languages (pong, sort) is one entry in the picker with a **.s | .rev** switch beside it (`ProgramEntry.alt`).
 - **Output.** The console (SPEC 11.9) beside the 64x32 screen, then the ways to give the machine input: **Send a number** and
   **Send keys to the machine** (with the last key). The console reads the print buffer back out of memory at the current time with
   `lang/src/console.ts`, so stepping back un-prints; it follows new lines unless **Lock scroll** is on, and a program that never
@@ -81,10 +80,10 @@ import { mountViz } from '../../viz/src';           // also pulls in the stylesh
 const viz = mountViz(document.getElementById('app')!, vm, { programs, createVm, engines, assemble });
 ```
 `mountViz(root, vm, opts?: { programs?: ProgramEntry[]; initialProgram?: number; createVm?: CreateVm;
-engines?: readonly VmKind[]; assemble?: AssembleFn; compile?: AssembleFn; report?: (source, name) => Promise<string> })`, with
+engines?: readonly VmKind[]; assemble?: AssembleFn; compile?: AssembleFn })`, with
 `ProgramEntry = { name; blurb?; load(): Uint8Array; source?: string; language?: 'asm' | 'rev'; game?: GameInfo }`
 (`load` may throw; the message is shown). `createVm` and `engines` enable the engine switch and Compare. `assemble` enables
-**Build and load**; `compile` does the same for rev programs and `report` is their Cost report. `src/main.ts` wires `createWasmVm` (falls back
+**Build and load**; `compile` does the same for rev programs. `src/main.ts` wires `createWasmVm` (falls back
 to the mock), `asm/src/index.ts` and `lang/src/`.
 
 ## Slots (empty `div`s the debugger fills; all in `viz.slots`)
@@ -137,7 +136,7 @@ Up/Down/Left/Right = 0x80/0x81/0x82/0x83), bit 8 (0x100) set = released.
 
 ## Files
 `src/shell.ts` mount point, machines list, state flow. `src/panels/`: `editor`, `timeline` (the debug bar) and `timebar` (the run-time
-bar, its capacity and window), `visualise` with `mainmemory` (Program, Data, Stack), `console`, `game`, `report`, `bench` (the benchmark chart), `screen`/`framebuffer`, `compare`,
+bar, its capacity and window), `visualise` with `mainmemory` (Program, Data, Stack), `console`, `game`, `bench` (the benchmark chart), `screen`/`framebuffer`, `compare`,
 `numberinput`, `banners`. `src/datapath/`: `script.ts` (what moves for each instruction), `layout.ts` (geometry and routing),
 `diagram.ts` (the SVG and the sphere). `src/track.ts` (forward and back track measurement, garbage bits), `src/runner.ts` (rAF run
 loop with the animation gate and breakpoints), `src/icons.ts`, `src/controls.ts`, `src/styles/*`. `scripts/screenshots.mjs` drives the

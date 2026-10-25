@@ -192,3 +192,13 @@ cost-report path, and a drawing of bench/results.json. All in web/viz; nothing o
 - Asked of core / noticed: (1) the frame helper was enough, nothing missing. (2) `npm run test:all` does not include web/viz's tests;
   suggest adding `npm --prefix web/viz test`. (3) I could not run `npm run test:all` here: no CMake on this machine. I ran viz tests
   (82), tsc, the scanner, the layout check and the Pong check; I did not run the C++, asm, wasm, lang, cli, twins or vscode suites.
+
+## Round 4 (2026-10-25, web/viz only)
+- Datapath arrows are smaller (marker 6 -> 3.6) and the control unit and the condition box are moved clear of the CIR and the bus so their
+  arrows are visible (30+ units of wire each; a test guards it).
+- Custom speed: "custom..." in the speed menu takes thousands of steps per second (2.5 = 2,500/s); it also sets the time-bar capacity.
+- `.s | .rev` switch in the header for programs that exist in both languages: pong and sort (sort8.rev). One picker entry each
+  (`ProgramEntry.alt`). Drafts are kept per language.
+- The Cost report is gone from the Output tab (panel, hook and styles removed).
+- Compare: the two screens are as big as the card allows (up to 6x, 384 x 192).
+- Tests: viz 84/84, tsc clean, build ok, scanner 0, layout check 60/60.

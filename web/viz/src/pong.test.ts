@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { assemble } from '../../../asm/src/index';
+import { compile } from '../../../lang/src/compile';
 import pongSource from '../../../examples/demos/pong.s?raw';
 import { createWasmVm } from '../../wasm/src/index';
 import type { AssembleFn } from './assembler';
@@ -113,5 +114,75 @@ describe('keys', () => {
     expect(document.activeElement).toBe(select);
     select.dispatchEvent(new Event('change'));
     expect(document.activeElement).not.toBe(select);
+  });
+});
+
+describe('the .s / .rev switch', () => {
+  it('appears for a program that exists in both languages, loads the other one, and keeps the picker on the same entry', async () => {
+    HTMLCanvasElement.prototype.getContext = () => null;
+    Element.prototype.setPointerCapture = () => {};
+    localStorage.clear();
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app')!;
+    const revSource = 'main { }\n';
+    const asmEntry: ProgramEntry = { name: 'tiny', source: 'start: hlt\n', load: () => assemble('start: hlt\n').image! };
+    const revEntry: ProgramEntry = { name: 'tiny (rev)', source: revSource, language: 'rev', load: () => compile(revSource).image! };
+    asmEntry.alt = revEntry;
+    revEntry.alt = asmEntry;
+    const plain: ProgramEntry = { name: 'plain', source: 'start: hlt\n', load: () => assemble('start: hlt\n').image! };
+    const compileHook: AssembleFn = (source) => {
+      const c = compile(source);
+      return { ok: c.ok, image: c.image, diagnostics: [], listing: [] };
+    };
+    const viz = mountViz(root, await createWasmVm('logging'), { programs: [asmEntry, plain], createVm: createWasmVm, engines: ['logging', 'reversible'], assemble: assembleHook, compile: compileHook });
+    const sw = root.querySelector<HTMLElement>('.variant')!;
+    const pressed = () => [...sw.querySelectorAll('button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent);
+    expect(sw.hidden).toBe(false);
+    expect(pressed()).toEqual(['.s']);
+    expect(viz.program?.language).toBeUndefined();
+
+    sw.querySelectorAll('button')[1].click(); // .rev
+    expect(viz.program?.name).toBe('tiny (rev)');
+    expect(viz.program?.language).toBe('rev');
+    expect(pressed()).toEqual(['.rev']);
+    expect(root.querySelector('.ed-file')!.textContent).toBe('tiny.rev');
+    expect(root.querySelector<HTMLSelectElement>('.viz-header .program-select')!.value).toBe('0'); // still the same entry in the picker
+
+    sw.querySelectorAll('button')[0].click(); // back to .s
+    expect(viz.program?.name).toBe('tiny');
+    expect(pressed()).toEqual(['.s']);
+
+    root.querySelector<HTMLSelectElement>('.viz-header .program-select')!.value = '1'; // a program with no twin
+    root.querySelector<HTMLSelectElement>('.viz-header .program-select')!.dispatchEvent(new Event('change'));
+    expect(sw.hidden).toBe(true);
+  });
+});
+
+describe('a custom speed', () => {
+  it('can be typed in thousands of steps per second, drives the run speed and the time bar scale, and is dropped when a listed speed is chosen', async () => {
+    const { root, viz } = await mount('logging');
+    const select = root.querySelector<HTMLSelectElement>('.debugbar .transport select')!;
+    const field = root.querySelector<HTMLInputElement>('.debugbar .speed-custom-field')!;
+    expect(field.closest('.speed-custom')!.hasAttribute('hidden')).toBe(true);
+    expect([...select.options].map((o) => o.textContent).pop()).toBe('custom…');
+
+    select.value = 'custom';
+    select.dispatchEvent(new Event('change'));
+    expect(field.closest('.speed-custom')!.hasAttribute('hidden')).toBe(false);
+    field.value = '2.5'; // 2.5 k/s = 2,500 steps per second
+    field.dispatchEvent(new Event('change'));
+    expect(root.querySelector('.debugbar .tbar-label')!.textContent).toContain('full at 12,500 instructions'); // 5 seconds of it
+    expect(select.value).toBe('custom');
+    expect(root.querySelector<HTMLInputElement>('.cmp-top .speed-custom-field')!.value).toBe('2.5'); // the Compare controls follow
+
+    field.value = '-3'; // nonsense is ignored
+    field.dispatchEvent(new Event('change'));
+    expect(root.querySelector('.debugbar .tbar-label')!.textContent).toContain('12,500');
+
+    select.value = '0'; // a listed speed (1/s)
+    select.dispatchEvent(new Event('change'));
+    expect(field.closest('.speed-custom')!.hasAttribute('hidden')).toBe(true);
+    expect(root.querySelector('.debugbar .tbar-label')!.textContent).toContain('full at 5 instructions');
+    expect(viz.vm.kind).toBe('logging');
   });
 });

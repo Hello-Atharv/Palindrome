@@ -79,7 +79,7 @@ export class Diagram {
     this.el = svg;
 
     const defs = s('defs');
-    const marker = s('marker', { id: 'dp-arrow', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
+    const marker = s('marker', { id: 'dp-arrow', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 3.6, markerHeight: 3.6, orient: 'auto-start-reverse' });
     marker.append(s('path', { d: 'M0 0 L10 5 L0 10 z', class: 'dp-head' }));
     const grad = s('radialGradient', { id: 'dp-ball', cx: '35%', cy: '30%', r: '70%' });
     grad.append(s('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': 0.95 }), s('stop', { offset: '45%', class: 'dp-ball-mid' }), s('stop', { offset: '100%', class: 'dp-ball-edge' }));

@@ -150,11 +150,17 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
       return { cell, val };
     });
     const fb = framebufferView(`${ENGINES[kind].title} screen`);
-    fb.setScale(3);
+    fb.setScale(5);
     const lines = h('div', 'cmp-console mono');
     lines.setAttribute('aria-label', `${ENGINES[kind].title} console, last lines`);
     const screenRow = h('div', 'cmp-screen');
     screenRow.append(fb.el, lines);
+    // the screen is as big as the card allows: a whole number of pixels per machine pixel, up to 6 (384 x 192)
+    const fit = (): void => {
+      const w = screenRow.clientWidth;
+      if (w > 0) fb.setScale(Math.max(2, Math.min(6, Math.floor((w - 2) / 64))));
+    };
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(screenRow);
     const time = h('p', 'cmp-time dim');
     const head = h('header', 'cmp-card-head');
     head.append(h('h3', 'cmp-title', ENGINES[kind].title), h('span', 'dim', ENGINES[kind].sub));

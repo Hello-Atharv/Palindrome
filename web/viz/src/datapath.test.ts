@@ -87,7 +87,11 @@ describe('routing', () => {
   });
 
   it('uses direct wires for the control unit and the data memory', () => {
-    expect(route('CIR', 'CU')).toEqual([{ x: 100, y: 346 }, { x: 100, y: 360 }]);
+    expect(route('CIR', 'CU')).toEqual([{ x: 82, y: 346 }, { x: 82, y: 376 }]);
+    // the arrow heads are small, so the wires they sit on are long enough to show one: CIR to CU and bus to the condition box
+    expect(Math.hypot(...[0, 1].map((k) => [route('CIR', 'CU')[1].x - route('CIR', 'CU')[0].x, route('CIR', 'CU')[1].y - route('CIR', 'CU')[0].y][k]))).toBeGreaterThanOrEqual(30);
+    const toStatus = route('ALU', 'STATUS');
+    expect(Math.abs(toStatus[toStatus.length - 1].x - BUS_X)).toBeGreaterThanOrEqual(30);
     expect(route('MAR', 'MEM')[1].x).toBe(566);
   });
 

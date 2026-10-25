@@ -154,8 +154,8 @@
 .game-stats dt { color: var(--muted); }
 .game-stats dd { margin: 0; }
 
-/* ---- the cost report of a rev program ---- */
-.report { display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.report-head { display: flex; align-items: center; gap: var(--s-12); min-height: 38px; padding: 0 var(--s-8) 0 var(--s-12); background: var(--panel); border-bottom: 1px solid var(--border); }
-.report-title { margin: 0; font-size: 14px; font-weight: 600; }
-.report-text { margin: 0; padding: var(--s-8) var(--s-12); max-height: 360px; overflow: auto; font-size: 13px; line-height: 20px; white-space: pre; }
+/* ---- a speed of your own, in thousands of steps per second ---- */
+.speed-custom { display: inline-flex; align-items: center; gap: var(--s-4); margin-left: var(--s-4); }
+.speed-custom-field { width: 9ch; appearance: textfield; -moz-appearance: textfield; height: 26px; padding: 0 var(--s-8); border: 1px solid var(--muted); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 13px; }
+.speed-custom-field:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+.speed-custom-field::-webkit-inner-spin-button, .speed-custom-field::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
