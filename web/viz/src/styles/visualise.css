@@ -7,7 +7,7 @@
 .vis-main > * { min-height: 0; min-width: 0; }
 .vis-dp { display: flex; flex-direction: column; gap: var(--s-4); }
 .vis-dp .dp { flex: 1; min-height: 0; width: 100%; display: block; }
-.vis-caption { margin: 0; }
+.vis-caption { margin: 0; font-size: 12px; line-height: 1.4; }
 .vis-off { margin: var(--s-12); }
 
 /* main memory: Program, Data and Stack under headers that stay in view while their rows scroll */

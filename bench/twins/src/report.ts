@@ -25,7 +25,8 @@ function seekCost(m: Conv, cp: Checkpoints, samples = 200): { mean: number; wors
   return { mean: sum / samples, worst };
 }
 
-const sort = await runSort();
+const SORT_KS = [5, 25, 100]; // the whole sort is about 100 steps, so the intervals are small
+const sort = await runSort(undefined, SORT_KS);
 const SEED = sort.conv.stats;
 line('# Fair baselines: conventional twins vs the reversible programs');
 line();
@@ -69,6 +70,24 @@ line(`Step overhead of reversibility on this program: **${f1(sort.revSteps / SEE
 line(`The information floor for sorting 8 distinct numbers is log2(8!) = 15.3 bits; the reversible sort keeps at most 19 bits`);
 line(`(one per comparator, ${sort.garbageFlags} set this time), so it sits within a few bits of the floor. The tight diary keeps`);
 line(`${f0(sortTightB * 8)} bits, because it logs overwritten *values*, not the one bit of *why*.`);
+line();
+line('### Memory against the time to go back (sort, whole run)');
+line();
+line('| strategy | memory held after the run | to go back 1 step | to seek to an arbitrary earlier time (mean / worst) |');
+line('|---|---|---|---|');
+line(`| naive diary (reversible program) | ${f0(sort.historyNaive)} B | 1 undo step | ${f0(sort.revSteps / 2)} / ${f0(sort.revSteps)} undo steps |`);
+line(`| tight diary (conventional twin) | ${f0(sortTightB)} B | 1 undo step | ${f0(SEED.steps / 2)} / ${f0(SEED.steps)} undo steps |`);
+const sortCheckpointRows: { everySteps: number; bytes: number; snapshots: number; meanReplaySteps: number; worstReplaySteps: number }[] = [];
+for (const K of SORT_KS) {
+  const cp = sort.checkpoints.get(K)!;
+  const sc = seekCost(sort.conv, cp);
+  sortCheckpointRows.push({ everySteps: K, bytes: cp.bytes(SEED.writtenWords), snapshots: cp.snaps.length, meanReplaySteps: sc.mean, worstReplaySteps: sc.worst });
+  line(`| checkpoint every ${f0(K)} steps | ${f0(cp.bytes(SEED.writtenWords))} B (${cp.snaps.length} snapshots x ${f0((16 + 1 + SEED.writtenWords) * 4)} B) | up to ${f0(K - 1)} steps of replay | ${f0(sc.mean)} / ${f0(sc.worst)} steps of replay |`);
+}
+const sortGarbageBytes = sort.garbageFlags * 4;
+line(`| **reversible** | **${f0(sortGarbageBytes)} B** (${sort.garbageFlags} flag words; 0 B in the machine) | 1 inverse step | ${f0(sort.revSteps / 2)} / ${f0(sort.revSteps)} inverse steps |`);
+line();
+line('The sort is short (about 100 steps), so every number here is small and a snapshot is a large part of the whole run. One sort, one input.');
 line();
 
 // ---- pong ----
@@ -155,6 +174,9 @@ const results = {
     garbageFlagsSet: sort.garbageFlags, garbageFlagsPossible: 19,
     bitsErasedWorstCase: SEED.bitsErased,
     naiveDiaryBytes: sort.historyNaive, fullWidthDiaryBytes: SEED.bitsErased / 8, tightDiaryBytes: sortTightB, reversibleMachineHistoryBytes: 0,
+    reversibleGarbageBytes: sortGarbageBytes,
+    checkpoints: sortCheckpointRows,
+    seekMeanSteps: { naiveDiary: sort.revSteps / 2, tightDiary: SEED.steps / 2, reversible: sort.revSteps / 2 },
   },
   pong: {
     frames: pong.frames, keyEvents: nEvents, hits: pong.hits,

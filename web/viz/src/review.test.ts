@@ -178,7 +178,7 @@ describe('the offline baselines in the Compare table', () => {
     expect(offlineBaselines('pong (rev)')!.tight).toEqual(pong.tight); // either language is the same program
     const sort = offlineBaselines('sort')!;
     expect(sort.tight[0]).toBe('269 B for the whole run');
-    expect(sort.checkpoint).toBeNull(); // not measured for sort
+    expect(sort.checkpoint![0]).toBe('200 to 2,100 B for the whole run');
     expect(sort.naiveVsTight).toContain('269 B for the same program, against 14,928 B for the naive diary');
     expect(offlineBaselines('loop')).toBeNull();
   });
@@ -232,11 +232,11 @@ describe('the Virtual Machine History Over Time section', () => {
     expect(root.querySelector('.cmp-table-note')!.textContent).toContain('200 frames of Pong with 105 key presses');
   });
 
-  it('fills the tight diary row for sort, and says checkpointing was not measured for it', async () => {
+  it('fills the tight diary and checkpoint rows for sort from the benchmark', async () => {
     const root = await measure('sort');
     const r = rows(root);
     expect(r[3][1]).toBe('269 B for the whole run');
-    expect(r[4][1]).toBe('not measured for sort: see Benchmarks');
+    expect(r[4][1]).toBe('200 to 2,100 B for the whole run');
   });
 
   it('the tables are real tables to assistive technology, and the summary is announced', async () => {

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { assemble } from '../../../asm/src/index.js';
 import { createWasmVm, type WasmVm } from '../../../web/wasm/src/index.js';
 import { Checkpoints } from './baselines.js';
-import { Conv, FB, assembleConv, runAll } from './conv.js';
+import { Conv, FB, assembleConv } from './conv.js';
 import { SORT_INPUT, pongTwin, sortTwin } from './twins.js';
 
 const program = (name: string): string => readFileSync(new URL(`../../../examples/demos/${name}`, import.meta.url), 'utf8');
@@ -35,9 +35,10 @@ export interface SortRun {
   convRow0: number[];
   conv: Conv;
   historyNaive: number;
+  checkpoints: Map<number, Checkpoints>;
 }
 
-export async function runSort(input: number[] = SORT_INPUT): Promise<SortRun> {
+export async function runSort(input: number[] = SORT_INPUT, checkpointIntervals: number[] = []): Promise<SortRun> {
   const source = program('sort.s').replace(/^arr:.*$/m, `arr:    .word  ${input.map((x) => '0x' + x.toString(16)).join(', ')}`);
   const rev = await loadRev('reversible', source);
   const log = await loadRev('logging', source);
@@ -49,7 +50,11 @@ export async function runSort(input: number[] = SORT_INPUT): Promise<SortRun> {
   const twin = assembleConv(sortTwin(input));
   const conv = new Conv(twin);
   conv.diary = true;
-  runAll(conv);
+  const cps = new Map(checkpointIntervals.map((k) => [k, new Checkpoints(k)]));
+  for (;;) {
+    for (const c of cps.values()) c.before(conv);
+    if (conv.step() !== 'ok') break;
+  }
   const row0 = Array.from(conv.fb.slice(0, 8));
   const out: SortRun = {
     input,
@@ -62,6 +67,7 @@ export async function runSort(input: number[] = SORT_INPUT): Promise<SortRun> {
     convRow0: row0,
     conv,
     historyNaive: log.vm.historyBytes,
+    checkpoints: cps,
   };
   rev.vm.destroy();
   log.vm.destroy();
