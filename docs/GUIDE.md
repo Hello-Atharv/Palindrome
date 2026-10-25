@@ -243,8 +243,8 @@ forwards again reproduced the identical states.
 
 ## 12. How we know it works (and what we don't know)
 
-- **225 automated tests** across the C++ engines (3), assembler (76), browser engine (72), language/compiler (43), command line (14),
-  benchmark baselines (9), VS Code extension (8).
+- **About 430 automated tests** across the C++ engines (3 test programs), assembler (87), browser engine (95), language/compiler (73), command line (21),
+  benchmark baselines (9), VS Code extension (9), browser UI (85) and its mock VM (55).
 - **Two engines compared after every action**, including random time jumps.
 - **A separate interpreter of the language** (`lang/test/interp.ts`) as an independent reference for the compiler.
 - **Mutation checks:** we deliberately broke code (an instruction's undo, a compiler layout) and confirmed tests failed.

@@ -19,7 +19,8 @@ That compiles a sort written in `rev`, runs it, then runs it **backwards** to th
 npm run rvm -- report examples/demos/pong.rev     # what every source line of Pong costs, and the garbage it keeps
 npm run rvm -- verify examples/demos/pong.rev     # both engines, 200 random time jumps, exact undo, direction -1
 npm run viz                                 # the browser UI: play Pong, scrub time, edit rev live, compare engines
-npm run test:all                            # all 219 tests (about a minute)
+npm run test:all                            # engines, assembler, compiler, CLI, extension, benchmarks (about 300 tests, about a minute)
+npm run check                               # test:all plus the browser UI and its mock VM (run this before every push)
 ```
 
 ## What is in the box
