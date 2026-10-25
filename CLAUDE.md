@@ -62,6 +62,7 @@ Underlying: `cmake --preset default`, `cmake --build --preset default`, `ctest -
   logic lives in shared code (`lang/`, `asm/`, `web/wasm/`, `cli/`), and `web/viz` only calls it through one thin glue file. When core
   must touch an existing `web/viz` file, it is one small commit announced in `docs/status/core.md` first, and the UI owner leaves that file alone until it is merged.
 - **Shared files** (root `package.json`, `CLAUDE.md`, `spec/`, `docs/`): edit in a commit of their own, say so in your status file.
+- **`vercel.json` (repo root) must stay.** The live site builds `web/viz` from `main` through it; without it Vercel runs the C++ `npm run build` and every deploy fails.
 - **Never force-push** a shared branch. If a push is refused, push to a new branch name and tell the other person.
 - A spec or input-format change updates `spec/CHANGELOG.md`, the engines, the mock VM and the docs together, in one commit or one announced set.
 
