@@ -55,5 +55,15 @@ Underlying: `cmake --preset default`, `cmake --build --preset default`, `ctest -
 `cd asm && npm install && npm run build`, then `node asm/dist/cli.js prog.s -o prog.rvm`. Run a program with
 `build/default/rvm_run prog.rvm --engine reversible --rewind` (built by `npm run build` at the root). Syntax: `spec/asm_syntax.md`.
 
+## Merge hygiene (so the final merge is boring)
+- **Short branches.** Branch from the latest `scaffold`; before every push run `git fetch && git merge origin/scaffold`, then `npm run check`
+  (typecheck + all tests, including `web/viz` and `web/mock_vm`). Push at least every few hours; no long-lived branches.
+- **Disjoint files.** The UI owner edits existing files in `web/viz` for layout, style and polish. Core never rewrites those files: core's
+  logic lives in shared code (`lang/`, `asm/`, `web/wasm/`, `cli/`), and `web/viz` only calls it through one thin glue file. When core
+  must touch an existing `web/viz` file, it is one small commit announced in `docs/status/core.md` first, and the UI owner leaves that file alone until it is merged.
+- **Shared files** (root `package.json`, `CLAUDE.md`, `spec/`, `docs/`): edit in a commit of their own, say so in your status file.
+- **Never force-push** a shared branch. If a push is refused, push to a new branch name and tell the other person.
+- A spec or input-format change updates `spec/CHANGELOG.md`, the engines, the mock VM and the docs together, in one commit or one announced set.
+
 ## Git workflow
 Branch from `scaffold` (later `main`): `git checkout -b <role>/<topic>`. Commit small, rebase often. Directories have one owner, so merges should not conflict; if one does, ask. Do not rewrite shared branches. `build/` and `node_modules/` are ignored.

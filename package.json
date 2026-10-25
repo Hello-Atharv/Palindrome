@@ -20,6 +20,7 @@
     "test:vscode": "npm --prefix vscode test",
     "build:vscode": "npm --prefix vscode run build",
     "setup": "npm --prefix asm install && npm --prefix web/wasm install && npm --prefix lang install && npm --prefix cli install && npm --prefix bench/twins install && npm --prefix vscode install && npm run build:asm && npm run build:cli",
+    "check": "npm run test:all && npm --prefix web/viz run typecheck && npm --prefix web/viz test && npm --prefix web/mock_vm test",
     "test:all": "npm test && npm run test:asm && npm run test:wasm && npm run test:lang && npm run test:cli && npm run test:twins && npm run test:vscode",
     "build:cli": "npm --prefix cli run build",
     "viz": "npm --prefix web/viz run dev",
