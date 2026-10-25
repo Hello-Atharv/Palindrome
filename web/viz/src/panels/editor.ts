@@ -5,6 +5,8 @@ import { tokenize } from '../highlight';
 import type { Language } from '../highlight';
 import { icon } from '../icons';
 import type { Ctx, Panel } from './panel';
+import { checkRev, costReport } from '../revtools';
+import type { RevDiagnostic } from '../revtools';
 
 const LINE_H = 20;
 
@@ -94,7 +96,10 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
 
   const problems = h('ul', 'ed-problems mono');
   problems.hidden = true;
-  el.append(tab, scroll, problems);
+  const report = h('pre', 'ed-report mono'); // rev only: the per-line cost report, filled after Build
+  report.hidden = true;
+  report.setAttribute('aria-label', 'cost report');
+  el.append(tab, scroll, problems, report);
 
   let program: object | null | undefined;
   let name = 'program';
@@ -175,6 +180,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
     dirty.hidden = true;
     errorLines = new Set();
     problems.hidden = true;
+    report.hidden = true;
     size();
     paintGutter();
   }
@@ -187,11 +193,10 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
     }
   }
 
-  const buildNow = (): void => {
-    const out = hooks.onAssemble(text.value, name);
-    errorLines = new Set(out.diagnostics.filter((d) => d.severity === 'error' && d.line > 0).map((d) => d.line));
+  function showProblems(diagnostics: readonly RevDiagnostic[]): void {
+    errorLines = new Set(diagnostics.filter((d) => d.severity === 'error' && d.line > 0).map((d) => d.line));
     problems.replaceChildren(
-      ...out.diagnostics.map((d) => {
+      ...diagnostics.map((d) => {
         const li = h('li', `prob ${d.severity}`);
         li.append(icon(d.severity === 'error' ? 'cross' : 'warn', 14), h('span', '', `${d.line > 0 ? `Line ${d.line}: ` : ''}${d.message}`));
         if (d.line > 0) {
@@ -202,9 +207,31 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
         return li;
       }),
     );
-    problems.hidden = out.diagnostics.length === 0;
-    if (out.ok) dirty.hidden = true;
+    problems.hidden = diagnostics.length === 0;
     paintGutter();
+  }
+
+  const buildNow = (): void => {
+    const out = hooks.onAssemble(text.value, name);
+    showProblems(out.diagnostics);
+    if (out.ok) dirty.hidden = true;
+    report.hidden = true;
+    if (out.ok && language === 'rev') {
+      const built = text.value;
+      void costReport(built, fileName.textContent ?? 'program.rev').then((txt) => {
+        if (text.value !== built) return; // edited since: the numbers would be for other code
+        report.textContent = txt;
+        report.hidden = txt === '';
+      });
+    }
+  };
+
+  // rev: check the text shortly after typing stops (compile only, nothing is loaded)
+  let liveTimer: ReturnType<typeof setTimeout> | undefined;
+  const liveCheck = (): void => {
+    clearTimeout(liveTimer);
+    if (language !== 'rev') return;
+    liveTimer = setTimeout(() => showProblems(checkRev(text.value)), 300);
   };
 
   function selectLine(line: number): void {
@@ -224,9 +251,11 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
   });
   text.addEventListener('input', () => {
     dirty.hidden = false;
+    report.hidden = true; // its numbers belong to the code that was built
     size();
     paintGutter();
     hooks.onEdit?.(text.value, name);
+    liveCheck();
   });
 
   gutter.addEventListener('click', (ev) => {

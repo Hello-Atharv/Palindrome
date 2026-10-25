@@ -98,6 +98,7 @@
 .tok-number { color: #b5cea8; }
 .tok-cond { color: #ce9178; }
 .ed-problems { flex: none; max-height: 110px; overflow: auto; margin: 0; padding: var(--s-4) 0; list-style: none; border-top: 1px solid var(--border); font-size: 13px; }
+.ed-report { flex: none; max-height: 180px; overflow: auto; margin: 0; padding: var(--s-4) var(--s-12); border-top: 1px solid var(--border); font-size: 12px; white-space: pre; color: var(--muted); }
 .prob { display: flex; align-items: center; gap: var(--s-8); padding: 2px var(--s-12); cursor: pointer; }
 .prob.error { color: var(--fault); }
 .prob.warning { color: var(--fwd); }
