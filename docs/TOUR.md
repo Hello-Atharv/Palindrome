@@ -4,7 +4,7 @@
 overwritten, so the past is always recoverable from the present. This page is a guided tour of what you can do in this app, what it
 shows, and what it costs. Everything here is measured; the limits are at the end.
 
-## Try it in two minutes
+## Try it out
 Everything below happens in this app. The picker at the top right chooses the program.
 
 1. **Play, lose, rewind.** Pick **pong** and press **Run forward**. Play with **W / S** or the arrow keys (keep the **Output** tab
