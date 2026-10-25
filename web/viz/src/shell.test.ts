@@ -150,7 +150,8 @@ describe('editor hooks', () => {
 describe('layout', () => {
   it('has three tabs on the right and an editor with the debug bar on the left', () => {
     const tabs = [...root.querySelectorAll('.work > .tabs .tab')].map((t) => t.textContent);
-    expect(tabs).toEqual(['Visualisation', 'Output', 'Compare']);
+    expect(tabs).toEqual(['Visualisation', 'Output', 'Compare']); // the third button is hidden: Compare is a mode
+    expect([...root.querySelectorAll<HTMLElement>('.work > .tabs .tab')].filter((t) => !t.hidden)).toHaveLength(2);
     expect(root.querySelector('.ide .editor')).not.toBeNull();
     expect(root.querySelector('.ide .debugbar .transport')).not.toBeNull();
     expect(root.querySelector('.debugbar .tbar-track')).not.toBeNull();

@@ -7,6 +7,8 @@ export interface TabDef {
   /** Shown but not selectable (for features that need something that does not exist yet). */
   disabled?: boolean;
   title?: string;
+  /** No button in the tab bar: the pane is reached some other way (the Compare engines button). */
+  hidden?: boolean;
 }
 
 /** A tab bar plus panes. Only the selected pane is visible; panes keep their DOM and state when hidden. */
@@ -26,6 +28,7 @@ export class Tabs {
       b.setAttribute('role', 'tab');
       if (d.title) b.title = d.title;
       if (d.disabled) b.disabled = true;
+      if (d.hidden) b.hidden = true;
       b.addEventListener('click', () => this.select(d.id));
       this.bar.append(b);
       this.buttons.set(d.id, b);

@@ -42,7 +42,8 @@ for (const [w, h] of WINDOWS) {
         const p = programs.find((q) => q.name === 'add two numbers');
         viz.loadImage(p.name, p.load(), p.source);
       });
-      await page.click(`.work > .tabs .tab:nth-child(${n})`);
+      if (tab === 'compare') await page.click('.compare-btn');
+      else await page.click(`.work > .tabs .tab:nth-child(${n})`);
       await page.waitForTimeout(tab === 'compare' ? 700 : 250);
       const where = `${w}x${h}, editor dragged to ${x ?? 'n/a'}px, ${tab} tab`;
       const rect = (sel) => page.locator(sel).first().boundingBox().catch(() => null);
@@ -98,6 +99,7 @@ for (const [w, h] of WINDOWS) {
       // 5. the page itself does not scroll sideways
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (sideways > 0) failures.push(`${where}: the page scrolls sideways by ${sideways}px`);
+      if (tab === 'compare') await page.click('.compare-btn'); // back to the IDE for the next layout
     }
   }
   await page.close();

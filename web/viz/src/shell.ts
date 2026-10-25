@@ -323,7 +323,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     [
       { id: 'visualisation', label: 'Visualisation', el: visualise.el },
       { id: 'output', label: 'Output', el: outputPane },
-      { id: 'compare', label: 'Compare', el: compare.el, disabled: !canCompare, title: canCompare ? 'Run both engines side by side' : 'Needs both engines: the WebAssembly build (web/wasm)' },
+      // Compare is a mode, not a tab: the header button switches between it and the normal IDE
+      { id: 'compare', label: 'Compare', el: compare.el, disabled: !canCompare, hidden: true },
     ],
     'visualisation',
   );
@@ -352,6 +353,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   rightTabs.onChange((id) => {
     const comparing = id === 'compare';
     compareBtn.setAttribute('aria-pressed', String(comparing));
+    compareBtn.textContent = comparing ? 'Back to the IDE' : 'Compare engines';
+    rightTabs.bar.hidden = comparing; // nothing to choose between while comparing
     if (comparing && machines.length < 2) {
       restoreEditor = root.dataset.ide === 'open';
       if (restoreEditor) setSidebar(false, false);
