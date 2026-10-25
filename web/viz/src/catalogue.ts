@@ -60,7 +60,8 @@ export const compileHook: AssembleFn = (source) => {
     const line = c.lineMap![r.line - 1] ?? 0;
     return { addr: r.addr, word: r.word, line, text: lines[line - 1] ?? '' };
   });
-  return { ok: c.ok, image: c.image, diagnostics, listing };
+  const variables = c.vars.map((v) => ({ name: v.name, reg: v.reg, addr: v.addr, size: v.size, init: v.init, isOut: v.isOut }));
+  return { ok: c.ok, image: c.image, diagnostics, listing, variables };
 };
 
 /** An entry compiled from rev source; compile errors become the message shown to the user. */
