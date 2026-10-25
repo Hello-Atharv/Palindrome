@@ -27,12 +27,14 @@ export function readVars(c: Compiled, vm: WasmVm): State {
 }
 
 /** Run to the HLT on the given engine, with `input` pushed as key events before the first step. */
-export async function run(r: Compiled, kind: 'logging' | 'reversible' = 'reversible', input: number[] = []): Promise<Ran> {
+export async function run(r: Compiled, kind: 'logging' | 'reversible' = 'reversible', input: number[] = [], maxSteps = 3_000_000): Promise<Ran> {
   const vm = await createWasmVm(kind);
   if (vm.loadProgram(r.image) !== 'ok') throw new Error('load failed');
   const startMem = vm.memory(0, 0x20800);
   for (const v of input) vm.pushInput(v);
   let status = 'ok';
-  while ((status = vm.stepForward()) === 'ok') { /* run */ }
+  for (let n = 0; (status = vm.stepForward()) === 'ok'; n++) {
+    if (n >= maxSteps) { status = 'limit'; break; } // a runaway program is a failure, not a hang
+  }
   return { vm, vars: readVars(r, vm), steps: vm.instructionCount, status, startMem };
 }
