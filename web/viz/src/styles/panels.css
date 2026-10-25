@@ -146,3 +146,16 @@
 .numin-seen { font-size: 13px; }
 .numin-error { color: var(--fault); font-size: 13px; }
 .vis > .numin { flex: none; padding: var(--s-4) var(--s-12); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+
+/* ---- a game: what to do, and the frame, the score and the input log ---- */
+.game { display: flex; flex-direction: column; gap: var(--s-8); padding: var(--s-12) var(--s-16); background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--flash); border-radius: var(--radius); }
+.game-note { margin: 0; max-width: 78ch; line-height: 1.45; }
+.game-stats { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-4) var(--s-16); margin: 0; }
+.game-stats dt { color: var(--muted); }
+.game-stats dd { margin: 0; }
+
+/* ---- the cost report of a rev program ---- */
+.report { display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.report-head { display: flex; align-items: center; gap: var(--s-12); min-height: 38px; padding: 0 var(--s-8) 0 var(--s-12); background: var(--panel); border-bottom: 1px solid var(--border); }
+.report-title { margin: 0; font-size: 14px; font-weight: 600; }
+.report-text { margin: 0; padding: var(--s-8) var(--s-12); max-height: 360px; overflow: auto; font-size: 13px; line-height: 20px; white-space: pre; }

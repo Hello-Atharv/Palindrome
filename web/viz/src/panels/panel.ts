@@ -32,6 +32,8 @@ export interface Ctx {
   heat: boolean;
   /** How the sphere moves (the one speed control in the debug bar): slow, normal, fast, or instant (no animation while running). */
   pace: 'slow' | 'normal' | 'fast' | 'instant';
+  /** For a game: the number of frames completed by now (SPEC 11.7); null otherwise or while the direction is -1. */
+  frameNo: number | null;
   /** The run capacity of the time bar, in instructions (see timebar.ts). */
   capacity: number;
   /** A message about the last load/assemble attempt that failed (null when fine). */

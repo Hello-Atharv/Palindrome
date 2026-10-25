@@ -11,6 +11,8 @@ const ICONS = {
   stop: { d: 'M3.5 3.5h9v9h-9z', fill: true },
   step: { d: 'M3 2.5v11l7.5-5.5zM11.5 2.5h2v11h-2z', fill: true },
   stepBack: { d: 'M13 2.5v11L5.5 8zM2.5 2.5h2v11h-2z', fill: true },
+  stepFrame: { d: 'M2 2.5v11l5.5-5.5zM8 2.5v11l5.5-5.5zM14 2.5v11', fill: false },
+  backFrame: { d: 'M14 2.5v11L8.5 8zM8 2.5v11L2.5 8zM2 2.5v11', fill: false },
   reverse: { d: 'M2 5.5h10M9 2.5l3 3-3 3M14 10.5H4M7 7.5l-3 3 3 3' },
   sidebar: { d: 'M2 3h12v10H2zM6 3v10' },
   check: { d: 'M3 8.5l3.5 3.5L13 4.5' },

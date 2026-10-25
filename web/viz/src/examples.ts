@@ -1,5 +1,5 @@
 /**
- * Example programs written for this UI (the demo programs of the project live in programs/ and asm/examples/).
+ * Example programs written for this UI (the demo programs of the project live in examples/demos/ and examples/asm/).
  * Each is assembly source in the syntax of spec/asm_syntax.md.
  */
 

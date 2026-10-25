@@ -13,6 +13,9 @@ export const PACE_CHOICES: readonly PaceChoice[] = ['slow', 'normal', 'fast', 'i
 export interface TransportActions {
   step(): void;
   stepBack(): void;
+  /** Games only: run to the end of this frame / go back to the start of it (or of the one before). */
+  stepFrame(): void;
+  backFrame(): void;
   run(mode: RunMode): void;
   pause(): void;
   /** Stop = reset to t = 0, keeping the program. */
@@ -26,6 +29,8 @@ export interface Transport {
   el: HTMLElement;
   setRun(mode: RunMode | null): void;
   setDirection(d: Direction): void;
+  /** Show the frame buttons (for a program that counts frames). */
+  setFrames(on: boolean): void;
   /**
    * The one speed control. For a program with the animation it offers Slow / Normal / Fast / Instant; for everything
    * else, steps per second. The caller sets the runner's speed itself.
@@ -59,12 +64,18 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
   const runBack = iconButton('playBack', 'Run backwards in time', '', 'run-back');
   const back = iconButton('stepBack', 'Step back one instruction', 'Alt+,');
   const step = iconButton('step', 'Step forward one instruction', 'Alt+.');
+  const backFrame = iconButton('backFrame', 'Back one frame', '', 'frame-btn');
+  const stepFrame = iconButton('stepFrame', 'Forward one frame', '', 'frame-btn');
+  backFrame.hidden = true;
+  stepFrame.hidden = true;
   const run = iconButton('play', 'Run forward', 'Alt+Space', 'run-fwd');
   let mode: RunMode | null = null;
 
   stop.addEventListener('click', () => a.stop());
   runBack.addEventListener('click', () => (mode === 'back' ? a.pause() : a.run('back')));
   back.addEventListener('click', () => a.stepBack());
+  backFrame.addEventListener('click', () => a.backFrame());
+  stepFrame.addEventListener('click', () => a.stepFrame());
   step.addEventListener('click', () => a.step());
   run.addEventListener('click', () => (mode === 'forward' ? a.pause() : a.run('forward')));
 
@@ -86,15 +97,15 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
     fill(PACE_CHOICES.map((x) => [x, x[0].toUpperCase() + x.slice(1)]), p);
   };
   showRate(speedIndex);
-  speed.addEventListener('change', () => (speedMode === 'pace' ? a.setPace(speed.value as PaceChoice) : a.setSpeed(Number(speed.value))));
+  speed.addEventListener('change', () => { speed.blur(); (speedMode === 'pace' ? a.setPace(speed.value as PaceChoice) : a.setSpeed(Number(speed.value))); });
 
   // Direction is not time travel: it makes the PROGRAM run as its own inverse (SPEC section 7).
-  const dir = iconButton('reverse', 'Direction −1: run the program as its own inverse (this is not stepping back in time)', '', 'dir-toggle');
+  const dir = iconButton('reverse', 'Direction −1: run the program as its own inverse (this is not stepping back in time). Not exact for programs that read input, such as Pong: use Back there.', '', 'dir-toggle');
   dir.setAttribute('aria-pressed', 'false');
   let d: Direction = 1;
   dir.addEventListener('click', () => a.setDirection(d === 1 ? -1 : 1));
 
-  el.append(stop, runBack, back, step, run, h('span', 'tsep'), dir, speed);
+  el.append(stop, runBack, backFrame, back, step, stepFrame, run, h('span', 'tsep'), dir, speed);
   return {
     el,
     setRun(m) {
@@ -109,6 +120,10 @@ export function buildTransport(a: TransportActions, speedIndex: number): Transpo
     setDirection(next) {
       d = next;
       dir.setAttribute('aria-pressed', String(next === -1));
+    },
+    setFrames(on) {
+      backFrame.hidden = !on;
+      stepFrame.hidden = !on;
     },
     setSpeed(mode: 'pace' | 'rate', value: PaceChoice | number) {
       if (mode === 'pace') showPace(value as PaceChoice);
@@ -132,7 +147,7 @@ export function buildProgramSelect(programs: ProgramEntry[], onSample: (i: numbe
     if (p.blurb) o.title = p.blurb;
     select.append(o);
   });
-  select.addEventListener('change', () => onSample(Number(select.value)));
+  select.addEventListener('change', () => { onSample(Number(select.value)); select.blur(); }); // so the arrow keys reach the game
   return { el: select, setIndex: (i) => { select.value = String(i); } };
 }
 

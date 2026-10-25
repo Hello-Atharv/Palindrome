@@ -1,6 +1,7 @@
 import type { CreateVm, Direction, RVM, Status, VmKind } from '../../../spec/vm_api';
 import { formatDiagnostics } from './assembler';
 import type { AssembleFn, AsmOutcome } from './assembler';
+import { FrameTracker } from '../../wasm/src/frames';
 import { FRAME_ADDR } from './constants';
 import { buildEngineSwitch, buildProgramBar, buildProgramSelect, buildTransport } from './controls';
 import type { PaceChoice } from './controls';
@@ -10,9 +11,11 @@ import type { Machine } from './machines';
 import { bannersPanel } from './panels/banners';
 import { comparePanel } from './panels/compare';
 import { editorPanel } from './panels/editor';
+import { gamePanel } from './panels/game';
 import type { ListingApi } from './panels/editor';
 import { consolePanel } from './panels/console';
 import type { Ctx, Panel } from './panels/panel';
+import { reportPanel } from './panels/report';
 import { screenPanel } from './panels/screen';
 import { timeBarPanel, timelinePanel } from './panels/timeline';
 import { capacityFor } from './panels/timebar';
@@ -37,6 +40,8 @@ const FLASH_MAX_RATE = 20;
 const MIN_WORK = 560;
 /** The speed the machine runs at when the animation is skipped (Instant). */
 const INSTANT_SPEED = SPEEDS.indexOf(10_000);
+/** A game's frame is hundreds of steps: its default run speed. */
+const GAME_SPEED = SPEEDS.indexOf(100_000);
 /** A tape file with no events: how the shell clears the VM's input tape on every (re)load. */
 const EMPTY_TAPE = new Uint8Array([0x52, 0x56, 0x4d, 0x54, 0, 0, 0, 0]);
 
@@ -50,6 +55,10 @@ export interface VizOptions {
   engines?: readonly VmKind[];
   /** The assembler hook (asm/src/index.ts `assemble`, adapted). Enables the Code view's built-in editor. */
   assemble?: AssembleFn;
+  /** The rev compiler hook (lang/src/compile.ts, adapted to the same shape). Enables Build for rev programs. */
+  compile?: AssembleFn;
+  /** Cost report text for a rev program (lang/src/report.ts). Enables the Cost report button in the Output tab. */
+  report?: (source: string, name: string) => Promise<string>;
 }
 
 /** Empty containers inside the shell for other tools (the debugger) to fill. */
@@ -123,6 +132,9 @@ export interface VizHandle {
   refresh(status?: Status): void;
   step(): Status;
   stepBack(): Status;
+  /** Games: run to the end of this frame / back to the start of this one (or of the one before). Plain step / stepBack otherwise. */
+  stepFrame(): Status;
+  backFrame(): Status;
   run(mode?: RunMode): void;
   pause(): void;
   reset(): Status;
@@ -176,10 +188,13 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   let seekQueued: number | null = null;
   let lastCtx: Ctx | null = null;
   let movedOffVisualisation = false;
+  let hadGame = false;
   let pace: PaceChoice = 'slow';
   let rateIndex = DEFAULT_SPEED;
   let speedMode: 'pace' | 'rate' = 'rate';
   let restoreEditor = false;
+  /** Knows where each frame ended, for a game (web/wasm/src/frames.ts). Null for every other program. */
+  let frames: FrameTracker | null = null;
   const listeners: Listeners = { update: new Set(), load: new Set(), run: new Set(), engine: new Set() };
   const seekListeners = new Set<(t: number) => void>();
   const emit = <K extends keyof VizEvents>(k: K, e: VizEvents[K]): void => listeners[k].forEach((fn) => fn(e));
@@ -191,6 +206,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const editor = editorPanel({ onAssemble: (src, name) => api.assembleAndLoad(src, name), canBuild: !!opts.assemble, onEdit: (src, name) => saveDraft(name, src) });
   const screen = screenPanel();
   const output = consolePanel();
+  const game = gamePanel();
+  const report = reportPanel((src, name) => opts.report!(src, name), !!opts.report);
   const banners = bannersPanel();
   // two places to type a number for the machine (the visualisation and the output), both feed the input tape
   const numberA = numberInputPanel((n) => void api.pushInput(n));
@@ -231,11 +248,17 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       gate: () => (!lastCtx || !visualise.paces(lastCtx) ? 'free' : visualise.busy() ? 'wait' : 'single'),
       // a run stops when the PC reaches a breakpoint
       stopAt: () => breakpoints.size > 0 && breakpoints.has(primary().registers().pc),
+      // a game draws only at the end of a frame (not while direction is -1: the frame word is not reliable there)
+      frameSync: () => frames !== null && primary().direction > 0,
+      // not "the frame word changed": it passes through zero in the middle of its own update
+      atFrameBoundary: (mode) => (mode === 'forward' ? frames!.observe() : frames!.atBoundary()),
     },
   );
   const actions = {
     step: () => api.step(),
     stepBack: () => api.stepBack(),
+    stepFrame: () => void api.stepFrame(),
+    backFrame: () => void api.backFrame(),
     run: (m: RunMode) => api.run(m),
     pause: () => api.pause(),
     stop: () => void api.reset(),
@@ -249,7 +272,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const transports = [transport, cmpTransport];
   const timeline = timelinePanel(transport, (t) => seek(t));
   const cmpTime = timeBarPanel((t) => seek(t));
-  const panels: Panel[] = [editor, screen, output, banners, timeline, cmpTime, compare, visualise, numberA, numberB];
+  const panels: Panel[] = [editor, screen, output, game, report, banners, timeline, cmpTime, compare, visualise, numberA, numberB];
 
   const programBar = buildProgramBar(
     programs,
@@ -294,7 +317,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   outMain.append(output.el, screen.el);
   const outInput = h('div', 'out-input');
   outInput.append(numberB.el, screen.keys);
-  outputPane.append(outMain, outInput);
+  outputPane.append(game.el, outMain, report.el, outInput);
 
   const rightTabs = new Tabs(
     [
@@ -460,7 +483,9 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     engineSwitch.setLocked(rightTabs.active === 'compare');
     transports.forEach((t) => t.setDirection(cur.direction));
     const frame = vmNow.memory(FRAME_ADDR, 1)[0];
-    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: rightTabs.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat', pace, capacity: speedMode === 'pace' ? capacityFor(true, 0) : capacityFor(false, SPEEDS[runner.speedIndex]) };
+    numberB.el.hidden = !!program?.game; // a game reads keys, not typed numbers
+    const frameNo = frames !== null && cur.direction > 0 ? frames.frame() : null;
+    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: rightTabs.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat', frameNo, pace, capacity: speedMode === 'pace' ? capacityFor(true, 0) : capacityFor(false, SPEEDS[runner.speedIndex]) };
     lastCtx = ctx;
     for (const p of panels) p.update(ctx);
     emit('update', { t: cur.t, maxT, branch, direction: cur.direction, snap: cur, prev, status: s });
@@ -482,6 +507,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       lostTo = maxT;
     }
     maxT = t;
+    frames?.truncateAfter(t);
     hostLog = hostLog.filter((a) => a.t <= t);
     if (rec) hostLog.push({ t, ...rec });
   }
@@ -512,7 +538,8 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       return;
     }
     const first = seekQueued === null;
-    seekQueued = Math.min(t, maxT); // fallback: a plain runTo, throttled to one per frame
+    seekQueued = Math.min(t, maxT);
+    if (frames !== null && primary().direction > 0) seekQueued = Math.max(0, ...frames.boundaries.filter((b) => b <= seekQueued!)); // a picture mid-frame is half erased // fallback: a plain runTo, throttled to one per frame
     if (!first) return;
     requestAnimationFrame(() => {
       const target = seekQueued!;
@@ -523,6 +550,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   }
 
   const draftKey = (name: string): string => `viz.draft.${name}`;
+  /** The assembler, or the rev compiler for a rev program. */
+  function toolFor(name: string): AssembleFn | undefined {
+    return programs.find((p) => p.name === name)?.language === 'rev' ? opts.compile : opts.assemble;
+  }
   function saveDraft(name: string, source: string): void {
     const original = programs.find((p) => p.name === name)?.source;
     store(draftKey(name), original === undefined || source === original ? null : source);
@@ -534,7 +565,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     programBar.setIndex(i);
     cmpSelect.setIndex(i);
     // edits to a program are kept in the browser and come back the next time it is picked
-    const draft = p.source !== undefined && opts.assemble ? read(draftKey(p.name)) : null;
+    const draft = p.source !== undefined && toolFor(p.name) ? read(draftKey(p.name)) : null;
     if (draft !== null && api.assembleAndLoad(draft, p.name).ok) return;
     try {
       api.loadImage(p.name, p.load(), p.source);
@@ -586,12 +617,31 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     step() {
       api.pause();
       const s = all((v) => v.stepForward());
+      if (s === 'ok') frames?.observe();
       refresh(s);
       return s;
     },
     stepBack() {
       api.pause();
       const s = all((v) => v.stepBack());
+      refresh(s);
+      return s;
+    },
+    stepFrame() {
+      if (!frames) return api.step();
+      api.pause();
+      const r = frames.stepFrame();
+      machines.slice(1).forEach((m) => m.vm.runTo(primary().instructionCount));
+      const s = r.status === 'limit' ? 'ok' : r.status;
+      refresh(s);
+      return s;
+    },
+    backFrame() {
+      if (!frames) return api.stepBack();
+      api.pause();
+      const r = frames.backFrame();
+      machines.slice(1).forEach((m) => m.vm.runTo(primary().instructionCount));
+      const s = r.status === 'limit' ? 'ok' : r.status;
       refresh(s);
       return s;
     },
@@ -615,14 +665,23 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       if (s === 'ok') {
         all((v) => v.setInputTape(EMPTY_TAPE)); // every run starts with no inputs
         program = inspectImage(name, image, source);
-        if (source !== undefined && opts.assemble) {
-          program.listing = opts.assemble(source, name).listing.map((r) => ({ addr: r.addr, line: r.line, text: r.text }));
+        program.game = programs.find((p) => p.name === name)?.game;
+        frames = program.game ? new FrameTracker(primary()) : null;
+        transports.forEach((t) => t.setFrames(!!program!.game));
+        // a frame takes hundreds of steps: a game runs fast, anything else goes back to the usual speed
+        if (program.game && !hadGame) rateIndex = GAME_SPEED;
+        else if (!program.game && hadGame) rateIndex = DEFAULT_SPEED;
+        hadGame = !!program.game;
+        program.language = programs.find((p) => p.name === name)?.language;
+        const tool = toolFor(name);
+        if (source !== undefined && tool) {
+          program.listing = tool(source, name).listing.map((r) => ({ addr: r.addr, line: r.line, text: r.text }));
         }
         const verdict = learnVerdict(program);
         // too big to animate: show the output instead, and come back to the visualisation when a simple program loads
         if (!verdict.ok && rightTabs.active === 'visualisation') { rightTabs.select('output'); movedOffVisualisation = true; }
         else if (verdict.ok && movedOffVisualisation) { rightTabs.select('visualisation'); movedOffVisualisation = false; }
-        syncSpeed();
+        syncSpeed(true);
         const picked = programs.findIndex((p) => p.name === name); // -1 for a file
         programBar.setIndex(picked);
         cmpSelect.setIndex(picked);
@@ -644,10 +703,11 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       return s;
     },
     assembleAndLoad(source, name = 'edited') {
-      if (!opts.assemble) {
+      const tool = toolFor(name);
+      if (!tool) {
         return { ok: false, diagnostics: [{ severity: 'error', line: 0, message: 'no assembler hook was given to mountViz' }], listing: [] };
       }
-      const out = opts.assemble(source, name);
+      const out = tool(source, name);
       if (out.ok && out.image) api.loadImage(name, out.image, source);
       else notice = formatDiagnostics(name, out.diagnostics);
       return out;
@@ -676,6 +736,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       const kinds: VmKind[] = machines.length > 1 ? [kind, otherKind(kind)] : [kind];
       const fresh = await Promise.all(kinds.map((k) => makeMachine(k, t)));
       machines.splice(0, machines.length, ...fresh).forEach(release);
+      if (frames) frames = new FrameTracker(primary()); // it will find its way back by replaying
       refresh(status);
       emit('engine', { engine: kind, compare: machines.length > 1 });
       return 'ok';

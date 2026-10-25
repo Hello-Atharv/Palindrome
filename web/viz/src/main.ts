@@ -4,14 +4,19 @@
  * This is the only file that knows about web/mock_vm, web/wasm and asm/.
  */
 import { assemble } from '../../../asm/src/index';
-import cipher from '../../../programs/cipher.s?raw';
-import pong from '../../../programs/pong.s?raw';
-import sort from '../../../programs/sort.s?raw';
-import call from '../../../asm/examples/call.s?raw';
-import ifelse from '../../../asm/examples/ifelse_macro.s?raw';
-import loop from '../../../asm/examples/loop_macro.s?raw';
-import memory from '../../../asm/examples/memory.s?raw';
-import nested from '../../../asm/examples/nested.s?raw';
+import { compile, formatDiagnostics as formatRevDiagnostics } from '../../../lang/src/compile';
+import { analyze, formatReport } from '../../../lang/src/report';
+import fib from '../../../examples/rev/fib.rev?raw';
+import hello from '../../../examples/rev/hello.rev?raw';
+import pongRev from '../../../examples/demos/pong.rev?raw';
+import cipher from '../../../examples/demos/cipher.s?raw';
+import pong from '../../../examples/demos/pong.s?raw';
+import sort from '../../../examples/demos/sort.s?raw';
+import call from '../../../examples/asm/call.s?raw';
+import ifelse from '../../../examples/asm/ifelse_macro.s?raw';
+import loop from '../../../examples/asm/loop_macro.s?raw';
+import memory from '../../../examples/asm/memory.s?raw';
+import nested from '../../../examples/asm/nested.s?raw';
 import type { CreateVm, RVM, VmKind } from '../../../spec/vm_api';
 import { createMockVm, gradient } from '../../mock_vm/src/index';
 import { createWasmVm } from '../../wasm/src/index';
@@ -25,6 +30,45 @@ const assembleHook: AssembleFn = (source, fileName = 'edited.s') => {
   const r = assemble(source, { fileName });
   return { ok: r.ok, image: r.image, diagnostics: r.diagnostics, listing: r.listing };
 };
+
+/**
+ * The rev compiler in the shape of the assembler hook. Diagnostics and the listing are in terms of the rev source: the
+ * compiler's line map takes each generated assembly line back to the rev line that produced it.
+ */
+const compileHook: AssembleFn = (source) => {
+  const c = compile(source);
+  const lines = source.split('\n');
+  const diagnostics = [
+    ...c.diagnostics.map((d) => ({ severity: 'error' as const, line: d.line, message: d.message })),
+    ...c.warnings.map((d) => ({ severity: 'warning' as const, line: d.line, message: d.message })),
+  ];
+  const listing = (c.ok && c.assembled && c.lineMap ? c.assembled.listing : []).map((r) => {
+    const line = c.lineMap![r.line - 1] ?? 0;
+    return { addr: r.addr, word: r.word, line, text: lines[line - 1] ?? '' };
+  });
+  return { ok: c.ok, image: c.image, diagnostics, listing };
+};
+
+/** The cost report of a rev program as text (lang/src/report.ts runs it on fresh engines). */
+const reportHook = async (source: string, name: string): Promise<string> => {
+  const c = compile(source);
+  if (!c.ok) throw new Error(formatRevDiagnostics(`${name}.rev`, c.diagnostics));
+  return formatReport(await analyze(c, source), `${name}.rev`);
+};
+
+/** An entry compiled from rev source; compile errors become the message shown to the user. */
+const fromRev = (name: string, blurb: string, source: string, game?: ProgramEntry['game']): ProgramEntry => ({
+  name,
+  blurb,
+  source,
+  language: 'rev',
+  game,
+  load: () => {
+    const c = compile(source);
+    if (!c.ok || !c.image) throw new Error(formatRevDiagnostics(`${name}.rev`, c.diagnostics));
+    return c.image;
+  },
+});
 
 /** An entry assembled from source; assembly errors become the message shown to the user. */
 const fromSource = (name: string, blurb: string, source: string): ProgramEntry => ({
@@ -49,7 +93,28 @@ const programs: ProgramEntry[] = [
   fromSource('my program', 'a blank template: write your own assembly, then Build and load (your edits are kept in this browser)', BLANK_PROGRAM),
   fromSource('sort', 'a reversible sort that exposes its garbage: 19 hatched words at data address 8', sort),
   fromSource('cipher', 'Speck64/128: encrypt, then flip Reverse (direction -1) and the same program decrypts', cipher),
-  fromSource('pong', 'a reversible Pong: the keys move the paddle (open the Output tab and press keys)', pong),
+  {
+    ...fromSource('pong', 'reversible Pong: W / S or the arrow keys move the paddle', pong),
+    game: {
+      blocks: true,
+      log: { addr: 0x1000, bytesPerFrame: 8 },
+      note:
+        'Press Run, then use W / S or the up and down arrows to move the paddle (cyan, left edge). Each time the ball returns to the left edge, ' +
+        'a paddle there is a hit and a yellow block lights up on the right half: that is your score. Otherwise the program halts: game over. ' +
+        'Back, Back one frame and the time bar rewind the game exactly (the keys you pressed are replayed). The input log is the only garbage ' +
+        'this program keeps, 8 bytes a frame. Direction -1 is exact only for programs that read no input, so use Back for Pong.',
+    },
+  },
+  fromRev('pong (rev)', 'the same Pong written in the rev language: a wall and the score as a number', pongRev, {
+    log: { addr: 0x1000, bytesPerFrame: 8 },
+    note:
+      'Press Run, then use W / S or the up and down arrows. The same game written in rev, with a permanent grey wall down the middle and your ' +
+      'score as a number on the right: it goes up each time you return the ball. Back, Back one frame and the time bar rewind the game exactly, ' +
+      'wall and score included. Edit the source and press Build and load, and press Cost report to see what every line costs in machine steps ' +
+      'and what the program had to keep (garbage).',
+  }),
+  fromRev('hello (rev)', 'a rev program that prints: step back and the text un-prints (the console, SPEC 11.9)', hello),
+  fromRev('fibonacci (rev)', 'Fibonacci in rev, with nothing thrown away', fib),
   { name: 'gradient', blurb: 'fills the framebuffer in a loop (hand-built image)', load: () => gradient().image },
 ];
 
@@ -65,7 +130,7 @@ try {
   first = await createMockVm('logging');
 }
 
-const viz = mountViz(document.getElementById('app')!, first, { programs, createVm, engines, assemble: assembleHook });
+const viz = mountViz(document.getElementById('app')!, first, { programs, createVm, engines, assemble: assembleHook, compile: compileHook, report: reportHook });
 
 // handles for scripts/screenshots.mjs and for poking at the app from the console (dev server only)
 if (import.meta.env.DEV) Object.assign(window, { __dev: { viz, programs } });

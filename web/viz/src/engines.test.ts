@@ -161,3 +161,22 @@ describe('forward and back track measurement', () => {
     expect(totalBits(100, 64)).toBe(864); // history_bytes x 8 + garbage_bits (SPEC 12.1)
   });
 });
+
+describe('benchmark chart', () => {
+  it('draws bench/results.json: five strategies at their measured memory, the naive diary labelled naive', async () => {
+    const { pongPoints, benchChart, results } = await import('./panels/bench');
+    const pts = pongPoints();
+    expect(pts.map((p) => p.strategy)).toEqual(['naive', 'tight', 'checkpoint', 'checkpoint', 'checkpoint', 'reversible']);
+    expect(pts[0].bytes).toBe(results.pong.naiveDiaryBytes);
+    expect(pts[5].bytes).toBe(results.pong.reversibleGarbageBytes + results.pong.reversibleMachineHistoryBytes); // its input log; nothing in the machine
+    expect(pts.every((p) => p.seekMean !== null)).toBe(true);
+    const svg = benchChart(pts);
+    const labels = [...svg.querySelectorAll('text.cmp-end')].map((e) => e.textContent);
+    expect(labels).toHaveLength(6);
+    expect(labels[0]).toMatch(/^Naive diary/);
+    expect(labels.find((l) => l!.startsWith('Tight diary'))).toBeDefined();
+    expect(labels.filter((l) => l!.startsWith('every')).length).toBe(3);
+    expect(svg.querySelector('title, desc') === null).toBe(true);
+    expect(svg.getAttribute('aria-label')).toContain('Naive diary');
+  });
+});

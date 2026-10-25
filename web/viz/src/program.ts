@@ -24,6 +24,19 @@ export interface ProgramInfo {
   listing?: { addr: number; line: number; text: string }[];
   /** Assembly source, when the program came from the assembler. */
   source?: string;
+  game?: GameInfo;
+  /** 'rev' when `source` is rev, which is compiled rather than assembled. */
+  language?: 'asm' | 'rev';
+}
+
+/** A program that is a game: it counts frames in the FRAME word (SPEC 11.7) and reads keys. */
+export interface GameInfo {
+  /** What to do and what to look at (plain text). */
+  note: string;
+  /** The score is a yellow block lit for each hit (pong.s); otherwise the program draws its own score. */
+  blocks?: boolean;
+  /** Data address of the input log, the only garbage the program keeps, and how many bytes it adds per frame. */
+  log?: { addr: number; bytesPerFrame: number };
 }
 
 export interface ProgramEntry {
@@ -33,6 +46,10 @@ export interface ProgramEntry {
   load: () => Uint8Array;
   /** Source text, if the image is assembled from it: shown and editable in the Code view. */
   source?: string;
+  /** The language of `source`: assembly (default) or rev (lang/). A rev program is compiled, not assembled. */
+  language?: 'asm' | 'rev';
+  /** Set for games: frame stepping, the frame number on the time bar, and a note with the score. */
+  game?: GameInfo;
 }
 
 /** Lenient: the VM does the real validation in loadProgram. Falls back to empty info for a bad image. */

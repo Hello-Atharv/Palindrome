@@ -18,7 +18,14 @@ export interface RunnerOptions {
   gate?: () => 'free' | 'wait' | 'single';
   /** Checked after every step; true ends the run (a breakpoint was reached). */
   stopAt?: () => boolean;
+  /** True when the run should only redraw at frame boundaries (a game, direction +1). */
+  frameSync?: () => boolean;
+  /** With frameSync on: called after every step of a run; true when the machine is exactly at the end of a frame. */
+  atFrameBoundary?: (mode: RunMode) => boolean;
 }
+
+/** A frame-synced run draws at least this often even if no frame completes (a game that has stopped counting). */
+const MAX_UNDRAWN_MS = 1000;
 
 /**
  * Drives the machines from requestAnimationFrame. Many steps per frame, one UI update per frame,
@@ -31,6 +38,7 @@ export class Runner {
   private raf = 0;
   private last = 0;
   private carry = 0;
+  private lastDraw = 0;
 
   constructor(
     private readonly machines: () => readonly { vm: RVM }[],
@@ -52,6 +60,7 @@ export class Runner {
     this.mode = mode;
     this.last = performance.now();
     this.carry = 0;
+    this.lastDraw = this.last;
     this.raf = requestAnimationFrame(this.tick);
   }
 
@@ -93,15 +102,24 @@ export class Runner {
     }
     this.last = now;
 
+    // XOR drawing erases before it redraws, so a picture taken mid-frame is half erased: a game redraws only at frame ends
+    const sync = this.options.frameSync?.() ?? false;
     let status: Status = 'ok';
     let hitBreakpoint = false;
-    for (let i = 0; i < want && status === 'ok' && !hitBreakpoint; i++) {
+    let boundary = false;
+    for (let i = 0; i < want && status === 'ok' && !hitBreakpoint && !boundary; i++) {
       status = this.step(mode);
       if (status === 'ok' && this.options.stopAt?.()) hitBreakpoint = true;
+      if (sync && status === 'ok' && this.options.atFrameBoundary?.(mode)) boundary = true;
       if ((i & 255) === 255 && performance.now() > deadline) break;
     }
     const finished = status !== 'ok' || hitBreakpoint;
     if (finished) this.mode = null;
+    if (sync && !finished && !boundary && now - this.lastDraw < MAX_UNDRAWN_MS) { // still inside a frame: keep going, draw nothing
+      this.raf = requestAnimationFrame(this.tick);
+      return;
+    }
+    this.lastDraw = now;
     this.onFrame(status, !finished);
     if (!finished) this.raf = requestAnimationFrame(this.tick);
   };

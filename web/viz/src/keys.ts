@@ -31,12 +31,13 @@ export function describeKey(value: number): string {
 /** Listen on the window; returns a detach function. Ignores typing in form fields and shortcuts. */
 export function attachKeys(onKey: (value: number) => void, enabled: () => boolean): () => void {
   const handler = (ev: KeyboardEvent, up: boolean): void => {
-    if (!enabled() || ev.ctrlKey || ev.metaKey || ev.altKey || ev.repeat) return;
+    if (!enabled() || ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const el = ev.target as HTMLElement | null;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')) return;
     const code = keyCode(ev.key);
     if (code === null) return;
-    ev.preventDefault();
+    ev.preventDefault(); // always, auto-repeats too: a held arrow key must not scroll the page
+    if (ev.repeat) return; // but only the first press is an input event
     onKey(code | (up ? KEY_UP_FLAG : 0));
   };
   const down = (ev: KeyboardEvent): void => handler(ev, false);

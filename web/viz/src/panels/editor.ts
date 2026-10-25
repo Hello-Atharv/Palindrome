@@ -2,6 +2,7 @@ import type { AsmOutcome } from '../assembler';
 import { disassemble } from '../disasm';
 import { h } from '../dom';
 import { tokenize } from '../highlight';
+import type { Language } from '../highlight';
 import { icon } from '../icons';
 import type { Ctx, Panel } from './panel';
 
@@ -94,6 +95,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
 
   let program: object | null | undefined;
   let name = 'program';
+  let language: Language = 'asm';
   let addrOfLine = new Map<number, number>();
   let lineOfAddr = new Map<number, number>();
   let breakpoints = new Set<number>();
@@ -144,7 +146,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
 
   function paintSyntax(): void {
     const nodes: Node[] = [];
-    tokenize(text.value).forEach((tokens, i, all) => {
+    tokenize(text.value, language).forEach((tokens, i, all) => {
       for (const t of tokens) {
         if (t.kind === 'plain') nodes.push(document.createTextNode(t.text));
         else nodes.push(h('span', `tok-${t.kind}`, t.text));
@@ -272,7 +274,8 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
           fileName.textContent = 'no program';
         } else if (info.source !== undefined) {
           name = info.name;
-          fileName.textContent = `${info.name}.s`;
+          language = info.language ?? 'asm';
+          fileName.textContent = `${info.name}${language === 'rev' ? '.rev' : '.s'}`;
           for (const r of info.listing ?? []) {
             if (r.line > 0 && !addrOfLine.has(r.line)) addrOfLine.set(r.line, r.addr);
             if (r.line > 0 && !lineOfAddr.has(r.addr)) lineOfAddr.set(r.addr, r.line);
@@ -280,6 +283,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
           setContent(info.source, hooks.canBuild);
         } else {
           name = info.name;
+          language = 'asm';
           fileName.textContent = `${info.name} (disassembly)`;
           const code = info.codeLen > 0 ? vm.code(0, info.codeLen) : new Uint32Array(0);
           const rows = Array.from(code, (w, a) => {

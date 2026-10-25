@@ -1,15 +1,15 @@
 // Measures what each demo program needs: code, data, registers, stack depth, steps, history.
 //   npx vite-node scripts/footprint.ts
 import { assemble } from '../../../asm/src/index';
-import cipher from '../../../programs/cipher.s?raw';
-import sort from '../../../programs/sort.s?raw';
-import call from '../../../asm/examples/call.s?raw';
-import ifelse from '../../../asm/examples/ifelse.s?raw';
-import ifelseMacro from '../../../asm/examples/ifelse_macro.s?raw';
-import loop from '../../../asm/examples/loop.s?raw';
-import loopMacro from '../../../asm/examples/loop_macro.s?raw';
-import memory from '../../../asm/examples/memory.s?raw';
-import nested from '../../../asm/examples/nested.s?raw';
+import cipher from '../../../examples/demos/cipher.s?raw';
+import sort from '../../../examples/demos/sort.s?raw';
+import call from '../../../examples/asm/call.s?raw';
+import ifelse from '../../../examples/asm/ifelse.s?raw';
+import ifelseMacro from '../../../examples/asm/ifelse_macro.s?raw';
+import loop from '../../../examples/asm/loop.s?raw';
+import loopMacro from '../../../examples/asm/loop_macro.s?raw';
+import memory from '../../../examples/asm/memory.s?raw';
+import nested from '../../../examples/asm/nested.s?raw';
 import { createWasmVm } from '../../wasm/src/index';
 
 const SP0 = 0x10000;

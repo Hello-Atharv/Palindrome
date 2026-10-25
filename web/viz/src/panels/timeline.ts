@@ -9,8 +9,8 @@ export function timeBarPanel(onSeek: (t: number) => void): Panel {
   const bar = timeBar(onSeek);
   return {
     el: bar.el,
-    update({ snap, maxT, branchAt, lostTo, run, capacity }: Ctx) {
-      bar.update({ t: snap.t, latest: maxT, capacity, run, status: snap.status, branchAt, lostTo });
+    update({ snap, maxT, branchAt, lostTo, run, capacity, frameNo }: Ctx) {
+      bar.update({ t: snap.t, latest: maxT, capacity, run, status: snap.status, branchAt, lostTo, frame: frameNo });
     },
   };
 }

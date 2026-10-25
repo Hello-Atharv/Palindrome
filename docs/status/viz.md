@@ -171,3 +171,24 @@ Updated: 2026-10-24
 - Stale test: engines.test expected sort.s to have a `garbage` data label; core moved sort's garbage onto the screen, so the test now
   uses a small inline source.
 - Tests: viz 72/72, tsc clean, scanner 0, build ok.
+
+## Round 3: Pong, rev programs, benchmarks (2026-10-25, web/viz only; merged scaffold 6d8da33)
+Building (so nobody duplicates it): frame stepping and the frame number in the UI, Pong and pong.rev in the picker, a rev compile and
+cost-report path, and a drawing of bench/results.json. All in web/viz; nothing outside it changed except moving this file.
+- Merge: one conflict, status/viz.md (now docs/status/viz.md). Paths updated to examples/demos, examples/asm, examples/rev.
+- Frame stepping: `FrameTracker` imported from web/wasm/src/frames.ts, not copied. A run redraws only at frame ends (forward:
+  `observe()`, back: `atBoundary()`), sync is off while direction is -1, `truncateAfter` on a key or direction flip, a new tracker after an
+  engine switch, the time bar snaps to a frame boundary and shows `frame N` (t moves to its label). Buttons: Back one frame, Forward one
+  frame. Tested on both engines: Back one frame returns to the exact state seen going forward, key press included.
+- Keyboard: `preventDefault` now runs before the auto-repeat check (it ran after, so a held arrow key could scroll the page); selects blur
+  after a change. `scripts/pong-check.mjs` plays Pong in Chromium with a held key: no scrolling, the paddle moves.
+- Direction -1: not hidden; tooltip and banner say it is not exactly self-inverse for programs that read input, use Back.
+- Game note (copied wording), score (one yellow block per hit, counted from the screen), input log (8 bytes a frame).
+- rev: `compile` hook adapts lang/src/compile.ts (diagnostics and the listing are mapped through its `lineMap` to rev lines); rev colours;
+  Cost report button runs `analyze`/`formatReport`. pong (rev), hello (rev, prints), fibonacci (rev) are in the picker.
+- Benchmarks: bench/results.json is imported as text and drawn (log-log memory against steps to seek, naive diary labelled naive, tight
+  diary, checkpoints, reversible) with a table; Sort has a table only (no seek or checkpoint data). NOT built: a live conventional twin
+  lined up by frame; the twin would have to run in the page and nothing in web/ runs it.
+- Asked of core / noticed: (1) the frame helper was enough, nothing missing. (2) `npm run test:all` does not include web/viz's tests;
+  suggest adding `npm --prefix web/viz test`. (3) I could not run `npm run test:all` here: no CMake on this machine. I ran viz tests
+  (82), tsc, the scanner, the layout check and the Pong check; I did not run the C++, asm, wasm, lang, cli, twins or vscode suites.

@@ -147,6 +147,20 @@ await dev(() => { const v = window.__dev.viz; v.vm.runTo(7000); v.refresh(); });
 await page.click(TAB(2));
 await shot('22-time-bar-past-capacity');
 
+// 23 Pong written in rev: frame number on the time bar, the game note, the cost report
+await load('pong (rev)');
+await dev(() => { const v = window.__dev.viz; v.stepFrame(); v.stepFrame(); v.stepFrame(); });
+await page.click('.report .btn');
+await page.waitForFunction(() => document.querySelector('.report-text')?.textContent?.includes('round trip'), null, { timeout: 120000 });
+await shot('23-pong-rev-report');
+
+// 24 the benchmark chart in the Compare tab
+await load('pong');
+await page.click('.compare-btn');
+await page.waitForTimeout(600);
+await page.evaluate(() => document.querySelector('.bench').scrollIntoView());
+await shot('24-benchmarks');
+
 // 20 the editor resized by dragging the divider
 await load('if / else');
 const box = await page.locator('.divider').boundingBox();

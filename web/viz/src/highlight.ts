@@ -49,7 +49,31 @@ export function tokenizeLine(line: string): Token[] {
   }, []);
 }
 
+export type Language = 'asm' | 'rev';
+
+const REV_WORDS = /\/\/.*$|0[xX][0-9a-fA-F_]+|0[bB][01_]+|\d[\d_]*|[A-Za-z_]\w*|\s+|./g;
+const REV_DECL = new Set(['var', 'out', 'proc', 'main']);
+const REV_KEYWORD = new Set(['if', 'else', 'fi', 'from', 'do', 'loop', 'until', 'skip']);
+const REV_CALL = new Set(['call', 'uncall']);
+
+/** One line of rev source (lang/): // comments, declarations, control flow, calls, numbers. */
+export function tokenizeRevLine(line: string): Token[] {
+  const out: Token[] = [];
+  for (const p of line.match(REV_WORDS) ?? []) {
+    const kind: TokenKind = p.startsWith('//') ? 'comment'
+      : /^(0[xX]|0[bB]|\d)/.test(p) ? 'number'
+        : REV_DECL.has(p) ? 'directive'
+          : REV_KEYWORD.has(p) ? 'flow'
+            : REV_CALL.has(p) ? 'op'
+              : 'plain';
+    const last = out[out.length - 1];
+    if (last && last.kind === kind) last.text += p;
+    else out.push({ kind, text: p });
+  }
+  return out;
+}
+
 /** Highlight a whole text: one token list per line. */
-export function tokenize(text: string): Token[][] {
-  return text.split('\n').map(tokenizeLine);
+export function tokenize(text: string, language: Language = 'asm'): Token[][] {
+  return text.split('\n').map(language === 'rev' ? tokenizeRevLine : tokenizeLine);
 }

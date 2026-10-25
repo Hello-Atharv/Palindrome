@@ -19,6 +19,8 @@ export function bannersPanel(): Panel {
     h('span', 'banner-sub', 'Direction −1: the program executes as its own inverse. This is not stepping back in time.'),
   );
 
+  const inputWarn = h('span', 'banner-sub', 'A program that reads input is not exactly self-inverse this way: use Back to rewind a game.');
+  reverse.append(inputWarn);
   const stopped = h('div', 'banner');
   const sText = h('strong');
   const sSub = h('span', 'banner-sub');
@@ -29,8 +31,9 @@ export function bannersPanel(): Panel {
 
   return {
     el,
-    update({ snap, run, notice }: Ctx) {
+    update({ snap, run, notice, program }: Ctx) {
       reverse.hidden = snap.direction !== -1;
+      inputWarn.hidden = !program?.game;
       const s = run === 'paused' || snap.status !== 'ok' ? snap.status : 'ok';
       const known = s === 'fault' || s === 'halted' || s === 'at_start' || s === 'bad_program' || s === 'bad_arg';
       stopped.hidden = !known;

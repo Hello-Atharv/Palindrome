@@ -4,6 +4,7 @@ import { formatBytes, h } from '../dom';
 import { icon } from '../icons';
 import { formatMs, formatNs, garbageBitsOf } from '../track';
 import type { TrackResult } from '../track';
+import { benchSection } from './bench';
 import { framebufferView } from './framebuffer';
 import type { Ctx, Panel } from './panel';
 
@@ -188,7 +189,7 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
   chartBox.append(chartHead, task, chartSlot, table, verdict);
 
   const note = h('p', 'cmp-note dim', 'Both engines run the same program on the same instruction set. This shows that rewinding needs no history memory. It does not show that reversible programs are cheaper overall: they carry garbage and extra instructions.');
-  body.append(mismatch, cards, warn, chartBox, note);
+  body.append(mismatch, cards, warn, chartBox, benchSection(), note);
   el.append(controls, body);
 
   let warnDismissed = false;

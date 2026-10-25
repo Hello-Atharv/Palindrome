@@ -48,6 +48,8 @@ export interface TimeBarState {
   status: string;
   branchAt: number | null;
   lostTo: number | null;
+  /** A game's frame number: shown in place of t, which moves to the label. */
+  frame?: number | null;
 }
 
 export interface TimeBar {
@@ -65,7 +67,8 @@ export function timeBar(onSeek: (t: number) => void): TimeBar {
   const row = h('div', 'tbar-row');
   const tBox = h('span', 'tbar-t');
   const tNum = h('span', 'mono tbar-num');
-  tBox.append(h('span', 'dim', 't'), tNum);
+  const tName = h('span', 'dim', 't');
+  tBox.append(tName, tNum);
 
   const track = h('div', 'tbar-track');
   track.tabIndex = 0;
@@ -112,8 +115,10 @@ export function timeBar(onSeek: (t: number) => void): TimeBar {
     update(s) {
       cur = s;
       const { start } = view();
-      tNum.textContent = s.t.toLocaleString('en-GB');
-      label.textContent = `Run time, full at ${s.capacity.toLocaleString('en-GB')} instructions`;
+      const game = s.frame !== null && s.frame !== undefined;
+      tName.textContent = game ? 'frame' : 't';
+      tNum.textContent = (game ? s.frame! : s.t).toLocaleString('en-GB');
+      label.textContent = `Run time${game ? `, t ${s.t.toLocaleString('en-GB')}` : ''}, full at ${s.capacity.toLocaleString('en-GB')} instructions`;
       const latest = Math.max(s.latest, s.t);
       fill.style.width = `${pct(s.t, start)}%`;
       knob.style.left = `${pct(s.t, start)}%`;

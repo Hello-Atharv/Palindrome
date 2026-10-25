@@ -50,3 +50,6 @@
 .tplanned { grid-column: 2 / -1; font-style: italic; }
 .tcell { text-align: right; }
 .cmp-verdict { margin: 0; max-width: 72ch; line-height: 1.5; }
+.brow { grid-template-columns: minmax(190px, 1.6fr) repeat(3, minmax(110px, 1fr)); min-width: 600px; }
+.brow-strong { background: color-mix(in srgb, var(--ok) 10%, var(--panel)); }
+.bench .cmp-chart-svg { max-width: 800px; }
