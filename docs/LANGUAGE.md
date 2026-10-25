@@ -30,8 +30,10 @@ npm run test:lang                                    # 35 tests, run on the real
   `x += a[i];  a[i + 1] ^= x;  a[i] <=> a[j];`. An index is any expression and is not bounds-checked. `var screen[2048] @ 0x20000;`
   places an array at an absolute address: that is how a program reaches the framebuffer (`0x20000`) or reads the input window
   (`0x30000`, read only). Memory is only ever changed by XOR or by moving a cell through a register, so nothing is overwritten.
-- **Input**: the expressions `events` (how many key events so far) and `latest` (the most recent, or 0). They depend on machine
-  time, so running such a program with direction -1 is not exact (step back is always exact), as for `examples/demos/pong.s`.
+- **Input**: `v ^= events;` (how many key events so far) and `v ^= latest;` (the most recent, or 0), only straight into a register
+  variable (a key can arrive between any two instructions, so the compiler refuses to build input into an expression and take it
+  out again: the second read could differ). Record it and clear `v` from the record: `log[i] ^= v; ... v ^= log[i];` as in
+  `examples/demos/pong.rev`. They depend on machine time, so running such a program with direction -1 is not exact (step back is always exact), as for `examples/demos/pong.s`.
 - **Printing**: `print "fib(", n, ") = ", hex a, "\n";` appends to the console (SPEC 11.9). Items are separated by commas: a string,
   or an expression with an optional format (`unsigned` is the default, then `signed`, `hex`, `char`). `'A'` is a character literal.
   The console is memory, so it un-prints when time goes backwards and when you `uncall` a procedure that printed, and the cost

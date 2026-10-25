@@ -92,7 +92,7 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
   };
 
   /** every name in an expression exists, arrays are indexed and scalars are not */
-  const exprNames = (e: Expr, line: number): void => {
+  const exprNames = (e: Expr, line: number, allowInput = false): void => {
     switch (e.k) {
       case 'var':
         if (!vars.has(e.name)) err(line, `unknown variable '${e.name}'`);
@@ -106,7 +106,10 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
         break;
       case 'bin': exprNames(e.a, line); exprNames(e.b, line); break;
       case 'not': case 'neg': case 'rol': exprNames(e.a, line); break;
-      case 'num': case 'input': break;
+      case 'num': break;
+      case 'input':
+        if (!allowInput) err(line, `'${e.which}' can only be read straight into a register variable: write  v ^= ${e.which};  and use v (the input can change between two reads, so it cannot be built into an expression and taken out again)`);
+        break;
     }
   };
 
@@ -144,7 +147,8 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
           break;
         case 'assign': {
           lvalueNames(s.target, s.line);
-          exprNames(s.e, s.line);
+          const direct = s.e.k === 'input' && s.op === '^=' && !s.target.index && vars.get(s.target.name)?.kind === 'reg';
+          exprNames(s.e, s.line, direct);
           const r = reads(s.e);
           if (r.has(s.target.name)) {
             err(s.line, s.target.index

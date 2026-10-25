@@ -15,6 +15,11 @@ Event k becomes visible when the machine reaches time `t_k` and stays visible.
 | IN_BASE+0 | `TIME`: current t (low 32 bits) |
 | IN_BASE+1 | `COUNT`: number of events with `t_k <= t` |
 | IN_BASE+2+k | value of event k if `k < COUNT`, else 0 |
+| IN_BASE+0xFFFF | `LATEST`: value of event `COUNT-1`, or 0 if there is none (the same as the last event word, in a fixed place) |
+
+**The input can change between any two instructions**, so a program must read it **once** and keep the value (record it, as the
+Pong programs do), never read it again to take a copy out of a register: the second read can differ, leave the register non-zero,
+and a later landing assertion fails. `LATEST` exists so the newest event is a single read; the `COUNT` then element sequence needs two.
 
 Reads use `XLD`. Writes fault. A step from `t` to `t+1` (and its undo) reads the window as of `t`.
 Under program direction -1 the window still follows machine time, so input-reading programs are
