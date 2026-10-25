@@ -5,7 +5,7 @@ import { assemble } from '../../../asm/src/index.js';
 import { createWasmVm, wasmVersion, type WasmVm } from '../src/index.js';
 
 const example = (name: string): string =>
-  readFileSync(new URL(`../../../asm/examples/${name}`, import.meta.url), 'utf8');
+  readFileSync(new URL(`../../../examples/asm/${name}`, import.meta.url), 'utf8');
 const image = (src: string): Uint8Array => {
   const r = assemble(src);
   expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);

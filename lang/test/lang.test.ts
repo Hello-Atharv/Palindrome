@@ -39,7 +39,7 @@ async function check(src: string, input: number[] = []): Promise<{ get(n: string
 
 describe('rev language', () => {
   it('fibonacci', async () => {
-    const v = await check(readFileSync(new URL('../examples/fib.rev', import.meta.url), 'utf8'));
+    const v = await check(readFileSync(new URL('../../examples/rev/fib.rev', import.meta.url), 'utf8'));
     expect(v.get('a')).toBe(55);
     expect(v.get('b')).toBe(89);
   });
@@ -330,6 +330,12 @@ describe('compile errors', () => {
     expect(err('var a[4]; main { a += 1; }')).toMatch(/is an array/);
     expect(err('var a[4], x; main { x += a; }')).toMatch(/is an array/);
   });
+  it('rejects a constant index outside the array', () => {
+    expect(err('var a[2]; main { a[5] += 1; }')).toMatch(/index 5 is outside a\[2\]/);
+    expect(err('var a[2], x; main { x += a[2]; }')).toMatch(/outside a\[2\]/);
+    expect(err('var a[2], x; main { a[-1] <=> x; }')).toMatch(/index -1 is outside/);
+    expect(compile('var a[2], x; main { a[1] += 1; x += a[0]; }').ok).toBe(true);
+  });
   it('rejects an array element updated from its own array', () => {
     expect(err('var a[4], i; main { a[i] += a[0]; }')).toMatch(/read on the right/);
     expect(err('var a[4]; main { a[a[0]] += 1; }')).toMatch(/cannot itself read/);
@@ -351,7 +357,7 @@ describe('compile errors', () => {
 
 describe('cost report', () => {
   it('attributes steps to lines, finds the garbage, and verifies the round trip', async () => {
-    const src = readFileSync(new URL('../examples/fib.rev', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../examples/rev/fib.rev', import.meta.url), 'utf8');
     const r = await analyze(mustCompile(src), src);
     expect(r.haltStatus).toBe('halted');
     expect(r.roundTrip).toBe(true);
@@ -364,7 +370,7 @@ describe('cost report', () => {
   });
 
   it('counts the sort flags as garbage and runs back to the unsorted list', async () => {
-    const src = readFileSync(new URL('../examples/sort3.rev', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../examples/rev/sort3.rev', import.meta.url), 'utf8');
     const c = mustCompile(src);
     const r = await analyze(c, src);
     expect(r.roundTrip).toBe(true);
@@ -374,15 +380,15 @@ describe('cost report', () => {
   });
 
   it('the eight-number sort in rev matches the hand-written assembly sort, and costs close to it', async () => {
-    const src = readFileSync(new URL('../examples/sort8.rev', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../examples/rev/sort8.rev', import.meta.url), 'utf8');
     const c = mustCompile(src);
     const r = await analyze(c, src);
     expect(r.roundTrip).toBe(true);
     const a = r.vars.find((v) => v.name === 'a')!;
     expect(a.final).toEqual([...a.initial].sort((x, y) => x - y));
     const g = r.vars.find((v) => v.name === 'garbage')!;
-    expect(g.final.filter((x) => x !== 0).length).toBe(14); // the same 14 swaps as programs/sort.s
-    // the hand-written programs/sort.s is 341 instructions and 311 steps; the compiler should stay in that neighbourhood
+    expect(g.final.filter((x) => x !== 0).length).toBe(14); // the same 14 swaps as examples/demos/sort.s
+    // the hand-written examples/demos/sort.s is 341 instructions and 311 steps; the compiler should stay in that neighbourhood
     expect(r.steps).toBeLessThan(311 * 1.25);
     expect(r.codeWords).toBeLessThan(341 * 1.5);
   });

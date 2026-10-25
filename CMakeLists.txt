@@ -34,6 +34,6 @@ else()
     target_link_libraries(rvm_run PRIVATE rvm rvm_warnings)
 
     enable_testing()
-    add_subdirectory(tests)
+    add_subdirectory(vm/tests)
     add_subdirectory(bench)
 endif()

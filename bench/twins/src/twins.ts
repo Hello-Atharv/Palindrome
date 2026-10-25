@@ -1,10 +1,10 @@
-// Conventional twins of the demo programs. Each does the same job as its reversible program (programs/*.s) and must
+// Conventional twins of the demo programs. Each does the same job as its reversible program (examples/demos/*.s) and must
 // produce the same visible output, checked by test/twins.test.ts on the real engines. They are written the way you
 // would write them on a normal machine: overwrite freely, branch on conditions, no garbage, no inverses.
 
 import { FB } from './conv.js';
 
-/** The 19-comparator, depth-6 network for 8 inputs that programs/sort.s uses (see programs/tools/gen_sort.mjs). */
+/** The 19-comparator, depth-6 network for 8 inputs that examples/demos/sort.s uses (see examples/demos/tools/gen_sort.mjs). */
 export const NETWORK: [number, number][] = [
   [0, 2], [1, 3], [4, 6], [5, 7],
   [0, 4], [1, 5], [2, 6], [3, 7],
@@ -42,7 +42,7 @@ export function sortTwin(input: number[] = SORT_INPUT): string {
 }
 
 /**
- * Pong twin: the same game as programs/pong.s, pixel for pixel. The ball and paddle are drawn with XOR (so the picture
+ * Pong twin: the same game as examples/demos/pong.s, pixel for pixel. The ball and paddle are drawn with XOR (so the picture
  * is identical even where they overlap) and the court has the same phase arithmetic for the ball, but the paddle is a
  * plain row number and every decision is an ordinary branch.
  *

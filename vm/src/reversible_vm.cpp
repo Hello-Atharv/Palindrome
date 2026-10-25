@@ -117,7 +117,7 @@ rvm_status ReversibleVm::exec_forward(uint64_t now) {
             if (i.target >= size || decode(prog_.code[i.target]).op != Op::PROC)
                 return fault("CALL target is not a PROC");
             const uint32_t slot = regs_[kSpReg];
-            if (slot >= kRamWords) return fault("stack pointer outside writable memory");
+            if (slot < kStackBase || slot >= kFbBase) return fault("stack pointer outside the stack region");
             if (ram_[slot] != 0) return fault("stack slot above SP is not zero");
             ram_[slot] ^= here + 1;
             regs_[kSpReg] = slot + 1;
@@ -126,7 +126,7 @@ rvm_status ReversibleVm::exec_forward(uint64_t now) {
         }
         case Op::RET: {
             const uint32_t slot = regs_[kSpReg] - 1;
-            if (slot >= kRamWords) return fault("RET with stack pointer outside writable memory");
+            if (slot < kStackBase || slot >= kFbBase) return fault("RET with stack pointer outside the stack region");
             const uint32_t v = ram_[slot];
             if (v == 0 || v >= size) return fault("RET to invalid address");
             const Instr call = decode(prog_.code[v - 1]);
@@ -163,7 +163,7 @@ rvm_status ReversibleVm::exec_inverse(uint64_t now) {
     }
     if (i.op == Op::PROC) {  // undo the CALL
         const uint32_t slot = regs_[kSpReg] - 1;
-        if (slot >= kRamWords) return fault("stack pointer outside writable memory");
+        if (slot < kStackBase || slot >= kFbBase) return fault("stack pointer outside the stack region");
         const uint32_t ret = ram_[slot];
         if (ret == 0 || ret > size) return fault("bad return address on stack");
         const Instr call = decode(prog_.code[ret - 1]);
@@ -180,7 +180,7 @@ rvm_status ReversibleVm::exec_inverse(uint64_t now) {
         const Instr proc = decode(prog_.code[j.target]);
         if (proc.op != Op::PROC || proc.target >= size) return fault("CALL target is not a PROC");
         const uint32_t slot = regs_[kSpReg];
-        if (slot >= kRamWords) return fault("stack pointer outside writable memory");
+        if (slot < kStackBase || slot >= kFbBase) return fault("stack pointer outside the stack region");
         if (ram_[slot] != 0) return fault("stack slot above SP is not zero");
         ram_[slot] ^= q;
         regs_[kSpReg] = slot + 1;

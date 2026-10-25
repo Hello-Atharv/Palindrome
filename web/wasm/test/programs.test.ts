@@ -1,4 +1,4 @@
-// Demo programs from programs/, assembled and run on both real engines, checked against independent
+// Demo programs from examples/demos/, assembled and run on both real engines, checked against independent
 // JavaScript reference implementations of the same algorithms (and, for Speck, the published test vector).
 // Both demos keep their data ON THE SCREEN (framebuffer words are pixels), so the screen is the visualisation.
 import { readFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { assemble } from '../../../asm/src/index.js';
 import { createWasmVm, type WasmVm } from '../src/index.js';
 
-const source = (name: string): string => readFileSync(new URL(`../../../programs/${name}`, import.meta.url), 'utf8');
+const source = (name: string): string => readFileSync(new URL(`../../../examples/demos/${name}`, import.meta.url), 'utf8');
 
 const made: WasmVm[] = [];
 async function start(kind: 'logging' | 'reversible', src: string): Promise<WasmVm> {

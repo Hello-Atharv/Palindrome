@@ -3,7 +3,7 @@
  * DRAFT v0.2. Web code (visualiser, debugger) is written against this file only.
  * Implemented first by web/mock_vm, later by the WASM build of the C++ VMs (spec/vm_api.h is the
  * C ABI underneath; the two must stay in step). Any change is a spec change: log it in
- * SPEC_CHANGELOG.md. Semantics: spec/SPEC.md.
+ * spec/CHANGELOG.md. Semantics: spec/SPEC.md.
  *
  * Terms: t = instructionCount (machine time). stepForward: t -> t+1; stepBack: t -> t-1 (exact
  * inverse). direction is which way the PROGRAM runs (+1 normal, -1 program run as its own inverse).

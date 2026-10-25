@@ -29,8 +29,8 @@ watch X   rwatch X   run forward / BACKWARD until X changes: rwatch answers "who
 p [X]  regs  mem A [n]  list  where  history                   X = a variable, r0..r15, or [address]
 ```
 `--demo file` runs a **narrated session**: lines starting with `#` are explanations, every other line is a command, and each command waits for
-Enter, so a presenter can talk between steps (piped, it runs straight through). `demo/tour.dbg` with `lang/examples/tour.rev` is the one we use:
-`npm run rvm -- debug lang/examples/tour.rev --demo demo/tour.dbg`. After the script ends you are left at the `(rvm)` prompt to carry on by hand.
+Enter, so a presenter can talk between steps (piped, it runs straight through). `examples/rev/tour.dbg` with `examples/rev/tour.rev` is the one we use:
+`npm run rvm -- debug examples/rev/tour.rev --demo examples/rev/tour.dbg`. After the script ends you are left at the `(rvm)` prompt to carry on by hand.
 A `#` after a command is a comment too, so annotated command lists can be pasted.
 
 `rwatch f1` runs the program backwards until `f1` changes and stops at the instruction that wrote it, printing the source line and

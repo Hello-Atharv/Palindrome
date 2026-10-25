@@ -4,14 +4,14 @@
  * This is the only file that knows about web/mock_vm, web/wasm and asm/.
  */
 import { assemble } from '../../../asm/src/index';
-import cipher from '../../../programs/cipher.s?raw';
-import pong from '../../../programs/pong.s?raw';
-import sort from '../../../programs/sort.s?raw';
-import call from '../../../asm/examples/call.s?raw';
-import ifelse from '../../../asm/examples/ifelse_macro.s?raw';
-import loop from '../../../asm/examples/loop_macro.s?raw';
-import memory from '../../../asm/examples/memory.s?raw';
-import nested from '../../../asm/examples/nested.s?raw';
+import cipher from '../../../examples/demos/cipher.s?raw';
+import pong from '../../../examples/demos/pong.s?raw';
+import sort from '../../../examples/demos/sort.s?raw';
+import call from '../../../examples/asm/call.s?raw';
+import ifelse from '../../../examples/asm/ifelse_macro.s?raw';
+import loop from '../../../examples/asm/loop_macro.s?raw';
+import memory from '../../../examples/asm/memory.s?raw';
+import nested from '../../../examples/asm/nested.s?raw';
 import type { CreateVm, RVM, VmKind } from '../../../spec/vm_api';
 import { createMockVm, gradient } from '../../mock_vm/src/index';
 import { createWasmVm } from '../../wasm/src/index';

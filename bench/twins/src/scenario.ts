@@ -9,10 +9,10 @@ import { Checkpoints } from './baselines.js';
 import { Conv, FB, assembleConv, runAll } from './conv.js';
 import { SORT_INPUT, pongTwin, sortTwin } from './twins.js';
 
-const program = (name: string): string => readFileSync(new URL(`../../../programs/${name}`, import.meta.url), 'utf8');
+const program = (name: string): string => readFileSync(new URL(`../../../examples/demos/${name}`, import.meta.url), 'utf8');
 export const FRAME_WORD = 0xffff;
 
-/** Assemble programs/<name> and load it on a fresh engine. */
+/** Assemble examples/demos/<name> and load it on a fresh engine. */
 export async function loadRev(kind: 'logging' | 'reversible', source: string): Promise<{ vm: WasmVm; codeLength: number; head: number }> {
   const asm = assemble(source);
   if (asm.diagnostics.length || !asm.image) throw new Error(`assembler: ${JSON.stringify(asm.diagnostics)}`);

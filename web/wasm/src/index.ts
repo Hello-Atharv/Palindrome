@@ -146,3 +146,5 @@ export async function wasmVersion(): Promise<string> {
   const m = await loadCore();
   return m.UTF8ToString(m._rvm_version());
 }
+
+export { FRAME_WORD, FrameTracker, type FrameStep, type FrameStop } from './frames.js';

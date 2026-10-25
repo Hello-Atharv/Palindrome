@@ -10,12 +10,12 @@ Two engines behind one API: a **logging VM** (records deltas; the correctness or
 baseline) and a **reversible VM** (no log). Both must agree on state at every instruction count.
 Deliverables: both VMs, assembler with macros, demo programs (Pong, a reversible cipher, a sort that
 exposes its garbage), web UI (visualiser + debugger with step back), benchmarks, a funny but truthful
-writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `sponsors_notes.txt`.
+writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `docs/hackathon/sponsors_notes.txt`.
 
 ## Rules (read first)
-1. **Before any task, read `spec/SPEC.md` and every file in `status/`.**
-2. **Any change to `spec/` must add a line to `SPEC_CHANGELOG.md` and be flagged to the user.** Only `core` edits `spec/`; others request changes through their status file or the user.
-3. **Update your own `status/` file when you finish a task; never edit someone else's.**
+1. **Before any task, read `spec/SPEC.md` and every file in `docs/status/`.**
+2. **Any change to `spec/` must add a line to `spec/CHANGELOG.md` and be flagged to the user.** Only `core` edits `spec/`; others request changes through their status file or the user.
+3. **Update your own `docs/status/` file when you finish a task; never edit someone else's.**
 4. Stay in your own directory. Need something elsewhere? Say so in your status file.
 5. Code against the contract: web uses `spec/vm_api.ts`, C++ uses `spec/vm_api.h`, programs follow `spec/asm_syntax.md`.
 6. LF line endings; 4 spaces for C++, 2 for web (`.editorconfig`).
@@ -23,23 +23,23 @@ writeup. Judges: quant engineers and a rigour-loving head judge; sponsors in `sp
 ## Repo map and owners (one owner per directory)
 | Dir | Purpose | Owner |
 |---|---|---|
-| spec/ | ISA spec, TS + C APIs, file formats | core |
-| vm/, tests/ | logging VM + reversible VM (C++17 lib `rvm`), CTest tests | core |
+| spec/ | ISA spec, TS + C APIs, file formats, `CHANGELOG.md` | core |
+| vm/ | logging VM + reversible VM (C++17 lib `rvm`), their CTest tests in `vm/tests/`, the WebAssembly build | core |
 | asm/ | assembler + macros | core |
 | lang/ | `rev` language compiler (to asm), cost report | core |
-| cli/ | `rvm` command: build, run, report, verify, debug (step back) | core |
+| cli/ | `rvm` command: build, run, report, verify, debug (step back); the shared debugger logic is `cli/src/debugger.ts` | core |
 | vscode/ | VS Code extension: grammars, diagnostics, per-line cost | core |
-| bench/, demo/ | benchmarks, demo script, writeup | core |
+| bench/ | benchmarks and the fair baselines (`bench/twins`) | core |
+| examples/ | every runnable program: `asm/` (small teaching programs), `rev/` (the language: `tour.rev` and its debugger script), `demos/` (cipher, sort, Pong) | core / games |
+| docs/ | all the written material: guides, architecture, demo script, writeup, hackathon material, and `status/` (one `<name>.md` per person, that person only) | core |
+| web/wasm/ | the engines in the browser (WebAssembly) and the playground | core |
 | web/viz/ and web/mock_vm/ | visualiser: CPU, memory, framebuffer, app shell; mock VM | viz |
-| web/debugger/ | debugger: scrubber timeline, step back, breakpoints | debugger |
-| programs/ | demo programs in assembly (Pong first) | games |
-| status/ | one `<name>.md` per person | that person only |
 
 ## Role quick-starts
 - **viz**: build the app shell in `web/viz/`, importing types from `spec/vm_api.ts`. First build `web/mock_vm`
   (a small JS/TS interpreter of SPEC section 6, implementing `RVM`) so everyone can work before the real VM lands. Show registers, PC, disassembly (`code()` + `Op`), memory, 64x32 framebuffer. Export a shell the debugger can mount into.
-- **debugger**: `web/debugger/` (read SPEC section 11): timeline scrubber (`runTo`), "step by frame" (FRAME word at `0xFFFF`, SPEC 11.7), step/back buttons, run/pause, breakpoints on PC, direction toggle (`setDirection`), history-memory readout (`historyBytes`), highlight what changed between steps by diffing snapshots. Develop against `web/mock_vm`.
-- **games**: `programs/`: key codes and the FRAME counter are in SPEC 11.7. Write Pong first (see `programs/README.md` for reversible idioms), in the syntax of `spec/asm_syntax.md`. Until the assembler exists, write a plain-JS model of the game (state, input, frame) and the exact register/memory layout, then translate. Cipher and sort are the fallback demos.
+- **debugger**: the debugger logic is `cli/src/debugger.ts` (headless, shared by the terminal, VS Code and any UI); a browser panel would call it and live in `web/viz` (read SPEC section 11): timeline scrubber (`runTo`), "step by frame" (FRAME word at `0xFFFF`, SPEC 11.7), step/back buttons, run/pause, breakpoints on PC, direction toggle (`setDirection`), history-memory readout (`historyBytes`), highlight what changed between steps by diffing snapshots. Develop against `web/mock_vm`.
+- **games**: `examples/demos/`: key codes and the FRAME counter are in SPEC 11.7. Write Pong first (see `examples/demos/README.md` for reversible idioms), in the syntax of `spec/asm_syntax.md`. Until the assembler exists, write a plain-JS model of the game (state, input, frame) and the exact register/memory layout, then translate. Cipher and sort are the fallback demos.
 - **core**: logging VM -> minimal assembler (TypeScript, Node + browser) -> `if`/`loop` macros -> WASM build -> reversible VM, differential-tested against the oracle -> benchmarks.
 
 ## Build and test (C++)

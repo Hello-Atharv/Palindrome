@@ -17,7 +17,7 @@ Settings: `rev.costOnSave` (default on), `rev.maxSteps` (default 400,000).
 cd vscode && npm install && npm run build
 ```
 Then open the `vscode/` folder in VS Code and press **F5** (a launch configuration is included): a second window opens with the
-extension loaded; open `programs/pong.rev` or `lang/examples/sort8.rev` in it and save.
+extension loaded; open `examples/demos/pong.rev` or `examples/rev/sort8.rev` in it and save.
 To install it permanently: `npx @vscode/vsce package` in this folder, then *Extensions: Install from VSIX*.
 
 ## What is tested, and what is not

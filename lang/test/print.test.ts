@@ -30,7 +30,7 @@ async function printed(src: string): Promise<{ text: string; rev: Ran; entries: 
 
 describe('print in rev', () => {
   it('prints text, numbers and hex (the example program)', async () => {
-    const src = readFileSync(new URL('../examples/hello.rev', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../examples/rev/hello.rev', import.meta.url), 'utf8');
     const r = await printed(src);
     expect(r.text).toBe('computing fib(10)...\nfib(10) = 55 (hex 0x37)\n');
   });
@@ -80,7 +80,7 @@ describe('print in rev', () => {
   });
 
   it('the console rewinds with time and each entry appears in a single step', async () => {
-    const c = mustCompile(readFileSync(new URL('../examples/hello.rev', import.meta.url), 'utf8'));
+    const c = mustCompile(readFileSync(new URL('../../examples/rev/hello.rev', import.meta.url), 'utf8'));
     const r = await run(c, 'reversible');
     made.push(r);
     const end = r.vm.instructionCount;
@@ -98,7 +98,7 @@ describe('print in rev', () => {
   });
 
   it('the cost report counts the console as garbage', async () => {
-    const src = readFileSync(new URL('../examples/hello.rev', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../../examples/rev/hello.rev', import.meta.url), 'utf8');
     const rep = await analyze(mustCompile(src), src);
     expect(rep.roundTrip).toBe(true);
     expect(rep.console).toBe('computing fib(10)...\nfib(10) = 55 (hex 0x37)\n');
@@ -124,4 +124,15 @@ describe('print: mistakes are reported', () => {
   });
   it('the format words are reserved', () => expect(err('var hex; main { }')).toMatch(/expected a variable name/));
   it('print needs a semicolon', () => expect(err('var x; main { print x }')).toMatch(/expected ';'/));
+});
+
+describe('console capacity', () => {
+  it('reports an overrun after the 4,095th entry', async () => {
+    const { consoleOverflowed } = await import('../src/console.js');
+    const src = 'var i = 0, n = 4100; main { from (i == 0) loop { print "x"; i += 1; } until (i == n); }';
+    const r = await run(mustCompile(src), 'reversible');
+    expect(consoleOverflowed((a, n) => r.vm.memory(a, n))).toBe(true);
+    const ok = await run(mustCompile('var i = 0, n = 100; main { from (i == 0) loop { print "x"; i += 1; } until (i == n); }'), 'reversible');
+    expect(consoleOverflowed((a, n) => ok.vm.memory(a, n))).toBe(false);
+  });
 });

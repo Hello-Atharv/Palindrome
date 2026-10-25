@@ -1,4 +1,4 @@
-// programs/pong.rev (the game written in rev) against programs/pong.s (the same game written by hand in assembly):
+// examples/demos/pong.rev (the game written in rev) against examples/demos/pong.s (the same game written by hand in assembly):
 // same key events, and the screen must be identical after every frame.
 import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -7,7 +7,7 @@ import { assemble } from '../../asm/src/index.js';
 import { createWasmVm, type WasmVm } from '../../web/wasm/src/index.js';
 import { compile } from '../src/compile.js';
 
-const read = (p: string): string => readFileSync(new URL(`../../programs/${p}`, import.meta.url), 'utf8');
+const read = (p: string): string => readFileSync(new URL(`../../examples/demos/${p}`, import.meta.url), 'utf8');
 const FRAME = 0xffff;
 
 const made: WasmVm[] = [];

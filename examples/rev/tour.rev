@@ -1,5 +1,5 @@
 // TOUR: the whole language in one short program, built to be stepped through in the debugger.
-//   npm run rvm -- debug lang/examples/tour.rev --demo demo/tour.dbg
+//   npm run rvm -- debug examples/rev/tour.rev --demo examples/rev/tour.dbg
 // The one rule: nothing is ever overwritten. You update in place with += -= ^=, or swap with <=>.
 var a = 7, b = 2;              // variables, with starting values
 var f = 0, i = 0, n = 3;       // f will be a flag, i counts, n is how many
