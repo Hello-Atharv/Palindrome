@@ -3,7 +3,7 @@ import type { RVM, Status } from '../../../spec/vm_api';
 export type RunMode = 'forward' | 'back';
 
 /** Speeds in steps per second; Infinity = as many as fit in the frame budget. */
-export const SPEEDS = [1, 2, 5, 10, 100, 1_000, 10_000, 100_000, Infinity] as const;
+export const SPEEDS = [1, 2, 5, 10, 100, 1_000, 10_000, 20_000, 100_000, Infinity] as const;
 /** Index of the default speed (1,000 steps/s) and of 2 steps/s (comfortable for watching data move). */
 export const DEFAULT_SPEED = SPEEDS.indexOf(1_000);
 export const LEARN_SPEED = SPEEDS.indexOf(2);

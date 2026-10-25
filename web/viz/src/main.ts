@@ -27,10 +27,11 @@ const assembleHook: AssembleFn = (source, fileName = 'edited.s') => {
 };
 
 /** An entry assembled from source; assembly errors become the message shown to the user. */
-const fromSource = (name: string, blurb: string, source: string): ProgramEntry => ({
+const fromSource = (name: string, blurb: string, source: string, speed?: number): ProgramEntry => ({
   name,
   blurb,
   source,
+  speed,
   load: () => {
     const r = assembleHook(source, `${name}.s`);
     if (!r.ok || !r.image) throw new Error(formatDiagnostics(name, r.diagnostics));
@@ -49,7 +50,7 @@ const programs: ProgramEntry[] = [
   fromSource('my program', 'a blank template: write your own assembly, then Build and load (your edits are kept in this browser)', BLANK_PROGRAM),
   fromSource('sort', 'a reversible sort that exposes its garbage: 19 hatched words at data address 8', sort),
   fromSource('cipher', 'Speck64/128: encrypt, then flip Reverse (direction -1) and the same program decrypts', cipher),
-  fromSource('pong', 'a reversible Pong: the keys move the paddle (open the Output tab and press keys)', pong),
+  fromSource('pong', 'a reversible Pong: the keys move the paddle (open the Output tab and press keys)', pong, 10_000),
   { name: 'gradient', blurb: 'fills the framebuffer in a loop (hand-built image)', load: () => gradient().image },
 ];
 

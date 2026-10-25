@@ -535,9 +535,14 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     cmpSelect.setIndex(i);
     // edits to a program are kept in the browser and come back the next time it is picked
     const draft = p.source !== undefined && opts.assemble ? read(draftKey(p.name)) : null;
-    if (draft !== null && api.assembleAndLoad(draft, p.name).ok) return;
+    const pick = (): void => {
+      const at = p.speed === undefined ? DEFAULT_SPEED : SPEEDS.indexOf(p.speed as (typeof SPEEDS)[number]);
+      actions.setSpeed(at < 0 ? DEFAULT_SPEED : at);
+    };
+    if (draft !== null && api.assembleAndLoad(draft, p.name).ok) { pick(); return; }
     try {
       api.loadImage(p.name, p.load(), p.source);
+      pick();
     } catch (e) {
       notice = e instanceof Error ? e.message : String(e);
       refresh('bad_program');

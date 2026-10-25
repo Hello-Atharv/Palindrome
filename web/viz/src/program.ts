@@ -33,6 +33,8 @@ export interface ProgramEntry {
   load: () => Uint8Array;
   /** Source text, if the image is assembled from it: shown and editable in the Code view. */
   source?: string;
+  /** Steps per second to run at when this program is picked (one of the speeds in runner.ts). A game wants about 25 frames a second. */
+  speed?: number;
 }
 
 /** Lenient: the VM does the real validation in loadProgram. Falls back to empty info for a bad image. */
