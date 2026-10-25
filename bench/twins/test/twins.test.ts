@@ -106,6 +106,31 @@ describe('sort: reversible vs conventional twin', () => {
   });
 });
 
+describe('sort: checkpoints and the tight diary seek exactly', () => {
+  it('every checkpoint interval lands on the same state as undoing with the tight diary, at every earlier time', async () => {
+    const r = await runSort(undefined, [5, 25, 100]);
+    const m = r.conv;
+    const T = m.t;
+    const end = m.digest();
+    const expected: string[] = [];
+    for (let t = T; t >= 0; t--) {
+      expected[t] = m.digest();
+      if (t > 0) m.undo();
+    }
+    while (m.t < T) m.step();
+    expect(m.digest()).toBe(end);
+    for (const [K, cp] of r.checkpoints) {
+      for (let t = 0; t <= T; t++) {
+        const replayed = cp.seek(m, t);
+        expect(m.digest(), `K=${K} seek to ${t}`).toBe(expected[t]);
+        expect(replayed).toBeLessThan(K);
+      }
+      cp.seek(m, T);
+      expect(m.digest()).toBe(end);
+    }
+  });
+});
+
 describe('pong: reversible vs conventional twin', () => {
   it('draws the same picture on every frame while chasing the ball', async () => {
     const r = await runPong(300, 'chase');

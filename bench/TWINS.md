@@ -38,6 +38,19 @@ The information floor for sorting 8 distinct numbers is log2(8!) = 15.3 bits; th
 (one per comparator, 14 set this time), so it sits within a few bits of the floor. The tight diary keeps
 2,152 bits, because it logs overwritten *values*, not the one bit of *why*.
 
+### Memory against the time to go back (sort, whole run)
+
+| strategy | memory held after the run | to go back 1 step | to seek to an arbitrary earlier time (mean / worst) |
+|---|---|---|---|
+| naive diary (reversible program) | 14,928 B | 1 undo step | 156 / 311 undo steps |
+| tight diary (conventional twin) | 269 B | 1 undo step | 51 / 102 undo steps |
+| checkpoint every 5 steps | 2,100 B (21 snapshots x 100 B) | up to 4 steps of replay | 2 / 4 steps of replay |
+| checkpoint every 25 steps | 500 B (5 snapshots x 100 B) | up to 24 steps of replay | 12 / 24 steps of replay |
+| checkpoint every 100 steps | 200 B (2 snapshots x 100 B) | up to 99 steps of replay | 49 / 99 steps of replay |
+| **reversible** | **56 B** (14 flag words; 0 B in the machine) | 1 inverse step | 156 / 311 inverse steps |
+
+The sort is short (about 100 steps), so every number here is small and a snapshot is a large part of the whole run. One sort, one input.
+
 ## Pong (200 frames, a paddle that chases the ball, 105 key events, 3 hits)
 
 | | reversible | conventional twin |

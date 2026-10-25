@@ -8,7 +8,7 @@ Toolchain: Vite + TypeScript (strict, vanilla DOM) + Vitest (+ jsdom for the she
 ## The screen
 ```
 +--------------------------------------------------------------------------------------------+
-| Palindrome                   [Diary|Reversible] [program v] [Open .rvm file] [Compare engines] |
+| Palindrome                   [Diary|Reversible] [program v] [Compare engines] |
 +-----------------------------+--------------------------------------------------------------+
 | editor (source or           |  Visualisation | Output | Compare                              |
 | disassembly), gutter with   |                                                                |

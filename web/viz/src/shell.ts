@@ -272,11 +272,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const cmpTime = timeBarPanel((t) => seek(t));
   const panels: Panel[] = [editor, screen, output, game, banners, timeline, cmpTime, compare, visualise, numberA, numberB];
 
-  const programBar = buildProgramBar(
-    programs,
-    (i) => loadSample(i),
-    (f) => void f.arrayBuffer().then((b) => api.loadImage(f.name, new Uint8Array(b))),
-  );
+  const programBar = buildProgramBar(programs, (i) => loadSample(i));
   // the program can be changed from the top of Compare too: one program, two pickers
   const cmpSelect = buildProgramSelect(programs, (i) => loadSample(i));
   const cmpRow = h('div', 'cmp-row');

@@ -11,7 +11,36 @@
     "naiveDiaryBytes": 14928,
     "fullWidthDiaryBytes": 334.375,
     "tightDiaryBytes": 269,
-    "reversibleMachineHistoryBytes": 0
+    "reversibleMachineHistoryBytes": 0,
+    "reversibleGarbageBytes": 56,
+    "checkpoints": [
+      {
+        "everySteps": 5,
+        "bytes": 2100,
+        "snapshots": 21,
+        "meanReplaySteps": 1.95,
+        "worstReplaySteps": 4
+      },
+      {
+        "everySteps": 25,
+        "bytes": 500,
+        "snapshots": 5,
+        "meanReplaySteps": 11.75,
+        "worstReplaySteps": 24
+      },
+      {
+        "everySteps": 100,
+        "bytes": 200,
+        "snapshots": 2,
+        "meanReplaySteps": 48.5,
+        "worstReplaySteps": 99
+      }
+    ],
+    "seekMeanSteps": {
+      "naiveDiary": 155.5,
+      "tightDiary": 51,
+      "reversible": 155.5
+    }
   },
   "pong": {
     "frames": 200,

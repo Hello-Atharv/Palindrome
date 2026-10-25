@@ -1,4 +1,4 @@
-// Fibonacci, reversibly. After n steps (a, b) = (fib(n), fib(n+1)).
+// Fibonacci, reversibly. After n steps (a, b) = (fib(n), fib(n+1)); it prints each fib(i) as it goes, and stepping back un-prints.
 // Nothing is thrown away, so the same program run backwards turns (fib(n), fib(n+1)) into (0, 1) again.
 var n = 10, i = 0, a = 0, b = 1;
 out a, b;
@@ -12,5 +12,6 @@ main {
   from (i == 0) loop {
     call step;
     i += 1;
+    print "fib(", i, ") = ", a, "\n";
   } until (i == n);
 }

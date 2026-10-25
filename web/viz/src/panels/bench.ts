@@ -24,7 +24,11 @@ interface SortResult {
   garbageFlagsPossible: number;
   naiveDiaryBytes: number;
   tightDiaryBytes: number;
+  /** The flag words the sort keeps (garbageFlagsSet of them, 4 bytes each). */
+  reversibleGarbageBytes: number;
   reversibleMachineHistoryBytes: number;
+  checkpoints: Checkpoint[];
+  seekMeanSteps: { naiveDiary: number; tightDiary: number; reversible: number };
 }
 export interface BenchResults { pong: PongResult; sort: SortResult }
 
@@ -46,8 +50,11 @@ export const results: BenchResults = JSON.parse(resultsText);
 
 const n0 = (v: number): string => Math.round(v).toLocaleString('en-GB');
 
-/** The rows of the Pong table: the naive and the tight diary, three checkpoint intervals, and the reversible program. */
-export function pongPoints(r: PongResult = results.pong): BenchPoint[] {
+/** The fields both programs' results have in common, which is all the points need. */
+type Measured = Pick<PongResult, 'naiveDiaryBytes' | 'tightDiaryBytes' | 'reversibleGarbageBytes' | 'reversibleMachineHistoryBytes' | 'checkpoints' | 'seekMeanSteps'>;
+
+/** The rows of a benchmark table: the naive and the tight diary, the checkpoint intervals, and the reversible program. */
+export function benchPoints(r: Measured): BenchPoint[] {
   return [
     { strategy: 'naive', name: 'Naive diary', bytes: r.naiveDiaryBytes, seekMean: r.seekMeanSteps.naiveDiary, back1: '1 step' },
     { strategy: 'tight', name: 'Tight diary', bytes: r.tightDiaryBytes, seekMean: r.seekMeanSteps.tightDiary, back1: '1 step' },
@@ -61,6 +68,8 @@ export function pongPoints(r: PongResult = results.pong): BenchPoint[] {
     { strategy: 'reversible', name: 'Reversible', bytes: r.reversibleGarbageBytes + r.reversibleMachineHistoryBytes, seekMean: r.seekMeanSteps.reversible, back1: '1 step' },
   ];
 }
+export const pongPoints = (r: PongResult = results.pong): BenchPoint[] => benchPoints(r);
+export const sortPoints = (r: SortResult = results.sort): BenchPoint[] => benchPoints(r);
 
 /** A number as it is in the results, never rounded in the reversible program's favour: up to three decimals, thousands separated. */
 const exact = (v: number): string => v.toLocaleString('en-GB', { maximumFractionDigits: 3 });
@@ -109,9 +118,19 @@ export function offlineBaselines(programName: string): OfflineBaselines | null {
   }
   if (name === 'sort') {
     const r = results.sort;
+    const forward = `${exact(r.conventionalSteps)} steps`;
+    const smallest = r.checkpoints.reduce((a, c) => (c.bytes < a.bytes ? c : a));
+    const largest = r.checkpoints.reduce((a, c) => (c.bytes > a.bytes ? c : a));
+    const worst = r.checkpoints.map((c) => c.worstReplaySteps);
     return {
-      tight: [`${exact(r.tightDiaryBytes)} B for the whole run`, '–', `${exact(r.tightDiaryBytes * 8)} bits`, `${exact(r.conventionalSteps)} steps`, '1 step'],
-      checkpoint: null,
+      tight: [`${exact(r.tightDiaryBytes)} B for the whole run`, '–', `${exact(r.tightDiaryBytes * 8)} bits`, forward, '1 step'],
+      checkpoint: [
+        `${exact(smallest.bytes)} to ${exact(largest.bytes)} B for the whole run`,
+        '–',
+        `${exact(smallest.bytes * 8)} bits to ${exact(largest.bytes * 8)} bits`,
+        forward,
+        `worst case ${exact(Math.min(...worst))} to ${exact(Math.max(...worst))} steps of replay`,
+      ],
       scope: 'sorting 8 numbers, run on the conventional program',
       naiveVsTight: `The live diary here is the naive one: 48 B a step. The tight diary needs ${exact(r.tightDiaryBytes)} B for the same program, against ${exact(r.naiveDiaryBytes)} B for the naive diary.`,
     };
@@ -134,21 +153,40 @@ const LABEL: Record<string, [number, number, 'start' | 'end']> = {
   naive: [-10, 18, 'end'], tight: [10, -10, 'start'], reversible: [-12, 5, 'end'],
 };
 
+/** The axes of a chart: decade bounds on both (log) axes, and where the memory axis is labelled. */
+export interface ChartScale {
+  xLo: number;
+  xHi: number;
+  yLo: number;
+  yHi: number;
+  yTicks: [bytes: number, label: string][];
+}
+const KiB = 1024;
+/** Pong runs for tens of thousands of steps and holds up to megabytes. */
+export const PONG_SCALE: ChartScale = {
+  xLo: 10, xHi: 100_000, yLo: KiB, yHi: 10 * KiB * KiB,
+  yTicks: [[KiB, '1 KiB'], [10 * KiB, '10 KiB'], [100 * KiB, '100 KiB'], [KiB * KiB, '1 MiB'], [10 * KiB * KiB, '10 MiB']],
+};
+/** The sort is about a hundred steps and holds tens of bytes to a few KiB. */
+export const SORT_SCALE: ChartScale = {
+  xLo: 1, xHi: 1000, yLo: 10, yHi: 100 * KiB,
+  yTicks: [[10, '10 B'], [100, '100 B'], [KiB, '1 KiB'], [10 * KiB, '10 KiB'], [100 * KiB, '100 KiB']],
+};
+
 /** Memory held (log scale) against steps to seek to an arbitrary earlier time (log scale), one labelled point per strategy. */
-export function benchChart(points: readonly BenchPoint[]): SVGSVGElement {
+export function benchChart(points: readonly BenchPoint[], scale: ChartScale = PONG_SCALE): SVGSVGElement {
   const W = 680, H = 330, L = 92, R = 24, T = 16, B = 52;
   const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'cmp-chart-svg', role: 'img' });
   const plotted = points.filter((p): p is BenchPoint & { seekMean: number } => p.seekMean !== null);
   svg.setAttribute('aria-label', `Memory held against steps to seek, both on log scales. ${plotted.map((p) => `${p.name}: ${formatBytes(p.bytes)}, ${n0(p.seekMean)} steps`).join('. ')}.`);
-  const xLo = 10, xHi = 100_000, yLo = 1024, yHi = 10 * 1024 * 1024;
+  const { xLo, xHi, yLo, yHi } = scale;
   const lx = (v: number): number => L + ((Math.log10(Math.max(v, xLo)) - Math.log10(xLo)) / (Math.log10(xHi) - Math.log10(xLo))) * (W - L - R);
   const ly = (v: number): number => H - B - ((Math.log10(Math.max(v, yLo)) - Math.log10(yLo)) / (Math.log10(yHi) - Math.log10(yLo))) * (H - T - B);
 
-  const ticks: [number, string][] = [[1024, '1 KiB'], [10 * 1024, '10 KiB'], [100 * 1024, '100 KiB'], [1024 * 1024, '1 MiB'], [10 * 1024 * 1024, '10 MiB']];
-  for (const [v, text] of ticks) {
+  for (const [v, text] of scale.yTicks) {
     svg.append(svgEl('line', { x1: L, x2: W - R, y1: ly(v), y2: ly(v), class: 'cmp-grid' }), svgEl('text', { x: L - 8, y: ly(v) + 4, class: 'cmp-tick', 'text-anchor': 'end' }, text));
   }
-  for (let e = 1; e <= 5; e++) {
+  for (let e = Math.log10(xLo); e <= Math.log10(xHi); e++) {
     const v = 10 ** e;
     svg.append(svgEl('line', { x1: lx(v), x2: lx(v), y1: T, y2: H - B, class: 'cmp-grid' }), svgEl('text', { x: lx(v), y: H - B + 18, class: 'cmp-tick', 'text-anchor': 'middle' }, n0(v)));
   }
@@ -183,7 +221,7 @@ export function benchView(): HTMLElement {
 
   const head = h('header', 'bench-head');
   const titles = h('div', 'bench-titles');
-  titles.append(h('h2', 'bench-title', 'Benchmarks'), h('p', 'dim bench-sub', 'Measured offline on the real engines and their conventional twins. This is not a live run.'));
+  titles.append(h('h2', 'bench-title', 'Benchmarks'), h('p', 'dim bench-sub', 'Measured offline on the real engines and their conventional twins. The reversible side is the hand-written assembly version of each program, not the rev one shown in the editor. This is not a live run.'));
   const pick = h('div', 'segmented');
   pick.setAttribute('role', 'group');
   pick.setAttribute('aria-label', 'benchmark program');
@@ -262,15 +300,15 @@ export function benchView(): HTMLElement {
       );
     } else {
       const r = results.sort;
-      lead.textContent = `Sorting 8 numbers, the reversible sort keeps ${formatBytes(r.reversibleMachineHistoryBytes)} in the machine and up to ${r.garbageFlagsPossible} bits of garbage (${r.garbageFlagsSet} set). The naive diary keeps ${formatBytes(r.naiveDiaryBytes)} and the tight diary ${formatBytes(r.tightDiaryBytes)}.`;
-      chart.replaceChildren();
-      caption.textContent = 'There is no chart for sort: seeking and checkpoints were not measured.';
-      row('Naive diary', [formatBytes(r.naiveDiaryBytes), '1 step', 'not measured']);
-      row('Tight diary', [formatBytes(r.tightDiaryBytes), '1 step', 'not measured']);
-      row('Reversible', [`${r.garbageFlagsSet} of ${r.garbageFlagsPossible} garbage flags`, '1 step', 'not measured'], true);
+      const pts = sortPoints(r);
+      const small = r.checkpoints.reduce((a, c) => (c.bytes < a.bytes ? c : a));
+      lead.textContent = `Sorting 8 numbers, the reversible sort keeps ${formatBytes(r.reversibleGarbageBytes)} of flags to be able to go back (${r.garbageFlagsSet} of ${r.garbageFlagsPossible} possible), and nothing in the machine. The naive diary keeps ${formatBytes(r.naiveDiaryBytes)} and the tight diary ${formatBytes(r.tightDiaryBytes)}.`;
+      chart.replaceChildren(benchChart(pts, SORT_SCALE));
+      caption.textContent = 'Memory held after the run, against the work to jump to a random earlier moment. Both axes use a log scale. Lower is better on both, so the bottom left is best.';
+      for (const p of pts) row(p.name, [formatBytes(p.bytes), p.back1, `${n0(p.seekMean ?? 0)} steps`], p.strategy === 'reversible');
       limitsBody.replaceChildren(
         note(`Reversible costs time. In this measurement it runs ${times(r.reversibleSteps, r.conventionalSteps)} times as many steps as the conventional twin (the same program written for an ordinary machine that overwrites values): ${r.reversibleSteps} against ${r.conventionalSteps}.`),
-        note('Checkpoint and replay was not measured for sort, so this view cannot say how it compares.'),
+        note(`The sort is tiny: about ${n0(r.conventionalSteps)} steps in all. A single snapshot every ${n0(small.everySteps)} steps keeps ${formatBytes(small.bytes)}, which is less than the tight diary, so on a program this short checkpointing is hard to beat on memory. The reversible sort's ${formatBytes(r.reversibleGarbageBytes)} is its ${r.garbageFlagsSet} set flags, each in a 32-bit word; the information in them is ${r.garbageFlagsSet} bits.`),
       );
     }
   };

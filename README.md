@@ -40,7 +40,7 @@ npm run check                               # test:all plus the browser UI and i
 ## The numbers (all measured; `bench/TWINS.md` has the method and the caveats)
 - **The machine needs no history.** Rewinding the reversible engine costs 0 bytes per step. Our logging engine's diary costs 48 bytes a
   step; that is a naive diary, so the fair comparison is below.
-- **Reversible code costs more steps.** The same sort takes 3.0 times the instructions of its conventional twin, Pong 3.3 times.
+- **Reversible code costs more steps.** The same sort takes 3.0 times the instructions of its conventional twin, Pong 3.3 times (measured on the hand-written assembly programs `examples/demos/sort.s` and `pong.s`).
   That overhead is real and is the price.
 - **Against a fair diary** (a real bit-packed history of the conventional twin, which rewinds exactly): Pong needs about 126 bytes a frame,
   the reversible program about 8 (its input log). Against checkpoint-and-replay (a snapshot every 10,000 steps, about 15 bytes a frame

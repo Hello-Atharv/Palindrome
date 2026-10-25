@@ -200,23 +200,10 @@ export function buildProgramSelect(programs: ProgramEntry[], onSample: (i: numbe
   return { el: select, setIndex: (i) => { select.value = String(i); } };
 }
 
-export function buildProgramBar(programs: ProgramEntry[], onSample: (i: number) => void, onFile: (f: File) => void): ProgramBar {
+export function buildProgramBar(programs: ProgramEntry[], onSample: (i: number) => void): ProgramBar {
   const el = h('div', 'program-bar');
   const picker = buildProgramSelect(programs, onSample);
-  const file = h('input');
-  file.type = 'file';
-  file.accept = '.rvm';
-  file.hidden = true;
-  file.addEventListener('change', () => {
-    const f = file.files?.[0];
-    if (f) onFile(f);
-    file.value = '';
-  });
-  const load = h('button', 'btn', 'Open .rvm file');
-  load.type = 'button';
-  load.title = 'Load a program image from disk';
-  load.addEventListener('click', () => file.click());
-  el.append(picker.el, load, file);
+  el.append(picker.el);
   return { el, setIndex: picker.setIndex };
 }
 
