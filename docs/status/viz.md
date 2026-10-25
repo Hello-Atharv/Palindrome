@@ -262,3 +262,23 @@ containment on the memory table and console, tabular digits on changing numbers,
 - Deploying to Vercel: the app is a static site (no backend, no env vars, no hardcoded URLs). The production build works with the real
   engines. Waiting on the owner's Vercel login. A root-level vercel.json would be needed only for auto-deploys from GitHub (core owns the
   root); a deploy of web/viz/dist needs none.
+
+## Compare: offline rows, plain summary, headings; Vercel fix (2026-10-25, web/viz and one root file)
+- The Tight diary and Checkpoint and replay rows in the live Compare table were labelled "planned", which was stale: both are built and measured
+  (bench/twins). They now say "measured offline" under the name. For Pong the cells come from bench/results.json, per frame, with the
+  numbers as they are (tight diary 125.76 B a frame; checkpoints 14.94 to 1,225.08 B a frame across the three intervals, not just the
+  best one; the conventional program's 122.515 steps a frame). For sort the tight diary row is filled (269 B for the whole run) and
+  checkpointing says "not measured for sort". For any other program the rows say so. The summary adds one line: the live diary is the naive
+  48 B a step, and what the tight diary needs for the same program (SPEC 12.4).
+- The summary is five short lines plus that one, with time per step and for the whole run (nanoseconds under a microsecond), and
+  "too short to time reliably" below 1,000 steps instead of a ratio. The section is "Virtual Machine History Over Time" and reads: how it
+  runs, what it shows, the chart, the table, the summary. The chart axis uses one unit with round ticks.
+- Benchmarks tab: the four strategies and three measures are defined, "conventional twin" is explained, "undo" is "go back", and the
+  two real caveats are kept. Section headings are in title case with a thin rule under them.
+- Tables are real tables to assistive technology (roles), scrollable by keyboard when the window is narrow; the summary is announced.
+- Needs core: nothing for the UI. Sort has no checkpoint or seek figures in bench/results.json, so the Benchmarks tab has no chart for
+  it. If bench/twins can add them, the chart will work like Pong's.
+- Vercel: the project deploys the app from GitHub main. The repo-root `package.json` build is the C++ build (cmake), which does not exist
+  on Vercel, so every Git deployment failed. I added a root `vercel.json` (install, build and output pointed at web/viz). It is
+  outside my folders, so core: please keep it. It must be on main for deployments from main to work.
+- Checks: viz typecheck, 143/143 tests, build, scanner 0, layout 88/88; mock_vm 55/55.

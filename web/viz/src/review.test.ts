@@ -162,8 +162,102 @@ describe('the Benchmarks tab in the Compare environment', () => {
     const words = bench.textContent!;
     expect(words).toContain('Naive diary');
     expect(words).toContain('Reversible costs time');
-    expect(words).not.toMatch(/bench\/|TWINS\.md|web\/|serious competitor|seamless/i); // no source paths, no filler
+    expect(words).not.toMatch(/bench\/|TWINS\.md|web\/|serious competitor|seamless/i); // no source paths, no filler (avoid-ai-design-ignore: CP2, the test checks that the word is absent)
     tabs[0].click();
     expect(live.hidden).toBe(false);
+  });
+});
+
+describe('the offline baselines in the Compare table', () => {
+  it('are the numbers in bench/results.json, exactly: per frame for Pong, for the whole run for sort, nothing for anything else', async () => {
+    const { offlineBaselines } = await import('./panels/bench');
+    const pong = offlineBaselines('pong')!;
+    expect(pong.tight).toEqual(['125.76 B a frame', '–', '201,216 bits over 200 frames', '122.515 steps a frame', '1 step']);
+    expect(pong.checkpoint).toEqual(['14.94 to 1,225.08 B a frame', '–', '23,904 bits to 1,960,128 bits over 200 frames', '122.515 steps a frame', 'worst case 99 to 9,984 steps of replay']);
+    expect(pong.naiveVsTight).toBe('The live diary here is the naive one: 48 B a step, which is 19,144.56 B a frame for Pong. The tight diary needs 125.76 B a frame for the same program (25,152 B over 200 frames).');
+    expect(offlineBaselines('pong (rev)')!.tight).toEqual(pong.tight); // either language is the same program
+    const sort = offlineBaselines('sort')!;
+    expect(sort.tight[0]).toBe('269 B for the whole run');
+    expect(sort.checkpoint).toBeNull(); // not measured for sort
+    expect(sort.naiveVsTight).toContain('269 B for the same program, against 14,928 B for the naive diary');
+    expect(offlineBaselines('loop')).toBeNull();
+  });
+});
+
+describe('the Virtual Machine History Over Time section', () => {
+  const entry = (name: string): ProgramEntry => ({ name, source: SMALL, load: () => assemble(SMALL).image! });
+  async function measure(name: string) {
+    const { root, viz } = await mount([entry(name)]);
+    root.querySelector<HTMLButtonElement>('.compare-btn')!.click();
+    await vi.waitFor(() => expect(viz.machines.length).toBe(2), { timeout: 10000 });
+    root.querySelector<HTMLButtonElement>('.cmp-live .btn.primary')!.click();
+    await vi.waitFor(() => expect(root.querySelectorAll('.cmp-verdict li').length).toBeGreaterThan(2), { timeout: 30000 });
+    return root;
+  }
+  const lines = (root: HTMLElement) => [...root.querySelectorAll('.cmp-verdict li')].map((l) => l.textContent);
+  const rows = (root: HTMLElement) => [...root.querySelectorAll('.cmp-live .cmp-table [role="row"]')].map((r) => [...r.children].map((c) => c.textContent));
+
+  it('reads in the order: heading, how it runs, what it shows, the chart, the table, the summary', async () => {
+    const { root } = await mount([small]);
+    const box = root.querySelector('.cmp-live .cmp-section')!;
+    expect([...box.children].map((c) => c.className.split(' ')[0])).toEqual(['cmp-head', 'dim', 'dim', 'cmp-chart', 'cmp-table', 'dim', 'cmp-verdict']);
+    expect(box.querySelector('h2')!.textContent).toBe('Virtual Machine History Over Time');
+    expect(box.children[1].textContent).toBe('Each engine runs the program forward until it halts (or for 100,000 steps), then backwards in time to the start.');
+    expect(box.children[2].textContent).toContain('Rewinding costs the reversible engine no history. That does not necessarily make the reversible programs cheaper overall');
+    expect(box.textContent).not.toContain('This repeats until the timings settle');
+  });
+
+  it('summarises a measurement as short lines, and for an ordinary program says the tight diary was measured offline for Pong and sort only', async () => {
+    const root = await measure('loop');
+    const l = lines(root);
+    expect(l).toHaveLength(6);
+    expect(l[0]).toMatch(/^\d+ steps, averaged over [\d,]+ passes\.$/);
+    expect(l[1]).toMatch(/^To go back, the diary keeps .+ and the reversible engine keeps 0 B\.$/);
+    expect(l[2]).toMatch(/^Going back, per step: reversible .+, diary .+ \(too short to time reliably\)\.$/); // a run of a few steps cannot be timed
+    expect(l[3]).toMatch(/^Going back, whole run: reversible [\d.]+ ?(ns|µs|ms), diary [\d.]+ ?(ns|µs|ms)\.$/); // under a microsecond is shown in nanoseconds
+    expect(l[4]).toBe('Both engines returned to exactly the starting state.');
+    expect(l[5]).toBe('The live diary here is the naive one: 48 B a step. A tight diary was measured offline for Pong and sort only: see Benchmarks.');
+    const r = rows(root);
+    expect(r.map((x) => x[0])).toEqual(['Strategy', 'Naive diary', 'Reversible', 'Tight diary', 'Checkpoint and replay']);
+    expect(r[3][1]).toBe('measured offline on the conventional program, for Pong and sort only: see Benchmarks');
+    expect(root.querySelector('.cmp-table-note')!.textContent).toContain('measured offline on the conventional program, not in this live run');
+  });
+
+  it('fills the tight diary and checkpoint rows for Pong from the benchmark, and names the tight diary next to the naive one', async () => {
+    const root = await measure('pong');
+    const r = rows(root);
+    expect(r[3]).toEqual(['Tight diary', '125.76 B a frame', '–', '201,216 bits over 200 frames', '122.515 steps a frame', '1 step']);
+    expect(r[4][1]).toBe('14.94 to 1,225.08 B a frame');
+    expect(lines(root).pop()).toContain('The tight diary needs 125.76 B a frame for the same program (25,152 B over 200 frames).');
+    expect(root.querySelector('.cmp-table-note')!.textContent).toContain('200 frames of Pong with 105 key presses');
+  });
+
+  it('fills the tight diary row for sort, and says checkpointing was not measured for it', async () => {
+    const root = await measure('sort');
+    const r = rows(root);
+    expect(r[3][1]).toBe('269 B for the whole run');
+    expect(r[4][1]).toBe('not measured for sort: see Benchmarks');
+  });
+
+  it('the tables are real tables to assistive technology, and the summary is announced', async () => {
+    const root = await measure('loop');
+    const table = root.querySelector<HTMLElement>('.cmp-live .cmp-table')!;
+    expect(table.getAttribute('role')).toBe('table');
+    expect(table.querySelectorAll('[role="columnheader"]').length).toBe(6);
+    expect(table.querySelectorAll('[role="rowheader"]').length).toBe(4);
+    expect(root.querySelector('.cmp-verdict')!.getAttribute('aria-live')).toBe('polite');
+  });
+});
+
+describe('the Benchmarks tab text', () => {
+  it('has title-case section headings, the four strategies defined, and no "undo" or filler', async () => {
+    const { root } = await mount([small]);
+    const bench = root.querySelector<HTMLElement>('.cmp-bench')!;
+    expect([...bench.querySelectorAll('h2, h3')].map((e) => e.textContent)).toEqual(['Benchmarks', 'How to Read This', 'What This Does Not Show']);
+    expect([...bench.querySelectorAll('.bench-guide dt')].map((e) => e.textContent)).toEqual(['Naive diary', 'Tight diary', 'Checkpoint and replay', 'Reversible', 'Memory held', 'Back one step', 'Seek']);
+    expect(bench.textContent).toContain('the same program written for an ordinary machine that overwrites values');
+    expect(bench.textContent).toContain('In this measurement');
+    expect(bench.textContent).not.toMatch(/\bundo\b|inverse step/i);
+    expect(bench.querySelector('.cmp-table')!.getAttribute('role')).toBe('table');
   });
 });

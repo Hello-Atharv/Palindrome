@@ -140,7 +140,8 @@ export function formatNs(ns: number): string {
 
 /** "38 µs", "1.4 ms", "2.1 s": the unit that keeps the number short. */
 export function formatMs(ms: number): string {
-  if (ms < 0.001) return '< 1 µs';
+  if (ms < 5e-7) return '< 1 ns';
+  if (ms < 0.001) return `${Math.round(ms * 1e6)} ns`;
   if (ms < 1) return `${(ms * 1000).toFixed(ms < 0.01 ? 1 : 0)} µs`;
   if (ms < 1000) return `${ms < 10 ? ms.toFixed(2) : ms.toFixed(1)} ms`;
   return `${(ms / 1000).toFixed(2)} s`;

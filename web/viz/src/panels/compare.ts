@@ -6,7 +6,8 @@ import { icon } from '../icons';
 import { formatMs, formatNs, garbageBitsOf } from '../track';
 import type { TrackResult } from '../track';
 import { Tabs } from '../tabs';
-import { benchView } from './bench';
+import { benchView, offlineBaselines } from './bench';
+import type { OfflineCells } from './bench';
 import { framebufferView } from './framebuffer';
 import type { Ctx, Panel } from './panel';
 
@@ -73,12 +74,16 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
   return e;
 }
 
-/** The "VM history against time" chart: bytes the machine keeps, over the steps of the run, one line per engine. */
+/** The "Virtual Machine History Over Time" chart: bytes the machine keeps, over the steps of the run, one line per engine. */
 export function historyChart(results: readonly TrackResult[]): SVGSVGElement {
-  const W = 640, H = 262, L = 64, R = 150, T = 14, B = 48;
+  const W = 640, H = 262, L = 88, R = 150, T = 14, B = 48;
   const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'cmp-chart-svg', role: 'img' });
   const steps = Math.max(1, ...results.map((r) => r.steps));
-  const top = niceMax(Math.max(0, ...results.map((r) => Math.max(...r.samples.map((s) => s.bytes)))));
+  const maxBytes = Math.max(0, ...results.map((r) => Math.max(...r.samples.map((s) => s.bytes))));
+  // one unit for the whole axis (B, KiB, MiB or GiB), so the ticks are round numbers of it: 250, 500, 750, 1,000 KiB
+  const [unitName, unitSize] = ([['GiB', 2 ** 30], ['MiB', 2 ** 20], ['KiB', 1024]] as const).find(([, size]) => maxBytes >= size) ?? (['B', 1] as const);
+  const top = niceMax(maxBytes / unitSize) * unitSize;
+  const tick = (v: number): string => (v === 0 ? '0' : `${(v / unitSize).toLocaleString('en-GB', { maximumFractionDigits: 2 })} ${unitName}`);
   svg.setAttribute('aria-label', `VM history in bytes against steps, up to ${steps} steps. ${results.map((r) => `${ENGINES[r.kind].strategy}: ${formatBytes(r.historyBytes)}`).join('. ')}.`);
   const x = (t: number): number => L + (t / steps) * (W - L - R);
   const y = (b: number): number => H - B - (b / top) * (H - T - B);
@@ -87,7 +92,7 @@ export function historyChart(results: readonly TrackResult[]): SVGSVGElement {
     const v = (top * i) / 4;
     svg.append(
       svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'cmp-grid' }),
-      svgEl('text', { x: L - 8, y: y(v) + 4, class: 'cmp-tick', 'text-anchor': 'end' }, formatBytes(Math.round(v))),
+      svgEl('text', { x: L - 8, y: y(v) + 4, class: 'cmp-tick', 'text-anchor': 'end' }, tick(v)),
     );
   }
   for (let i = 0; i <= 4; i++) {
@@ -187,17 +192,25 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
   const measure = h('button', 'btn primary');
   measure.type = 'button';
   measure.append(icon('play'), h('span', '', 'Measure both engines'));
-  chartHead.append(h('h3', 'cmp-h', 'VM history against time'), measure);
-  const task = h('p', 'dim cmp-sub', 'Each engine runs the program forward until it halts (or for 100,000 steps), then back to the start. This repeats until the timings settle.');
+  chartHead.append(h('h2', 'cmp-h', 'Virtual Machine History Over Time'), measure);
+  const task = h('p', 'dim cmp-sub', 'Each engine runs the program forward until it halts (or for 100,000 steps), then backwards in time to the start.');
+  const note = h('p', 'dim cmp-sub', 'Both engines run the same program. Rewinding costs the reversible engine no history. That does not necessarily make the reversible programs cheaper overall: the ones we measured run more instructions and may still keep some garbage.');
   const chartSlot = h('div', 'cmp-chart');
   const table = h('div', 'cmp-table');
+  table.setAttribute('role', 'table');
+  table.setAttribute('aria-label', 'Strategies compared on this program');
+  table.tabIndex = 0; // so the keyboard can scroll it when the window is narrow
   table.hidden = true;
-  const verdict = h('p', 'cmp-verdict');
+  const tableNote = h('p', 'dim cmp-sub cmp-table-note');
+  tableNote.hidden = true;
+  const verdict = h('ul', 'cmp-verdict');
+  verdict.setAttribute('aria-live', 'polite'); // the result is announced when the measurement finishes
   verdict.hidden = true;
-  chartBox.append(chartHead, task, chartSlot, table, verdict);
+  /** The summary, one short line per fact. */
+  const say = (...lines: string[]): void => verdict.replaceChildren(...lines.map((l) => h('li', '', l)));
+  chartBox.append(chartHead, task, note, chartSlot, table, tableNote, verdict);
 
-  const note = h('p', 'cmp-note dim', 'Both engines run the same program. Rewinding costs the reversible engine no history. That does not make reversible programs cheaper overall: they run more instructions and keep some garbage.');
-  body.append(mismatch, cards, warn, chartBox, note);
+  body.append(mismatch, cards, warn, chartBox);
 
   // two tabs at the top of the Compare environment: the live comparison, and the measured benchmarks (which need no controls)
   const live = h('div', 'cmp-live');
@@ -217,6 +230,7 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
   let garbageRanges: readonly (readonly [number, number])[] = [];
   let timing: Partial<Record<VmKind, TrackResult>> = {};
   let program: object | null | undefined;
+  let programName = '';
   dismiss.addEventListener('click', () => { warnDismissed = true; warn.hidden = true; });
 
   measure.addEventListener('click', async () => {
@@ -224,12 +238,12 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
     measuring = true;
     measure.disabled = true;
     verdict.hidden = false;
-    verdict.textContent = 'Measuring…';
+    say('Measuring…');
     try {
       show(await hooks.onMeasure());
     } catch (e) {
       table.hidden = true;
-      verdict.textContent = e instanceof Error ? e.message : String(e);
+      say(e instanceof Error ? e.message : String(e));
     } finally {
       measuring = false;
       measure.disabled = false;
@@ -242,33 +256,67 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
     chartSlot.replaceChildren(historyChart(results));
     const diaryR = timing.logging, revR = timing.reversible;
 
+    const offline = offlineBaselines(programName);
     const head = h('div', 'trow thead');
-    ['Strategy', 'History', 'Garbage', 'Total', 'Forward', 'Back'].forEach((t) => head.append(h('span', '', t)));
+    head.setAttribute('role', 'row');
+    ['Strategy', 'History', 'Garbage', 'Total', 'Forward', 'Back'].forEach((t) => {
+      const cell = h('span', '', t);
+      cell.setAttribute('role', 'columnheader');
+      head.append(cell);
+    });
     table.replaceChildren(head);
-    const row = (name: string, r: TrackResult | undefined, planned = false): void => {
-      const tr = h('div', `trow${planned ? ' planned' : ''}`);
-      tr.append(h('span', 'tlabel', name));
-      if (!r) {
-        tr.append(h('span', 'tplanned dim', planned ? 'planned: defined in SPEC 12.3, not built yet' : 'not measured'));
-      } else {
-        for (const v of [formatBytes(r.historyBytes), fmtBits(r.garbageBits), fmtBits(totalBits(r.historyBytes, r.garbageBits)), `${formatNs(r.forwardNs)} / step`, `${formatNs(r.backNs)} / step`]) tr.append(h('span', 'tcell mono', v));
-      }
+    const startRow = (name: string, cls = ''): HTMLElement => {
+      const tr = h('div', `trow${cls}`);
+      tr.setAttribute('role', 'row');
+      const label = h('span', 'tlabel', name);
+      label.setAttribute('role', 'rowheader');
+      tr.append(label);
+      return tr;
+    };
+    const cell = (text: string, cls: string): HTMLElement => {
+      const e = h('span', cls, text);
+      e.setAttribute('role', 'cell');
+      return e;
+    };
+    /** A live engine: this run, measured just now. */
+    const live = (name: string, r: TrackResult | undefined): void => {
+      const tr = startRow(name);
+      if (!r) tr.append(cell('not measured', 'tplanned dim'));
+      else for (const v of [formatBytes(r.historyBytes), fmtBits(r.garbageBits), fmtBits(totalBits(r.historyBytes, r.garbageBits)), `${formatNs(r.forwardNs)} / step`, `${formatNs(r.backNs)} / step`]) tr.append(cell(v, 'tcell mono'));
       table.append(tr);
     };
-    row('Naive diary', diaryR);
-    row('Reversible', revR);
-    row('Tight diary', undefined, true);
-    row('Checkpoint and replay', undefined, true);
+    /** A strategy that is not a live engine: measured offline on the conventional program (bench/twins), shown for Pong and sort. */
+    const offlineRow = (name: string, cells: OfflineCells | null, none: string): void => {
+      const tr = startRow(name, ' offline');
+      if (!cells) tr.append(cell(none, 'tplanned dim'));
+      else for (const v of cells) tr.append(cell(v, 'tcell mono'));
+      table.append(tr);
+    };
+    live('Naive diary', diaryR);
+    live('Reversible', revR);
+    const anywhere = 'measured offline on the conventional program, for Pong and sort only: see Benchmarks';
+    offlineRow('Tight diary', offline?.tight ?? null, anywhere);
+    offlineRow('Checkpoint and replay', offline ? offline.checkpoint : null, offline ? 'not measured for sort: see Benchmarks' : anywhere);
+    tableNote.textContent = offline
+      ? `The last two rows are measured offline, not in this live run: ${offline.scope}. See Benchmarks.`
+      : 'The last two rows are measured offline on the conventional program, not in this live run. See Benchmarks.';
+    tableNote.hidden = false;
     table.hidden = false;
 
     const a = diaryR, b = revR;
     if (a && b) {
       const slow = b.backNs / Math.max(a.backNs, 1e-9);
-      verdict.textContent =
-        `${a.steps.toLocaleString('en-GB')} steps${a.capped ? ' (the start of a longer run)' : ''}, averaged over ${a.passes.toLocaleString('en-GB')} passes. ` +
-        `To go back, the diary keeps ${formatBytes(a.historyBytes)} and the reversible engine keeps ${formatBytes(b.historyBytes)}. ` +
-        `Going back takes the reversible engine ${slow >= 1 ? `${slow.toFixed(1)} times as long` : `${(1 / slow).toFixed(1)} times less time`} as the diary (${formatMs(b.backMs)} against ${formatMs(a.backMs)}). ` +
-        `${a.restored && b.restored ? 'Both engines returned to exactly the starting state.' : 'An engine did not return to the starting state.'}`;
+      // a run this short is dominated by the clock's own overhead: a ratio of its times would mean nothing
+      const reliable = a.steps >= 1000;
+      const ratio = !reliable ? 'too short to time reliably' : slow >= 1 ? `reversible takes ${slow.toFixed(1)} times as long` : `reversible is ${(1 / slow).toFixed(1)} times faster`;
+      say(
+        `${a.steps.toLocaleString('en-GB')} steps${a.capped ? ' (the start of a longer run)' : ''}, averaged over ${a.passes.toLocaleString('en-GB')} passes.`,
+        `To go back, the diary keeps ${formatBytes(a.historyBytes)} and the reversible engine keeps ${formatBytes(b.historyBytes)}.`,
+        `Going back, per step: reversible ${formatNs(b.backNs)}, diary ${formatNs(a.backNs)} (${ratio}).`,
+        `Going back, whole run: reversible ${formatMs(b.backMs)}, diary ${formatMs(a.backMs)}.`,
+        a.restored && b.restored ? 'Both engines returned to exactly the starting state.' : 'An engine did not return to the starting state.',
+        offline ? offline.naiveVsTight : 'The live diary here is the naive one: 48 B a step. A tight diary was measured offline for Pong and sort only: see Benchmarks.',
+      );
     }
     verdict.hidden = false;
   }
@@ -304,11 +352,13 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
     update({ machines, snap, program: p }: Ctx) {
       if (p !== program) {
         program = p;
+        programName = p?.name ?? '';
         garbageRanges = p?.garbage ?? [];
         timing = {};
         chartSlot.replaceChildren();
         table.hidden = true;
         verdict.hidden = true;
+        tableNote.hidden = true;
         warnDismissed = false;
       }
       if (machines.length < 2) {

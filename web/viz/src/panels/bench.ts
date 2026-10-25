@@ -5,6 +5,7 @@ import { formatBytes, h } from '../dom';
 interface Checkpoint { everySteps: number; bytes: number; snapshots: number; meanReplaySteps: number; worstReplaySteps: number }
 interface PongResult {
   frames: number;
+  keyEvents: number;
   reversibleStepsPerFrame: number;
   conventionalStepsPerFrame: number;
   naiveDiaryBytes: number;
@@ -48,8 +49,8 @@ const n0 = (v: number): string => Math.round(v).toLocaleString('en-GB');
 /** The rows of the Pong table: the naive and the tight diary, three checkpoint intervals, and the reversible program. */
 export function pongPoints(r: PongResult = results.pong): BenchPoint[] {
   return [
-    { strategy: 'naive', name: 'Naive diary', bytes: r.naiveDiaryBytes, seekMean: r.seekMeanSteps.naiveDiary, back1: '1 undo step' },
-    { strategy: 'tight', name: 'Tight diary', bytes: r.tightDiaryBytes, seekMean: r.seekMeanSteps.tightDiary, back1: '1 undo step' },
+    { strategy: 'naive', name: 'Naive diary', bytes: r.naiveDiaryBytes, seekMean: r.seekMeanSteps.naiveDiary, back1: '1 step' },
+    { strategy: 'tight', name: 'Tight diary', bytes: r.tightDiaryBytes, seekMean: r.seekMeanSteps.tightDiary, back1: '1 step' },
     ...r.checkpoints.map((c): BenchPoint => ({
       strategy: 'checkpoint',
       name: `Checkpoint, every ${n0(c.everySteps)} steps`,
@@ -57,8 +58,65 @@ export function pongPoints(r: PongResult = results.pong): BenchPoint[] {
       seekMean: c.meanReplaySteps,
       back1: `up to ${n0(c.worstReplaySteps)} steps of replay`,
     })),
-    { strategy: 'reversible', name: 'Reversible', bytes: r.reversibleGarbageBytes + r.reversibleMachineHistoryBytes, seekMean: r.seekMeanSteps.reversible, back1: '1 inverse step' },
+    { strategy: 'reversible', name: 'Reversible', bytes: r.reversibleGarbageBytes + r.reversibleMachineHistoryBytes, seekMean: r.seekMeanSteps.reversible, back1: '1 step' },
   ];
+}
+
+/** A number as it is in the results, never rounded in the reversible program's favour: up to three decimals, thousands separated. */
+const exact = (v: number): string => v.toLocaleString('en-GB', { maximumFractionDigits: 3 });
+
+/** One row of the live Compare table, filled from the offline benchmark: history, garbage, total, forward, back. */
+export type OfflineCells = [history: string, garbage: string, total: string, forward: string, back: string];
+
+export interface OfflineBaselines {
+  /** The tight diary, measured on the conventional program. */
+  tight: OfflineCells;
+  /** Checkpoint and replay, or null when the benchmark did not measure it for this program. */
+  checkpoint: OfflineCells | null;
+  /** What the benchmark ran, in a few words. */
+  scope: string;
+  /** The sentence for the summary: the live diary is the naive one, and what the tight diary needs for the same program. */
+  naiveVsTight: string;
+}
+
+/**
+ * The tight diary and checkpoint-and-replay are not live engines. Pong and sort were measured offline against a conventional twin
+ * (bench/twins, bench/results.json). For those two programs this returns their figures, per frame for Pong and for the whole run for
+ * sort; for any other program it returns null. SPEC 12.4: the naive diary is never the headline, so the tight one is always named too.
+ */
+export function offlineBaselines(programName: string): OfflineBaselines | null {
+  const name = programName.replace(/ \((rev|asm)\)$/, '');
+  if (name === 'pong') {
+    const r = results.pong;
+    const perFrame = (bytes: number): string => `${exact(bytes / r.frames)} B a frame`;
+    const bits = (bytes: number): string => `${exact(bytes * 8)} bits`;
+    const forward = `${exact(r.conventionalStepsPerFrame)} steps a frame`;
+    const smallest = r.checkpoints.reduce((a, c) => (c.bytes < a.bytes ? c : a));
+    const largest = r.checkpoints.reduce((a, c) => (c.bytes > a.bytes ? c : a));
+    const worst = r.checkpoints.map((c) => c.worstReplaySteps);
+    return {
+      tight: [perFrame(r.tightDiaryBytes), '–', `${bits(r.tightDiaryBytes)} over ${r.frames} frames`, forward, '1 step'],
+      checkpoint: [
+        `${exact(smallest.bytes / r.frames)} to ${perFrame(largest.bytes)}`,
+        '–',
+        `${bits(smallest.bytes)} to ${bits(largest.bytes)} over ${r.frames} frames`,
+        forward,
+        `worst case ${exact(Math.min(...worst))} to ${exact(Math.max(...worst))} steps of replay`,
+      ],
+      scope: `${r.frames} frames of Pong with ${r.keyEvents} key presses, run on the conventional program`,
+      naiveVsTight: `The live diary here is the naive one: 48 B a step, which is ${perFrame(r.naiveDiaryBytes)} for Pong. The tight diary needs ${perFrame(r.tightDiaryBytes)} for the same program (${exact(r.tightDiaryBytes)} B over ${r.frames} frames).`,
+    };
+  }
+  if (name === 'sort') {
+    const r = results.sort;
+    return {
+      tight: [`${exact(r.tightDiaryBytes)} B for the whole run`, '–', `${exact(r.tightDiaryBytes * 8)} bits`, `${exact(r.conventionalSteps)} steps`, '1 step'],
+      checkpoint: null,
+      scope: 'sorting 8 numbers, run on the conventional program',
+      naiveVsTight: `The live diary here is the naive one: 48 B a step. The tight diary needs ${exact(r.tightDiaryBytes)} B for the same program, against ${exact(r.naiveDiaryBytes)} B for the naive diary.`,
+    };
+  }
+  return null;
 }
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -137,20 +195,28 @@ export function benchView(): HTMLElement {
   const caption = h('figcaption', 'dim bench-caption');
   figure.append(chart, caption);
   const table = h('div', 'cmp-table');
+  table.setAttribute('role', 'table');
+  table.setAttribute('aria-label', 'Strategies compared');
+  table.tabIndex = 0; // so the keyboard can scroll it when the window is narrow
 
-  const guide = h('dl', 'bench-guide');
-  const term = (name: string, text: string): void => {
-    guide.append(h('dt', '', name), h('dd', '', text));
+  const strategies = h('dl', 'bench-guide');
+  const measures = h('dl', 'bench-guide');
+  const add = (dl: HTMLElement, name: string, text: string): void => {
+    dl.append(h('dt', '', name), h('dd', '', text));
   };
-  term('Memory held', 'What each strategy has to keep after the run so that it can undo it.');
-  term('Back one step', 'The work needed to undo a single instruction.');
-  term('Seek', 'The average work to jump to a random earlier moment, counted in instructions.');
+  add(strategies, 'Naive diary', 'Logs 48 bytes for every step. This is our logging engine.');
+  add(strategies, 'Tight diary', 'Logs only what an instruction destroys, packed into bits. The smallest diary we know of, not a proven minimum.');
+  add(strategies, 'Checkpoint and replay', 'Saves a snapshot every N steps, then replays forward from the nearest one to reach a moment.');
+  add(strategies, 'Reversible', 'Keeps no history. It goes back by running each instruction backwards.');
+  add(measures, 'Memory held', 'What a strategy has to keep after the run so that it can go back.');
+  add(measures, 'Back one step', 'The work needed to go back a single step.');
+  add(measures, 'Seek', 'The average work to jump to a random earlier moment, counted in steps.');
   const guideBox = h('section', 'bench-block');
-  guideBox.append(h('h3', 'bench-h', 'How to read this'), guide);
+  guideBox.append(h('h3', 'bench-h', 'How to Read This'), h('p', 'dim bench-intro', 'Each strategy is a way to go back in time. They are compared on three measures.'), strategies, measures);
 
   const limits = h('section', 'bench-block');
   const limitsBody = h('div', 'bench-limits');
-  limits.append(h('h3', 'bench-h', 'What this does not show'), limitsBody);
+  limits.append(h('h3', 'bench-h', 'What This Does Not Show'), limitsBody);
 
   el.append(head, lead, figure, table, guideBox, limits);
 
@@ -161,12 +227,24 @@ export function benchView(): HTMLElement {
     buttons.forEach(({ id, b }) => b.setAttribute('aria-pressed', String(id === which)));
     table.replaceChildren();
     const header = h('div', 'trow thead brow');
-    ['Strategy', 'Memory held', 'Back one step', 'Seek (mean)'].forEach((t) => header.append(h('span', '', t)));
+    header.setAttribute('role', 'row');
+    ['Strategy', 'Memory held', 'Back one step', 'Seek (mean)'].forEach((t) => {
+      const cell = h('span', '', t);
+      cell.setAttribute('role', 'columnheader');
+      header.append(cell);
+    });
     table.append(header);
     const row = (name: string, cells: string[], bold = false): void => {
       const tr = h('div', `trow brow${bold ? ' brow-strong' : ''}`);
-      tr.append(h('span', 'tlabel', name));
-      cells.forEach((c) => tr.append(h('span', 'tcell mono', c)));
+      tr.setAttribute('role', 'row');
+      const label = h('span', 'tlabel', name);
+      label.setAttribute('role', 'rowheader');
+      tr.append(label);
+      cells.forEach((c) => {
+        const cell = h('span', 'tcell mono', c);
+        cell.setAttribute('role', 'cell');
+        tr.append(cell);
+      });
       table.append(tr);
     };
 
@@ -174,27 +252,25 @@ export function benchView(): HTMLElement {
       const r = results.pong;
       const pts = pongPoints(r);
       const last = r.checkpoints[r.checkpoints.length - 1];
-      lead.textContent = `Over ${r.frames} frames of Pong, the reversible program keeps ${formatBytes(r.reversibleGarbageBytes)} to be able to undo. The naive diary keeps ${formatBytes(r.naiveDiaryBytes)} and the tight diary ${formatBytes(r.tightDiaryBytes)}.`;
+      lead.textContent = `Over ${r.frames} frames of Pong, the reversible program keeps ${formatBytes(r.reversibleGarbageBytes)} to be able to go back. The naive diary keeps ${formatBytes(r.naiveDiaryBytes)} and the tight diary ${formatBytes(r.tightDiaryBytes)}.`;
       chart.replaceChildren(benchChart(pts));
       caption.textContent = 'Memory held after the run, against the work to jump to a random earlier moment. Both axes use a log scale. Lower is better on both, so the bottom left is best.';
       for (const p of pts) row(p.name, [formatBytes(p.bytes), p.back1, `${n0(p.seekMean ?? 0)} steps`], p.strategy === 'reversible');
       limitsBody.replaceChildren(
-        note(`Reversible costs time. It runs ${times(r.reversibleStepsPerFrame, r.conventionalStepsPerFrame)} times as many instructions as the conventional twin (${r.reversibleStepsPerFrame.toFixed(0)} against ${r.conventionalStepsPerFrame.toFixed(0)} a frame). The twin cannot run in step with it, so we compare whole runs, not steps.`),
-        note(`Checkpointing is hard to beat on memory. A snapshot every ${n0(last.everySteps)} steps uses ${formatBytes(last.bytes)} and seeks quickly, but going back one step can mean replaying up to ${n0(last.worstReplaySteps)}.`),
-        note('The naive diary is our logging engine, which keeps 48 bytes a step. The tight diary is a bit-packed history we built and tested. It is the smallest diary we know of, not a proven minimum.'),
+        note(`Reversible costs time. In this measurement it runs ${times(r.reversibleStepsPerFrame, r.conventionalStepsPerFrame)} times as many steps as the conventional twin (the same program written for an ordinary machine that overwrites values): ${r.reversibleStepsPerFrame.toFixed(0)} against ${r.conventionalStepsPerFrame.toFixed(0)} a frame. The twin cannot run in step with it, so whole runs are compared, not steps.`),
+        note(`Checkpointing is hard to beat on memory. A snapshot every ${n0(last.everySteps)} steps uses ${formatBytes(last.bytes)} and seeks quickly, but going back one step can mean replaying up to ${n0(last.worstReplaySteps)} steps.`),
       );
     } else {
       const r = results.sort;
       lead.textContent = `Sorting 8 numbers, the reversible sort keeps ${formatBytes(r.reversibleMachineHistoryBytes)} in the machine and up to ${r.garbageFlagsPossible} bits of garbage (${r.garbageFlagsSet} set). The naive diary keeps ${formatBytes(r.naiveDiaryBytes)} and the tight diary ${formatBytes(r.tightDiaryBytes)}.`;
       chart.replaceChildren();
       caption.textContent = 'There is no chart for sort: seeking and checkpoints were not measured.';
-      row('Naive diary', [formatBytes(r.naiveDiaryBytes), '1 undo step', 'not measured']);
-      row('Tight diary', [formatBytes(r.tightDiaryBytes), '1 undo step', 'not measured']);
-      row('Reversible', [`${r.garbageFlagsSet} of ${r.garbageFlagsPossible} garbage flags`, '1 inverse step', 'not measured'], true);
+      row('Naive diary', [formatBytes(r.naiveDiaryBytes), '1 step', 'not measured']);
+      row('Tight diary', [formatBytes(r.tightDiaryBytes), '1 step', 'not measured']);
+      row('Reversible', [`${r.garbageFlagsSet} of ${r.garbageFlagsPossible} garbage flags`, '1 step', 'not measured'], true);
       limitsBody.replaceChildren(
-        note(`Reversible costs time. It runs ${times(r.reversibleSteps, r.conventionalSteps)} times as many instructions as the conventional twin (${r.reversibleSteps} against ${r.conventionalSteps}).`),
-        note('Checkpoint-and-replay was not measured for sort, so this view cannot say how it compares.'),
-        note('The naive diary is our logging engine, which keeps 48 bytes a step. The tight diary is a bit-packed history we built and tested. It is the smallest diary we know of, not a proven minimum.'),
+        note(`Reversible costs time. In this measurement it runs ${times(r.reversibleSteps, r.conventionalSteps)} times as many steps as the conventional twin (the same program written for an ordinary machine that overwrites values): ${r.reversibleSteps} against ${r.conventionalSteps}.`),
+        note('Checkpoint and replay was not measured for sort, so this view cannot say how it compares.'),
       );
     }
   };

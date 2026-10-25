@@ -155,7 +155,7 @@ describe('forward and back track measurement', () => {
 
   it('formats times in the unit that keeps them short, and adds history and garbage into one total', async () => {
     const { formatMs } = await import('./track');
-    expect([formatMs(0.0004), formatMs(0.038), formatMs(1.4), formatMs(12.34), formatMs(2100)]).toEqual(['< 1 µs', '38 µs', '1.40 ms', '12.3 ms', '2.10 s']);
+    expect([formatMs(0.0004), formatMs(0.038), formatMs(1.4), formatMs(12.34), formatMs(2100)]).toEqual(['400 ns', '38 µs', '1.40 ms', '12.3 ms', '2.10 s']);
     const { formatNs } = await import('./track');
     expect([formatNs(0.4), formatNs(8.25), formatNs(42.4), formatNs(1250)]).toEqual(['< 1 ns', '8.3 ns', '42 ns', '1.25 µs']);
     expect(totalBits(100, 64)).toBe(864); // history_bytes x 8 + garbage_bits (SPEC 12.1)

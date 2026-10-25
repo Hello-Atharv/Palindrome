@@ -6,8 +6,8 @@
 .cmp-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--s-24); padding: var(--s-16) var(--s-24) var(--s-24) var(--s-16); }
 .compare[data-live='false'] .cmp-cards { opacity: 0.5; }
 
-.cmp-section { display: flex; flex-direction: column; gap: var(--s-8); min-width: 0; }
-.cmp-head { display: flex; align-items: center; gap: var(--s-12); flex-wrap: wrap; }
+.cmp-section { display: flex; flex-direction: column; gap: var(--s-8); min-width: 0; max-width: 880px; }
+.cmp-head { display: flex; align-items: center; gap: var(--s-12); flex-wrap: wrap; padding-bottom: var(--s-8); border-bottom: 1px solid var(--border); }
 .cmp-h { margin: 0; font-size: 15px; font-weight: 600; margin-right: auto; }
 .cmp-sub { margin: 0; max-width: 72ch; }
 .cmp-note { margin: 0; max-width: 72ch; }
@@ -35,24 +35,31 @@
 
 /* memory against time */
 .cmp-chart:empty { display: none; }
-.cmp-chart-svg { width: 100%; max-width: 760px; height: auto; display: block; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.cmp-chart-svg { width: 100%; max-width: 100%; height: auto; display: block; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
 .cmp-grid { stroke: var(--border); stroke-width: 1; }
 .cmp-tick { fill: var(--muted); font: 12px var(--mono); }
 .cmp-axis { fill: var(--muted); font: 13px var(--sans); }
 .cmp-line { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
 .cmp-end { font: 600 13px var(--sans); }
-.cmp-table { display: flex; flex-direction: column; max-width: 760px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); overflow: auto; }
-.trow { display: grid; grid-template-columns: minmax(130px, 1.4fr) repeat(5, minmax(84px, 1fr)); gap: var(--s-12); align-items: center; min-width: 640px; padding: var(--s-8) var(--s-12); border-top: 1px solid var(--border); }
+.cmp-table { display: flex; flex-direction: column; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); overflow: auto; }
+.trow { display: grid; grid-template-columns: minmax(130px, 1.3fr) repeat(5, minmax(100px, 1.3fr)); gap: var(--s-12); align-items: center; min-width: 780px; padding: var(--s-8) var(--s-12); border-top: 1px solid var(--border); }
 .trow:first-child { border-top: 0; }
 .thead { color: var(--muted); font-weight: 600; }
 .thead span:nth-child(n + 2) { text-align: right; }
 .trow.planned .tlabel { color: var(--muted); }
 .tplanned { grid-column: 2 / -1; font-style: italic; }
-.tcell { text-align: right; }
-.cmp-verdict { margin: 0; max-width: 72ch; line-height: 1.5; }
+.tcell { text-align: right; overflow-wrap: anywhere; }
+/* a strategy that is measured offline, not run live: the row says so under its name, and its numbers read like the others */
+.trow.offline .tlabel::after { content: 'measured offline'; display: block; font-size: 13px; color: var(--muted); }
+.cmp-table:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.cmp-table-note { margin: 0; }
+.cmp-verdict { margin: 0; padding-left: 1.25em; max-width: 72ch; line-height: 1.5; }
+.cmp-verdict li { padding-left: var(--s-4); }
+.cmp-verdict li + li { margin-top: 2px; }
 .brow { grid-template-columns: minmax(190px, 1.6fr) repeat(3, minmax(110px, 1fr)); min-width: 600px; }
 .brow-strong { background: color-mix(in srgb, var(--ok) 10%, var(--panel)); }
-.bench .cmp-chart-svg { max-width: 800px; }
+.bench .cmp-chart-svg { max-width: 100%; }
+.bench .cmp-table { max-width: 100%; }
 
 /* the two tabs at the top of the Compare environment */
 .cmp-tabs { padding: 0 var(--s-8); flex: none; }
@@ -61,15 +68,17 @@
 .cmp-bench { height: 100%; overflow: auto; overscroll-behavior: contain; padding: var(--s-24) var(--s-24) var(--s-24) var(--s-16); }
 
 /* Benchmarks: the result first, then the evidence, then how to read it, then what it leaves out */
-.bench { max-width: 880px; display: flex; flex-direction: column; gap: var(--s-24); }
-.bench-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-16); flex-wrap: wrap; }
+.bench { max-width: 840px; display: flex; flex-direction: column; gap: var(--s-24); }
+.bench-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-16); flex-wrap: wrap; padding-bottom: var(--s-12); border-bottom: 1px solid var(--border); }
 .bench-title { margin: 0; font-size: 18px; font-weight: 600; }
 .bench-sub { margin: var(--s-4) 0 0; max-width: 60ch; }
 .bench-lead { margin: 0; max-width: 62ch; font-size: 16px; font-weight: 500; line-height: 1.5; }
 .bench-figure { margin: 0; display: flex; flex-direction: column; gap: var(--s-8); }
 .bench-chart:empty { display: none; }
 .bench-caption { margin: 0; max-width: 72ch; }
-.bench-h { margin: 0 0 var(--s-8); font-size: 14px; font-weight: 600; }
+.bench-h { margin: 0 0 var(--s-12); padding-bottom: var(--s-4); font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--border); }
+.bench-intro { margin: 0 0 var(--s-12); max-width: 72ch; }
+.bench-guide + .bench-guide { margin-top: var(--s-16); padding-top: var(--s-16); border-top: 1px dashed var(--border); }
 .bench-guide { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-8) var(--s-24); margin: 0; max-width: 72ch; }
 .bench-guide dt { font-weight: 600; }
 .bench-guide dd { margin: 0; color: var(--muted); }
