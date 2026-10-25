@@ -1,0 +1,8 @@
+// if (a == b) then c += 7, else c += 100.   (Change b to 9 to take the else branch.)
+// Neither branch changes a or b, so the compiler needs no fi: it uses the test again, at no cost.
+var a = 5, b = 5, c = 0;
+out c;
+
+main {
+  if (a == b) { c += 7; } else { c += 100; }
+}

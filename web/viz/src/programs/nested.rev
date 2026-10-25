@@ -1,0 +1,11 @@
+// A loop with an if inside. i counts 1 to 5; hits counts the passes where i == 3, others counts the rest.
+// Result: i = 5, hits = 1, others = 4.
+var limit = 5, special = 3, i = 0, hits = 0, others = 0;
+out hits, others;
+
+main {
+  from (i == 0) loop {
+    i += 1;
+    if (i == special) { hits += 1; } else { others += 1; }
+  } until (i == limit);
+}

@@ -241,3 +241,24 @@ containment on the memory table and console, tabular digits on changing numbers,
 - Design: Back (cyan) and Step (amber) carry a word when the debug bar has room; the header says in one line what the tool does.
 - Checks: viz typecheck, 94/94 tests, build, scanner 0, layout 66/66; mock_vm 55/55.
 - Nothing needed from core. No non-UI bug found in this round.
+
+## Every program in both languages, the clipping fix, the Benchmarks tab (2026-10-25, web/viz only)
+- Every picker program is viewable as .rev and as .s, with the .s | .rev switch in the editor header. 18 programs: all of examples/asm
+  (including bennett and the no-macro if / else and loop), cipher, sort, Pong, gradient, my program, add two numbers, and the rev-only
+  hello, fibonacci, sort of three and tour. `src/catalogue.ts` holds the list (main.ts only starts the engines).
+- 10 new hand-written rev twins in `web/viz/src/programs/` (if_else, loop, nested, call, memory, bennett, add_two_numbers, cipher
+  with Speck written in rev, gradient, my_program) plus `gradient.s` (the gradient had no source). rev -> .s needs no tool for the rev-only
+  programs: the .s is the assembly the compiler writes, shown as "name.s (generated)". .s -> rev has no tool, so the twins are by hand.
+  Same program, not the same machine code: instruction counts differ.
+- `src/pairs.test.ts` runs every pair on both engines and compares results: registers or variables, memory, the 2048-pixel screen,
+  the Speck ciphertext, and the console text for different inputs; and checks every rev program rewinds to a clean start.
+- Asked of core: examples/ is yours. The 10 rev twins and gradient.s live in web/viz/src/programs/ for now. Move them to examples/rev
+  and examples/asm if you want them there. If rev gains a rotate-in-place statement, cipher.rev gets shorter.
+- Clipping: the value tag riding above the sphere was cut off by the edge of the diagram on the top wires. It now goes below the sphere
+  when it would not fit above (`tagOffset` in datapath/layout.ts; a test walks every wire).
+- Compare now has two tabs at the top: Compare and Benchmarks. Benchmarks has its own Pong | Sort switch and no run controls. The
+  explanations are rewritten: the result in one sentence, the chart, the table, how to read it, and what it does not show.
+- Checks: viz typecheck, 136/136 tests, layout 88/88 (the Benchmarks tab included).
+- Deploying to Vercel: the app is a static site (no backend, no env vars, no hardcoded URLs). The production build works with the real
+  engines. Waiting on the owner's Vercel login. A root-level vercel.json would be needed only for auto-deploys from GitHub (core owns the
+  root); a deploy of web/viz/dist needs none.

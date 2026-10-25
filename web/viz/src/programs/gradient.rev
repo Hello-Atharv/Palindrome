@@ -1,0 +1,11 @@
+// Fills the screen with a gradient, one pixel at a time. The colour steps by 0x010203 on every pixel.
+var screen[2048] @ 0x20000;
+var i = 0, colour = 0;
+
+main {
+  from (i == 0) loop {
+    screen[i] ^= colour;
+    colour += 0x010203;
+    i += 1;
+  } until (i == 2048);
+}

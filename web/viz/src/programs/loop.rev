@@ -1,0 +1,7 @@
+// total = 4 * 4, as a loop. The loop's entry condition is true only on the first pass.
+var limit = 4, i = 0, total = 0;
+out total;
+
+main {
+  from (i == 0) loop { total += limit; i += 1; } until (i == limit);
+}

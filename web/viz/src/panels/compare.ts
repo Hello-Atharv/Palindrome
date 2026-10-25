@@ -5,7 +5,8 @@ import { ENGINE_COLOUR } from '../engineColour';
 import { icon } from '../icons';
 import { formatMs, formatNs, garbageBitsOf } from '../track';
 import type { TrackResult } from '../track';
-import { benchSection } from './bench';
+import { Tabs } from '../tabs';
+import { benchView } from './bench';
 import { framebufferView } from './framebuffer';
 import type { Ctx, Panel } from './panel';
 
@@ -196,8 +197,17 @@ export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel 
   chartBox.append(chartHead, task, chartSlot, table, verdict);
 
   const note = h('p', 'cmp-note dim', 'Both engines run the same program. Rewinding costs the reversible engine no history. That does not make reversible programs cheaper overall: they run more instructions and keep some garbage.');
-  body.append(mismatch, cards, warn, chartBox, benchSection(), note);
-  el.append(controls, body);
+  body.append(mismatch, cards, warn, chartBox, note);
+
+  // two tabs at the top of the Compare environment: the live comparison, and the measured benchmarks (which need no controls)
+  const live = h('div', 'cmp-live');
+  live.append(controls, body);
+  const benchPane = h('div', 'cmp-bench');
+  benchPane.append(benchView());
+  const tabs = new Tabs([{ id: 'live', label: 'Compare', el: live }, { id: 'bench', label: 'Benchmarks', el: benchPane }], 'live');
+  tabs.bar.classList.add('cmp-tabs');
+  tabs.body.classList.add('cmp-panes');
+  el.append(tabs.bar, tabs.body);
 
   let warnDismissed = false;
   let lastScan = 0;

@@ -27,6 +27,8 @@ export interface ProgramInfo {
   game?: GameInfo;
   /** 'rev' when `source` is rev, which is compiled rather than assembled. */
   language?: 'asm' | 'rev';
+  /** The .rev this assembly was generated from, if a compiler wrote it. */
+  generatedFrom?: string;
 }
 
 /** A program that is a game: it counts frames in the FRAME word (SPEC 11.7) and reads keys. */
@@ -48,6 +50,8 @@ export interface ProgramEntry {
   source?: string;
   /** The language of `source`: assembly (default) or rev (lang/). A rev program is compiled, not assembled. */
   language?: 'asm' | 'rev';
+  /** Set when `source` is assembly written by the rev compiler, not by a person: the name of the .rev it came from. */
+  generatedFrom?: string;
   /** The same program in the other language (assembly <-> rev). Each entry points at the other; only one is in the picker. */
   alt?: ProgramEntry;
   /** Steps per second to run at when this program is picked (one of the speeds in runner.ts). A game wants about 25 frames a second. */

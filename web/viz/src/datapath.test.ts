@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { Op } from '../../../spec/vm_api';
 import { Diagram } from './datapath/diagram';
-import { BOXES, BUS_X, pointAt, regTile, route } from './datapath/layout';
+import { BOXES, BUS_X, TAG_HALF_HEIGHT, VIEW, WIRES, pointAt, regTile, route, tagOffset } from './datapath/layout';
 import { buildScript, decodeWord, regionOf, short } from './datapath/script';
 import type { Phase } from './datapath/script';
 import { learnVerdict } from './program';
@@ -167,5 +167,26 @@ describe('learnVerdict', () => {
     expect(learnVerdict(info(37, 35)).ok).toBe(false); // cipher
     expect(learnVerdict(null).ok).toBe(false);
     expect(learnVerdict(info(189, 27)).why).toContain('Too large to animate');
+  });
+});
+
+describe('the value tag on the sphere', () => {
+  it('goes below the sphere near the top of the picture, above it elsewhere', () => {
+    expect(tagOffset(22)).toBeGreaterThan(0); // the top wires: above would be cut off by the edge of the drawing
+    expect(tagOffset(100)).toBeLessThan(0);
+    expect(tagOffset(463)).toBeLessThan(0);
+  });
+
+  it('stays inside the picture at every point of every wire', () => {
+    for (const [a, b] of WIRES) {
+      const pts = route(a, b);
+      for (let k = 0; k <= 40; k++) {
+        const p = pointAt(pts, k / 40);
+        const top = p.y + tagOffset(p.y) - TAG_HALF_HEIGHT;
+        const bottom = p.y + tagOffset(p.y) + TAG_HALF_HEIGHT;
+        expect(top, `${a}>${b} at ${k}/40: the tag top`).toBeGreaterThanOrEqual(VIEW.y);
+        expect(bottom, `${a}>${b} at ${k}/40: the tag bottom`).toBeLessThanOrEqual(VIEW.y + VIEW.h);
+      }
+    }
   });
 });

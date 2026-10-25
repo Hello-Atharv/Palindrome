@@ -163,7 +163,7 @@ await shot('25-custom-speed');
 await load('pong');
 await page.click('.compare-btn');
 await page.waitForTimeout(600);
-await page.evaluate(() => document.querySelector('.bench').scrollIntoView());
+await page.click('.cmp-tabs .tab:nth-child(2)');
 await shot('24-benchmarks');
 
 // 20 the editor resized by dragging the divider

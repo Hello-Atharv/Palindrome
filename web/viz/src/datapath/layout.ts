@@ -69,6 +69,18 @@ const DIRECT: Record<string, Pt[]> = {
   'MEM>MBR': [P(566, 167), P(414, 167)],
 };
 
+/** The value tag rides this far from the sphere, and is this tall (half above, half below its middle). */
+export const TAG_GAP = 26;
+export const TAG_HALF_HEIGHT = 11;
+
+/**
+ * How far above (negative) or below (positive) the sphere its value tag is drawn. Above is the default, but on the wires near the
+ * top of the diagram that is outside the picture, where the edge of the drawing cuts the tag off: it goes below instead.
+ */
+export function tagOffset(y: number): number {
+  return y - TAG_GAP - TAG_HALF_HEIGHT - 2 >= VIEW.y ? -TAG_GAP : TAG_GAP;
+}
+
 /** The polyline data follows from one node to another. */
 export function route(from: NodeId, to: NodeId): Pt[] {
   const direct = DIRECT[`${from}>${to}`];

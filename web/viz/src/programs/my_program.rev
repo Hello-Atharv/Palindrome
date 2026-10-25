@@ -1,0 +1,9 @@
+// My program. Write rev here, then press Build and load (Ctrl+Enter).
+// Variables are 32-bit words; there is no plain "=", only x += e, x -= e, x ^= e and x <=> y.
+// Print with:  print "total = ", total, "\n";   (the console is memory, so stepping back un-prints)
+// Reference: docs/LANGUAGE.md
+var total = 0;
+
+main {
+  total += 1;
+}

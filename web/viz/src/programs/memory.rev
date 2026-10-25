@@ -1,0 +1,15 @@
+// Data, constants, xor-load and xor-store into the framebuffer.
+// A store here is an xor, so nothing is overwritten: drawing a word twice erases it.
+var msg[2] = {0xDEAD, 0xBEEF};
+var screen[2048] @ 0x20000;
+var b = 0;
+out b;
+
+main {
+  screen[5] ^= msg[0];   // framebuffer word 5 = 0xDEAD
+  screen[6] ^= msg[1];   // framebuffer word 6 = 0xBEEF
+  screen[5] ^= msg[0];   // xor again: draws, then erases, word 5 is back to 0
+  b ^= msg[1];           // b = 0xBEEF
+  b ^= 0xFFFFFFFF;       // negate it in two reversible steps: ~b ...
+  b += 1;                // ... then + 1, so b = -0xBEEF
+}

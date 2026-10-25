@@ -133,3 +133,37 @@ describe('the time-travel controls', () => {
     expect(root.querySelector('.viz-header .tagline')!.textContent).toContain('every instruction can be undone');
   });
 });
+
+describe('the Benchmarks tab in the Compare environment', () => {
+  it('is the second of two tabs at the top of Compare, with no run controls, its own Pong | Sort switch, and plain explanations', async () => {
+    const { root } = await mount([small]);
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('.cmp-tabs .tab')];
+    expect(tabs.map((t) => t.textContent)).toEqual(['Compare', 'Benchmarks']);
+    const live = root.querySelector<HTMLElement>('.cmp-live')!;
+    const bench = root.querySelector<HTMLElement>('.cmp-bench')!;
+    expect(live.hidden).toBe(false);
+    expect(bench.hidden).toBe(true);
+    expect(live.querySelector('.cmp-top')).not.toBeNull(); // the run controls live in the Compare tab only
+    expect(bench.querySelector('.cmp-top')).toBeNull();
+    expect(bench.querySelector('.cmp-card')).toBeNull();
+
+    tabs[1].click();
+    expect(live.hidden).toBe(true);
+    expect(bench.hidden).toBe(false);
+    expect(bench.querySelector('.bench-lead')!.textContent).toMatch(/^Over 200 frames of Pong, the reversible program keeps/);
+    expect(bench.querySelectorAll('.cmp-chart-svg').length).toBe(1);
+    const buttons = [...bench.querySelectorAll<HTMLButtonElement>('.segmented .seg')];
+    expect(buttons.map((b) => b.textContent)).toEqual(['Pong', 'Sort']);
+    buttons[1].click();
+    expect(bench.querySelector('.bench-lead')!.textContent).toMatch(/^Sorting 8 numbers/);
+    expect(bench.querySelectorAll('.cmp-chart-svg').length).toBe(0); // no chart: seeking was not measured for sort
+    expect(bench.textContent).toContain('not measured');
+
+    const words = bench.textContent!;
+    expect(words).toContain('Naive diary');
+    expect(words).toContain('Reversible costs time');
+    expect(words).not.toMatch(/bench\/|TWINS\.md|web\/|serious competitor|seamless/i); // no source paths, no filler
+    tabs[0].click();
+    expect(live.hidden).toBe(false);
+  });
+});

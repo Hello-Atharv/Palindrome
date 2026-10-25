@@ -1,0 +1,14 @@
+// Add two numbers. Send two numbers with the "Send a number" box BEFORE you step: the machine can only see an input
+// from the moment it was sent. It reads them from the input window, adds them, and prints both and the sum, one per line.
+// Each input is read exactly once and kept, because a key can arrive between any two instructions.
+var first = 0, second = 0, sum = 0;
+out first, second, sum;
+var input[4] @ 0x30000;     // the read-only input window: word 2 is the first number sent, word 3 the second
+
+main {
+  first ^= input[2];
+  second ^= input[3];
+  sum += first;
+  sum += second;
+  print signed first, "\n", signed second, "\n", signed sum, "\n";
+}

@@ -1,0 +1,10 @@
+// Calls a procedure twice; each call does total += step. Result: total = 6, and the stack is balanced.
+var step = 3, total = 0;
+out total;
+
+proc add_step { total += step; }
+
+main {
+  call add_step;
+  call add_step;
+}

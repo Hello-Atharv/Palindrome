@@ -710,6 +710,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
         frames = program.game ? new FrameTracker(primary()) : null;
         transports.forEach((t) => t.setFrames(!!program!.game));
         program.language = entryOf(name)?.language;
+        program.generatedFrom = entryOf(name)?.generatedFrom;
         const tool = toolFor(name);
         if (source !== undefined && tool) {
           program.listing = tool(source, name).listing.map((r) => ({ addr: r.addr, line: r.line, text: r.text }));

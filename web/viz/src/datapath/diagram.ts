@@ -3,7 +3,7 @@
  * and output, joined by a bus. While an instruction executes, one sphere at a time travels along the wire it uses and
  * the wire fills in behind it, so it is clear which way the data goes. ILLUSTRATIVE (see script.ts).
  */
-import { BOXES, BUS_X, VIEW, WIRES, lengthOf, pointAt, regTile, route } from './layout';
+import { BOXES, BUS_X, VIEW, WIRES, lengthOf, pointAt, regTile, route, tagOffset } from './layout';
 import type { Pt } from './layout';
 import { PC_INDEX, regNode } from './script';
 import type { Effect, Move, NodeId, Phase } from './script';
@@ -248,7 +248,7 @@ export class Diagram {
       this.sphere.setAttribute('transform', `translate(${p.x} ${p.y})`);
       // the value rides above the sphere; near the right edge it moves in so it is not cut off
       const tx = Math.min(Math.max(p.x, w / 2 + 2), VIEW.w - w / 2 - 2) - p.x;
-      this.tag.setAttribute('transform', `translate(${tx} -26)`);
+      this.tag.setAttribute('transform', `translate(${tx} ${tagOffset(p.y)})`);
       this.trace.setAttribute('stroke-dashoffset', String((len + 1) * (1 - k)));
     });
   }

@@ -1,0 +1,10 @@
+// An expression is built in temporaries, used, and un-built for you: no hand-written undo.
+// Here the temporary is rol(a, 3) + 7, xor-ed into memory word 0x100. Then a white pixel is drawn at (3, 2).
+var a = 5;
+var cell[1] @ 0x100;
+var screen[2048] @ 0x20000;
+
+main {
+  cell[0] ^= rol(a, 3) + 7;     // memory[0x100] ^= 47
+  screen[131] ^= 0xFFFFFF;      // the pixel (3, 2): row 2 * 64 + column 3
+}

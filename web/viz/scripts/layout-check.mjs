@@ -15,7 +15,7 @@ let checks = 0;
 
 const WINDOWS = [[1280, 720], [1024, 700], [1440, 900], [900, 640], [640, 360], [320, 640]]; // the last two: the stacked layout, 200% zoom and a phone
 const EDITOR_X = [270, 360, 460, 560, 700]; // where the divider is dragged to
-const TABS = { visualisation: 1, output: 2, compare: 3 };
+const TABS = { visualisation: 1, output: 2, compare: 3, benchmarks: 4 };
 
 /** Do these two boxes (in page pixels) overlap by more than a hair? */
 const overlap = (a, b) => a && b && a.x + 1 < b.x + b.width && b.x + 1 < a.x + a.width && a.y + 1 < b.y + b.height && b.y + 1 < a.y + a.height;
@@ -42,9 +42,10 @@ for (const [w, h] of WINDOWS) {
         const p = programs.find((q) => q.name === 'add two numbers');
         viz.loadImage(p.name, p.load(), p.source);
       });
-      if (tab === 'compare') await page.click('.compare-btn');
+      if (tab === 'compare' || tab === 'benchmarks') await page.click('.compare-btn');
       else await page.click(`.work > .tabs .tab:nth-child(${n})`);
-      await page.waitForTimeout(tab === 'compare' ? 700 : 250);
+      if (tab === 'benchmarks') await page.click('.cmp-tabs .tab:nth-child(2)');
+      await page.waitForTimeout(tab === 'compare' || tab === 'benchmarks' ? 700 : 250);
       const where = `${w}x${h}, editor dragged to ${x ?? 'n/a'}px, ${tab} tab`;
       const rect = (sel) => page.locator(sel).first().boundingBox().catch(() => null);
       const work = await rect('.work');
@@ -59,7 +60,7 @@ for (const [w, h] of WINDOWS) {
         const pane = document.querySelector('.tab-pane:not([hidden])');
         const limit = pane.getBoundingClientRect().right + 1;
         const bad = [];
-        for (const el of pane.querySelectorAll('.vis-note, .numin, .dp, .mm, .console, .screen, .out-input, .cmp-top, .cmp-card, .cmp-chart-svg, .cmp-table, .tbar')) {
+        for (const el of pane.querySelectorAll('.vis-note, .numin, .dp, .mm, .console, .screen, .out-input, .cmp-top, .cmp-card, .cmp-chart-svg, .cmp-table, .tbar, .bench-head, .bench-lead, .bench-guide, .bench-limits')) {
           if (el.closest('[hidden]') || !el.getClientRects().length) continue;
           const r = el.getBoundingClientRect();
           if (r.right > limit && !el.closest('.cmp-table')) bad.push(`${el.className.baseVal ?? el.className} ends at ${Math.round(r.right)} > ${Math.round(limit)}`);
@@ -100,7 +101,7 @@ for (const [w, h] of WINDOWS) {
       // 5. the page itself does not scroll sideways
       const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (sideways > 0) failures.push(`${where}: the page scrolls sideways by ${sideways}px`);
-      if (tab === 'compare') await page.click('.compare-btn'); // back to the IDE for the next layout
+      if (tab === 'compare' || tab === 'benchmarks') await page.click('.compare-btn'); // back to the IDE for the next layout
     }
   }
   await page.close();

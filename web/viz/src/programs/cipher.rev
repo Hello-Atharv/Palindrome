@@ -1,0 +1,49 @@
+// Reversible cipher: Speck64/128 encrypting a 32-character message in place, ON THE SCREEN. Run it with direction -1 and the same
+// program decrypts. The same job as examples/demos/cipher.s, written in rev.
+//
+// The program first moves the 8 message words onto the screen (framebuffer words are pixels), then encrypts them there:
+// 8 dull grey-blue pixels turn into 8 random colours.
+//
+// A Speck round on a block (x, y) with round key k:   x = (rotr(x, 8) + y) ^ k      y = rotl(y, 3) ^ x
+// rev has no "rotate x in place", so a rotation goes through a spare variable t: t gets the rotated copy, x is cleared with
+// the inverse rotation, and the two are swapped. Every step is a bijection, so there is no garbage.
+var rk[27] = {
+  0x03020100, 0x131d0309, 0xbbd80d53, 0x0d334df3, 0x7fa43565, 0x67e6ce55, 0xe98cb3d2, 0xaac76cbd, 0x7f5951c8,
+  0x03fa82c2, 0x313533ad, 0xdff70882, 0x9e487c93, 0xa934b928, 0xdd2edef5, 0x8be6388d, 0x1f706b89, 0x2b87aaf8,
+  0x12d76c17, 0x6eaccd6c, 0x6a1ab912, 0x10bc6bca, 0x6057dd32, 0xd3c9b381, 0xb347813d, 0x8c113c35, 0xfe6b523a };
+// "NOTHING IS EVER THROWN AWAY HERE", 4 characters per word (little-endian)
+var msg[8] = {0x48544f4e, 0x20474e49, 0x45205349, 0x20524556, 0x4f524854, 0x41204e57, 0x20594157, 0x45524548};
+var screen[2048] @ 0x20000;
+var i = 0, r = 0, x = 0, y = 0, t = 0, k = 0;
+
+main {
+  // move the message from the data region onto the screen
+  from (i == 0) loop {
+    screen[i] ^= msg[i];
+    msg[i] ^= screen[i];
+    i += 1;
+  } until (i == 8);
+  i -= 8;
+
+  // one pass per block of two words
+  from (i == 0) loop {
+    x ^= screen[i];  screen[i] ^= x;          // move x and y into registers (the screen pixels go black)
+    y ^= screen[i + 1];  screen[i + 1] ^= y;
+
+    from (r == 0) loop {                      // one pass per round
+      k ^= rk[r];
+      t ^= rol(x, 24);  x ^= rol(t, 8);  x <=> t;     // x = rotr(x, 8)
+      x += y;
+      x ^= k;
+      t ^= rol(y, 3);  y ^= rol(t, 29);  y <=> t;     // y = rotl(y, 3)
+      y ^= x;
+      k ^= rk[r];                             // k is zero again
+      r += 1;
+    } until (r == 27);
+    r -= 27;
+
+    screen[i] ^= x;  x ^= screen[i];          // put the encrypted pair back on the screen, clear the registers
+    screen[i + 1] ^= y;  y ^= screen[i + 1];
+    i += 2;
+  } until (i == 8);
+}
