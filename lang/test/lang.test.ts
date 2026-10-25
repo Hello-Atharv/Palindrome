@@ -408,8 +408,8 @@ describe('cost report', () => {
     const r = await run(mustCompile(src), 'reversible');
     expect(r.status).toBe('halted');
     const lines = readConsole((a, n) => r.vm.memory(a, n)).map((e) => formatEntry(e)).join('').split('\n');
-    expect(lines[0]).toBe('before: 0xb04f40 0x30cf40 0x708f40 0x20df40 0xf00f40 0x30cf40 0xc03f40 0x10ef40');
-    expect(lines[1]).toBe('sorted: 0x10ef40 0x20df40 0x30cf40 0x30cf40 0x708f40 0xb04f40 0xc03f40 0xf00f40');
+    expect(lines[0]).toBe('before: 176 48 112 32 240 48 192 16');
+    expect(lines[1]).toBe('sorted: 16 32 48 48 112 176 192 240');
     expect(lines[2]).toMatch(/^flags:  [01]{19}$/);
     expect(lines[2].match(/1/g)!.length).toBe(14); // the same 14 swaps as the hand-written sort
     expect(r.vm.runTo(0)).toBe('ok');
