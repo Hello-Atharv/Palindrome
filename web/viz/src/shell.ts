@@ -39,8 +39,6 @@ const FLASH_MAX_RATE = 20;
 const MIN_WORK = 560;
 /** The speed the machine runs at when the animation is skipped (Instant). */
 const INSTANT_SPEED = SPEEDS.indexOf(10_000);
-/** A game's frame is hundreds of steps: its default run speed. */
-const GAME_SPEED = SPEEDS.indexOf(100_000);
 /** A tape file with no events: how the shell clears the VM's input tape on every (re)load. */
 const EMPTY_TAPE = new Uint8Array([0x52, 0x56, 0x4d, 0x54, 0, 0, 0, 0]);
 
@@ -185,7 +183,6 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   let seekQueued: number | null = null;
   let lastCtx: Ctx | null = null;
   let movedOffVisualisation = false;
-  let hadGame = false;
   let pace: PaceChoice = 'slow';
   let rateIndex = DEFAULT_SPEED;
   /** A typed-in speed in thousands of steps per second, or null while one of the listed speeds is chosen. */
@@ -583,9 +580,14 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   function loadEntry(p: ProgramEntry): void {
     // edits to a program are kept in the browser and come back the next time it is picked
     const draft = p.source !== undefined && toolFor(p.name) ? read(draftKey(p.name)) : null;
-    if (draft !== null && api.assembleAndLoad(draft, p.name).ok) return;
+    const pick = (): void => {
+      const at = p.speed === undefined ? DEFAULT_SPEED : SPEEDS.indexOf(p.speed as (typeof SPEEDS)[number]);
+      actions.setSpeed(at < 0 ? DEFAULT_SPEED : at);
+    };
+    if (draft !== null && api.assembleAndLoad(draft, p.name).ok) { pick(); return; }
     try {
       api.loadImage(p.name, p.load(), p.source);
+      pick();
     } catch (e) {
       notice = e instanceof Error ? e.message : String(e);
       refresh('bad_program');
@@ -685,10 +687,6 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
         program.game = entryOf(name)?.game;
         frames = program.game ? new FrameTracker(primary()) : null;
         transports.forEach((t) => t.setFrames(!!program!.game));
-        // a frame takes hundreds of steps: a game runs fast, anything else goes back to the usual speed
-        if (program.game && !hadGame) { rateIndex = GAME_SPEED; customKps = null; }
-        else if (!program.game && hadGame) { rateIndex = DEFAULT_SPEED; customKps = null; }
-        hadGame = !!program.game;
         program.language = entryOf(name)?.language;
         const tool = toolFor(name);
         if (source !== undefined && tool) {

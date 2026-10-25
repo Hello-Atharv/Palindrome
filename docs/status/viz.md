@@ -202,3 +202,13 @@ cost-report path, and a drawing of bench/results.json. All in web/viz; nothing o
 - The Cost report is gone from the Output tab (panel, hook and styles removed).
 - Compare: the two screens are as big as the card allows (up to 6x, 384 x 192).
 - Tests: viz 84/84, tsc clean, build ok, scanner 0, layout check 60/60.
+
+## Merged core/merge-viz (2026-10-25)
+- Conflicts in web/viz (main.ts, program.ts, shell.ts) resolved by keeping both sides: my rev entries, `.s | .rev` switch and frame
+  stepping with Sam's `ProgramEntry.speed` (both Pong versions open at 10,000 steps/s) and his `20_000` speed. His per-program speed
+  replaces my own game default (one mechanism).
+- Mock VM: the input window word LATEST (offset 0xFFFF, address 0x3FFFF) = value of the newest visible event, 0 if none, one read;
+  checked before the event words like the real engine. Two tests.
+- Re-ran my LND scan after the input-race fix (a5ea87e): pong.rev, second key at every 3rd step between t=1500 and 4500, both engines:
+  no failures (40 on the logging engine before the fix).
+- Checks: viz typecheck, 84/84 tests, build; mock_vm 55/55; Pong browser check passes.

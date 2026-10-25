@@ -83,8 +83,16 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
     return !!v && v.kind === 'mem' && v.isArray;
   };
 
+  /** a constant index must lie inside the array (a variable index is the programmer's responsibility) */
+  const constIndex = (name: string, index: Expr, line: number): void => {
+    const v = vars.get(name);
+    if (index.k === 'num' && v && v.kind === 'mem' && index.value >>> 0 >= v.size) {
+      err(line, `index ${index.value | 0} is outside ${name}[${v.size}] (valid: 0..${v.size - 1})`);
+    }
+  };
+
   /** every name in an expression exists, arrays are indexed and scalars are not */
-  const exprNames = (e: Expr, line: number): void => {
+  const exprNames = (e: Expr, line: number, allowInput = false): void => {
     switch (e.k) {
       case 'var':
         if (!vars.has(e.name)) err(line, `unknown variable '${e.name}'`);
@@ -93,11 +101,15 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
       case 'idx':
         if (!vars.has(e.name)) err(line, `unknown variable '${e.name}'`);
         else if (!isArray(e.name)) err(line, `'${e.name}' is not an array`);
+        else constIndex(e.name, e.index, line);
         exprNames(e.index, line);
         break;
       case 'bin': exprNames(e.a, line); exprNames(e.b, line); break;
       case 'not': case 'neg': case 'rol': exprNames(e.a, line); break;
-      case 'num': case 'input': break;
+      case 'num': break;
+      case 'input':
+        if (!allowInput) err(line, `'${e.which}' can only be read straight into a register variable: write  v ^= ${e.which};  and use v (the input can change between two reads, so it cannot be built into an expression and taken out again)`);
+        break;
     }
   };
 
@@ -105,6 +117,7 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
     if (!vars.has(lv.name)) { err(line, `unknown variable '${lv.name}'`); return; }
     if (lv.index) {
       if (!isArray(lv.name)) err(line, `'${lv.name}' is not an array`);
+      else constIndex(lv.name, lv.index, line);
       exprNames(lv.index, line);
     } else if (isArray(lv.name)) err(line, `'${lv.name}' is an array: write ${lv.name}[index]`);
   };
@@ -134,7 +147,8 @@ export function check(prog: Program, vars: Map<string, VarInfo>): Checked {
           break;
         case 'assign': {
           lvalueNames(s.target, s.line);
-          exprNames(s.e, s.line);
+          const direct = s.e.k === 'input' && s.op === '^=' && !s.target.index && vars.get(s.target.name)?.kind === 'reg';
+          exprNames(s.e, s.line, direct);
           const r = reads(s.e);
           if (r.has(s.target.name)) {
             err(s.line, s.target.index

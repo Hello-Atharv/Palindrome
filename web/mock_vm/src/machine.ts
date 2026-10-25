@@ -8,6 +8,8 @@ const STACK_WORDS = 0x10000;
 const IN_WORDS = 0x10000;
 /** The C++ window cap (kMaxWindowEvents): only this many events are ever visible. */
 const MAX_WINDOW_EVENTS = 0x10000 - 2;
+/** Window offset of LATEST: the value of the newest visible event, or 0 if there is none (spec/input_tape.md). One read, so no race. */
+const IN_LATEST_OFF = 0xffff;
 
 /** Address classes returned by Machine.region. Values below R_IN are read-write. */
 export const R_DATA = 0, R_STACK = 1, R_FB = 2, R_IN = 3, R_NONE = -1;
@@ -81,6 +83,7 @@ export class Machine {
     if (off === IN_TIME - IN_BASE) return this.t >>> 0;
     const count = Math.min(this.tape.count(this.t), MAX_WINDOW_EVENTS);
     if (off === IN_COUNT - IN_BASE) return count;
+    if (off === IN_LATEST_OFF) return count > 0 ? this.tape.value(count - 1) : 0; // checked before the event words, as in the real engine
     const k = off - (IN_EVENTS - IN_BASE);
     return k < count ? this.tape.value(k) : 0;
   }

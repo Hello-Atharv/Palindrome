@@ -22,6 +22,7 @@ bool Machine::read_word(uint32_t addr, uint64_t t, uint32_t* out) const {
         const uint32_t count = tape_.count_at(t);
         if (off == 0) *out = static_cast<uint32_t>(t);
         else if (off == 1) *out = count;
+        else if (off == kInLatestOff) *out = count ? tape_.value(count - 1) : 0;
         else *out = (off - 2 < count) ? tape_.value(off - 2) : 0;
         return true;
     }

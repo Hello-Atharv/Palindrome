@@ -30,6 +30,7 @@ Glossary: **state** = registers + RW data memory + PC. **t** = instruction count
 - Immediates are sign-extended (`sext`) unless marked `zext`. Signed compare is two's complement.
 - Reset state: all registers 0 except `r14` = SP = `0x10000`. Data memory 0 except the loaded image.
 - Convention: `r14` is the stack pointer. Stack slots at or above `r14` must be zero (invariant).
+- The stack is the region `0x10000..0x1FFFF` (grows up). `CALL` faults if it would write at or above `0x20000` (the framebuffer) and `RET` (and the inverses of both) fault if the slot is below `0x10000`; both engines check this identically and a fault leaves state unchanged.
 
 ## 3. Encoding (32-bit fixed)
 `op[31:26] ra[25:22] rb[21:18]` then:
@@ -362,6 +363,9 @@ time**, so stepping back un-prints exactly and no separate output log exists. Th
 - A program prints by XORing the tag and the value into the two zero words and then adding 2 to `OUT_LEN`. **`OUT_LEN` must change
   in a single step** (XOR in `old xor new`), never by moving it through zero, so an entry appears all at once and the UI never sees a
   half-written console. Nothing is overwritten, so this is reversible; the buffer is the program's **garbage** (it is information the program cannot erase) and the cost report counts it.
+- **Limit:** the buffer holds 4,095 entries. The 4,096th would be written over `OUT_LEN` and the FRAME counter, and nothing in the machine
+  stops it (a store there is legal), so a program that may print that much must count its own output. `consoleOverflowed()` in
+  `lang/src/console.ts` detects an overrun after the fact and `rvm run` warns.
 - A program that does not use the buffer shows nothing here; the UI may fall back to listing labelled data.
 - The assembler has a `.print` macro for this (`asm_syntax.md`) and the `rev` language a `print` statement (`lang/README.md`); both write
   entries the way this section describes. `lang/src/console.ts` reads the console back from any `memory` function.

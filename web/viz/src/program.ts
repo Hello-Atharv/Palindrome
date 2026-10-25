@@ -50,6 +50,8 @@ export interface ProgramEntry {
   language?: 'asm' | 'rev';
   /** The same program in the other language (assembly <-> rev). Each entry points at the other; only one is in the picker. */
   alt?: ProgramEntry;
+  /** Steps per second to run at when this program is picked (one of the speeds in runner.ts). A game wants about 25 frames a second. */
+  speed?: number;
   /** Set for games: frame stepping, the frame number on the time bar, and a note with the score. */
   game?: GameInfo;
 }

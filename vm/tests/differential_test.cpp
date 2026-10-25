@@ -2,6 +2,7 @@
 // State equality = registers, PC, the memory regions in test_util.h's snap(), instruction count, direction,
 // and the status returned by each call. Programs here are well-formed (they satisfy the BR/LND rules); the
 // reversible VM cannot check LND assertions, so ill-formed programs are only tested on the logging VM.
+#include <cstdlib>
 #include <chrono>
 #include <cstdio>
 #include <string>
@@ -89,8 +90,14 @@ void walk(const char* name, const std::vector<uint32_t>& code, const std::vector
     }
 }
 
+// How many random walks to run. RVM_FUZZ_SEEDS=20000 turns the same test into a deep search; the default keeps `npm test` fast.
+static uint32_t seeds(uint32_t normal) {
+    const char* e = std::getenv("RVM_FUZZ_SEEDS");
+    return e ? static_cast<uint32_t>(std::strtoul(e, nullptr, 10)) : normal;
+}
+
 void test_walks_structured() {
-    for (uint32_t seed = 1; seed <= 40; ++seed) {
+    for (uint32_t seed = 1; seed <= seeds(40); ++seed) {
         walk("ifelse(5)", ifelse_program(5), {}, seed, 400);
         walk("ifelse(9)", ifelse_program(9), {}, seed, 400);
         walk("loop", loop_program(), {}, seed, 600);
@@ -103,7 +110,7 @@ void test_walks_random_programs() {
     std::vector<uint32_t> data(0x400);
     uint32_t s = 777;
     for (uint32_t& w : data) w = lcg(s) * 2654435761u;
-    for (uint32_t seed = 1; seed <= 30; ++seed) walk("random", random_program(seed, 200), data, seed * 7919, 500);
+    for (uint32_t seed = 1; seed <= seeds(30); ++seed) walk("random", random_program(seed, 200), data, seed * 7919, 500);
 }
 
 void test_operand_faults_match() {

@@ -151,3 +151,41 @@ describe('history accounting', () => {
     expect(vm.runTo(-1)).toBe('bad_arg');
   });
 });
+
+describe('LATEST (input window offset 0xFFFF)', () => {
+  /** r2 = COUNT, r3 = LATEST, r4 = event 1, each xor-ed into a zeroed register. */
+  const latest = () =>
+    new ProgramBuilder()
+      .nop().nop()
+      .xori(1, IN_BASE) // index 2
+      .xld(2, 1, 1) // index 3: COUNT
+      .xld(3, 1, 0xffff) // index 4: LATEST, a single read
+      .xld(4, 1, 3) // index 5: event 1
+      .hlt()
+      .build();
+
+  it('is 0 with no events, and the value of the newest visible event otherwise', () => {
+    const none = load(latest());
+    run(none);
+    expect(regs(none).slice(2, 5)).toEqual([0, 0, 0]);
+
+    const vm = load(latest());
+    vm.pushInput(11); // stamped t = 0
+    vm.runTo(1);
+    vm.pushInput(22); // stamped t = 1: visible to every step from t = 1
+    run(vm);
+    expect(regs(vm).slice(2, 5)).toEqual([2, 22, 22]); // COUNT 2, LATEST is the last event word (event 1)
+  });
+
+  it('follows time: an event that has not happened yet is not LATEST, and stepping back un-reads it', () => {
+    const vm = load(latest());
+    vm.pushInput(5);
+    vm.runTo(3);
+    vm.pushInput(9); // stamped t = 3: the read of LATEST at t = 4 sees it
+    vm.runTo(5);
+    expect(regs(vm)[3]).toBe(9);
+    vm.runTo(4); // back before the LATEST read
+    expect(regs(vm)[3]).toBe(0);
+    expect(vm.memory(IN_BASE + 0xffff, 1)[0]).toBe(9); // the window itself shows the newest event at t = 4
+  });
+});

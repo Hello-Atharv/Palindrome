@@ -50,12 +50,13 @@ const compileHook: AssembleFn = (source) => {
 };
 
 /** An entry compiled from rev source; compile errors become the message shown to the user. */
-const fromRev = (name: string, blurb: string, source: string, game?: ProgramEntry['game']): ProgramEntry => ({
+const fromRev = (name: string, blurb: string, source: string, game?: ProgramEntry['game'], speed?: number): ProgramEntry => ({
   name,
   blurb,
   source,
   language: 'rev',
   game,
+  speed,
   load: () => {
     const c = compile(source);
     if (!c.ok || !c.image) throw new Error(formatRevDiagnostics(`${name}.rev`, c.diagnostics));
@@ -64,10 +65,11 @@ const fromRev = (name: string, blurb: string, source: string, game?: ProgramEntr
 });
 
 /** An entry assembled from source; assembly errors become the message shown to the user. */
-const fromSource = (name: string, blurb: string, source: string): ProgramEntry => ({
+const fromSource = (name: string, blurb: string, source: string, speed?: number): ProgramEntry => ({
   name,
   blurb,
   source,
+  speed,
   load: () => {
     const r = assembleHook(source, `${name}.s`);
     if (!r.ok || !r.image) throw new Error(formatDiagnostics(name, r.diagnostics));
@@ -87,7 +89,7 @@ const programs: ProgramEntry[] = [
   fromSource('sort', 'a reversible sort that exposes its garbage: 19 hatched words at data address 8', sort),
   fromSource('cipher', 'Speck64/128: encrypt, then flip Reverse (direction -1) and the same program decrypts', cipher),
   {
-    ...fromSource('pong', 'reversible Pong: W / S or the arrow keys move the paddle', pong),
+    ...fromSource('pong', 'reversible Pong: W / S or the arrow keys move the paddle', pong, 10_000),
     game: {
       blocks: true,
       log: { addr: 0x1000, bytesPerFrame: 8 },
@@ -104,7 +106,7 @@ const programs: ProgramEntry[] = [
       'Press Run, then use W / S or the up and down arrows. The same game written in rev, with a permanent grey wall down the middle and your ' +
       'score as a number on the right: it goes up each time you return the ball. Back, Back one frame and the time bar rewind the game exactly, ' +
       'wall and score included. Edit the source and press Build and load.',
-  }),
+  }, 10_000),
   fromRev('sort (rev)', 'the same sorting network written in rev: 36 lines instead of 340; the list is in data memory, not on the screen', sortRev),
   fromRev('hello (rev)', 'a rev program that prints: step back and the text un-prints (the console, SPEC 11.9)', hello),
   fromRev('fibonacci (rev)', 'Fibonacci in rev, with nothing thrown away', fib),
