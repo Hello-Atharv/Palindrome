@@ -13,34 +13,35 @@ const regs = (o: Record<number, number> = {}): number[] => Array.from({ length: 
 const moves = (ps: Phase[]) => ps.flatMap((p) => p.moves.map((m) => `${m.from}>${m.to}`));
 
 describe('buildScript', () => {
-  it('every instruction starts with fetch, fetch-return and decode', () => {
+  it('every instruction fetches through the MAR and MBR, then decodes', () => {
     const ps = buildScript({ word: w(Op.NOP), pc: 3, pcAfter: 4, before: regs(), after: regs() });
-    expect(moves(ps.slice(0, 3))).toEqual(['PC>CODE', 'PC>INC', 'CODE>CIR', 'INC>PC', 'CIR>CU']);
-    expect(ps[1].effects).toContainEqual({ kind: 'reg', index: 16, before: 3, after: 4 });
+    expect(moves(ps.slice(0, 4))).toEqual(['PC>MAR', 'PC>INC', 'MAR>MEM', 'MEM>MBR', 'MBR>CIR', 'INC>PC', 'CIR>CU']);
+    expect(ps[2].effects).toContainEqual({ kind: 'reg', index: 16, before: 3, after: 4 });
+    expect(ps[1].effects).toContainEqual({ kind: 'code', addr: 3 });
   });
 
   it('ADD sends both registers to the ALU and the result back', () => {
     const ps = buildScript({ word: w(Op.ADD, 1, 2), pc: 0, pcAfter: 1, before: regs({ 1: 5, 2: 3 }), after: regs({ 1: 8, 2: 3 }) });
-    expect(moves(ps.slice(3))).toEqual(['R1>ALU', 'R2>ALU', 'ALU>R1']);
-    expect(ps[4].moves[0].label).toBe('8');
-    expect(ps[4].effects).toEqual([{ kind: 'reg', index: 1, before: 5, after: 8 }]);
+    expect(moves(ps.slice(4))).toEqual(['R1>ALU', 'R2>ALU', 'ALU>R1']);
+    expect(ps[5].moves[0].label).toBe('8');
+    expect(ps[5].effects).toEqual([{ kind: 'reg', index: 1, before: 5, after: 8 }]);
   });
 
   it('XST goes through the ALU, MAR and MBR into memory; the screen goes to the output instead', () => {
     const data = buildScript({ word: w(Op.XST, 3, 1, 4), pc: 0, pcAfter: 1, before: regs({ 1: 10, 3: 7 }), after: regs({ 1: 10, 3: 7 }) });
-    expect(moves(data.slice(3))).toEqual(['R1>ALU', 'CIR>ALU', 'ALU>MAR', 'R3>MBR', 'MAR>MEM', 'MBR>MEM']);
-    expect(data[4].effects).toContainEqual({ kind: 'text', node: 'MAR', text: '0xe' });
-    expect(data[6].effects).toEqual([{ kind: 'mem', addr: 14, mode: 'write' }]);
+    expect(moves(data.slice(4))).toEqual(['R1>ALU', 'CIR>ALU', 'ALU>MAR', 'R3>MBR', 'MAR>MEM', 'MBR>MEM']);
+    expect(data[5].effects).toContainEqual({ kind: 'text', node: 'MAR', text: 'D14' });
+    expect(data[7].effects).toEqual([{ kind: 'mem', addr: 14, mode: 'write' }]);
     const screen = buildScript({ word: w(Op.XST, 3, 1, 5), pc: 0, pcAfter: 1, before: regs({ 1: 0x20000, 3: 7 }), after: regs({ 1: 0x20000, 3: 7 }) });
-    expect(moves(screen.slice(3)).slice(-1)).toEqual(['MBR>OUT']);
+    expect(moves(screen.slice(4)).slice(-1)).toEqual(['MBR>OUT']);
   });
 
   it('XLD reads memory (or the input window) into the MBR, then xors it into the register', () => {
     const ld = buildScript({ word: w(Op.XLD, 2, 1, 0), pc: 0, pcAfter: 1, before: regs({ 1: 8 }), after: regs({ 1: 8, 2: 42 }) });
-    expect(moves(ld.slice(3))).toEqual(['R1>ALU', 'CIR>ALU', 'ALU>MAR', 'MAR>MEM', 'MEM>MBR', 'R2>ALU', 'MBR>ALU', 'ALU>R2']);
-    expect(ld[5].effects).toContainEqual({ kind: 'mem', addr: 8, mode: 'read' });
+    expect(moves(ld.slice(4))).toEqual(['R1>ALU', 'CIR>ALU', 'ALU>MAR', 'MAR>MEM', 'MEM>MBR', 'R2>ALU', 'MBR>ALU', 'ALU>R2']);
+    expect(ld[6].effects).toContainEqual({ kind: 'mem', addr: 8, mode: 'read' });
     const inp = buildScript({ word: w(Op.XLD, 2, 1, 1), pc: 0, pcAfter: 1, before: regs({ 1: 0x30000 }), after: regs({ 1: 0x30000, 2: 1 }) });
-    expect(moves(inp.slice(3))).toContain('IN>MBR');
+    expect(moves(inp.slice(4))).toContain('IN>MBR');
   });
 
   it('BR: taken loads the PC from the instruction, not taken does not', () => {
@@ -48,23 +49,23 @@ describe('buildScript', () => {
       const r = regs(taken ? { 1: 3, 2: 3 } : { 1: 3, 2: 4 });
       return buildScript({ word: w(Op.BR, 1, 2, (1 << 16) | 9), pc: 4, pcAfter: taken ? 9 : 5, before: r, after: r });
     };
-    expect(moves(br(true).slice(3))).toEqual(['R1>ALU', 'R2>ALU', 'ALU>STATUS', 'CIR>PC']);
-    expect(moves(br(false).slice(3))).toEqual(['R1>ALU', 'R2>ALU', 'ALU>STATUS']);
+    expect(moves(br(true).slice(4))).toEqual(['R1>ALU', 'R2>ALU', 'ALU>STATUS', 'CIR>PC']);
+    expect(moves(br(false).slice(4))).toEqual(['R1>ALU', 'R2>ALU', 'ALU>STATUS']);
   });
 
   it('CALL and RET use the stack pointer and the stack memory', () => {
     const call = buildScript({ word: w(Op.CALL, 0, 0, 7), pc: 1, pcAfter: 7, before: regs({ 14: 0x10000 }), after: regs({ 14: 0x10001 }) });
-    expect(moves(call.slice(3))).toEqual(['R14>MAR', 'INC>MBR', 'MAR>MEM', 'MBR>MEM', 'R14>ALU', 'ALU>R14', 'CIR>PC']);
+    expect(moves(call.slice(4))).toEqual(['R14>MAR', 'INC>MBR', 'MAR>MEM', 'MBR>MEM', 'R14>ALU', 'ALU>R14', 'CIR>PC']);
     const ret = buildScript({ word: w(Op.RET), pc: 6, pcAfter: 2, before: regs({ 14: 0x10001 }), after: regs({ 14: 0x10000 }) });
-    expect(moves(ret.slice(3)).slice(-1)).toEqual(['MBR>PC']);
+    expect(moves(ret.slice(4)).slice(-1)).toEqual(['MBR>PC']);
   });
 
   it('LND, PROC and NOP only light the control unit', () => {
     for (const op of [Op.LND, Op.PROC, Op.NOP]) {
       const ps = buildScript({ word: w(op), pc: 0, pcAfter: 1, before: regs(), after: regs() });
-      expect(ps).toHaveLength(4);
-      expect(ps[3].moves).toEqual([]);
-      expect(ps[3].lit).toEqual(['CU']);
+      expect(ps).toHaveLength(5);
+      expect(ps[4].moves).toEqual([]);
+      expect(ps[4].lit).toEqual(['CU']);
     }
   });
 

@@ -1,7 +1,7 @@
 /**
  * Geometry of the datapath diagram (SVG user units) and the routing of data along the bus.
- * Left of the bus: program memory, the registers and the control side. Right of the bus: the units that talk to
- * data memory (which the page draws beside the diagram).
+ * Left of the bus: the registers and the control side. Right of the bus: the units that talk to
+ * data memory (the one main memory, which the page draws beside the diagram).
  */
 import type { NodeId } from './script';
 import { PC_INDEX } from './script';
@@ -21,7 +21,6 @@ export const VIEW = { x: 0, y: 0, w: 566, h: 486 };
 export const BUS_X = 292;
 
 export const BOXES = {
-  CODE: { x: 0, y: 0, w: 250, h: 44 },
   regs: { x: 0, y: 58, w: 250, h: 242 },
   INC: { x: 330, y: 6, w: 130, h: 30 },
   MAR: { x: 330, y: 90, w: 84, h: 34 },
@@ -48,7 +47,6 @@ export function busAnchor(n: NodeId): Pt {
   if (n === 'PC') return P(250, mid(regTile(PC_INDEX)));
   if (n.startsWith('R')) return P(250, mid(regTile(Number(n.slice(1)))));
   switch (n) {
-    case 'CODE': return P(BOXES.CODE.x + BOXES.CODE.w, mid(BOXES.CODE));
     case 'INC': return P(BOXES.INC.x, mid(BOXES.INC));
     case 'MAR': return P(BOXES.MAR.x, mid(BOXES.MAR));
     case 'MBR': return P(BOXES.MBR.x, mid(BOXES.MBR));
@@ -106,7 +104,7 @@ export function pointAt(pts: readonly Pt[], f: number): Pt {
 
 /** The wires drawn in the idle diagram (each is also a route data can travel). */
 export const WIRES: [NodeId, NodeId][] = [
-  ['PC', 'CODE'], ['CODE', 'CIR'], ['CIR', 'CU'], ['PC', 'INC'], ['INC', 'PC'],
+  ['PC', 'MAR'], ['MBR', 'CIR'], ['CIR', 'CU'], ['PC', 'INC'], ['INC', 'PC'],
   ['MAR', 'MEM'], ['MBR', 'MEM'], ['MEM', 'MBR'], ['ALU', 'MAR'], ['CIR', 'ALU'], ['CIR', 'PC'], ['ALU', 'STATUS'],
   ['R0', 'ALU'], ['ALU', 'R0'], ['MBR', 'ALU'], ['IN', 'MBR'], ['MBR', 'OUT'],
 ];

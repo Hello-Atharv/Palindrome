@@ -1,31 +1,32 @@
-/* The debug bar at the foot of the editor: small controls, a thin time line, and one line of state. */
-.debugbar { flex: none; border-top: 1px solid var(--border); background: var(--panel); padding: var(--s-4) var(--s-12) var(--s-8); display: flex; flex-direction: column; gap: 2px; }
+/* The debug bar at the foot of the editor: small controls, the run-time bar, and one line of history. */
+.debugbar { flex: none; container-type: inline-size; border-top: 1px solid var(--border); background: var(--panel); padding: var(--s-8) var(--s-12); display: flex; flex-direction: column; gap: var(--s-8); }
 .dbg-top { display: flex; align-items: center; gap: var(--s-8); }
-.transport { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+.transport { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; flex-wrap: wrap; }
 .tsep { width: 1px; height: 18px; background: var(--border); margin: 0 var(--s-4); }
-.t-box { display: flex; align-items: baseline; gap: var(--s-4); margin-left: auto; }
-.t-num { font-size: 16px; font-weight: 600; }
 .slot-toolbar { display: flex; align-items: center; gap: var(--s-4); }
 
 .dbg-status { display: flex; align-items: center; gap: var(--s-12); min-height: 18px; flex-wrap: wrap; font-size: 13px; }
-.dbg-state { display: inline-flex; align-items: center; gap: var(--s-4); font-weight: 600; color: var(--muted); }
-.dbg-state[data-state='fwd'] { color: var(--fwd); }
-.dbg-state[data-state='back'] { color: var(--back); }
-.dbg-state[data-state='fault'] { color: var(--fault); }
 .dbg-fork { display: inline-flex; align-items: center; gap: var(--s-4); color: var(--branch); }
 
-/* the time line: a thin track. Click or drag anywhere along it to move through time. */
-.strip { position: relative; height: 14px; background: none; border: 0; cursor: pointer; touch-action: none; user-select: none; overflow: visible; }
-.strip::before { content: ''; position: absolute; left: 0; right: 0; top: 5px; height: 4px; border-radius: 2px; background: var(--border); }
-.viz[data-builtin-controls='off'] .strip { cursor: default; }
-.strip-fill, .strip-future, .strip-lost { position: absolute; top: 5px; bottom: 5px; border-radius: 2px; }
-.strip-fill { left: 0; background: var(--motion); }
-.viz[data-run='paused'] .strip-fill { background: var(--muted); }
-.strip-future { background: color-mix(in srgb, var(--muted) 45%, transparent); }
-.strip-lost { opacity: 0.8; background: color-mix(in srgb, var(--branch) 55%, transparent); }
-.strip-ticks { display: none; }
-.strip-max { position: absolute; top: 3px; bottom: 3px; width: 2px; background: var(--text); opacity: 0.7; }
-.strip-max.merged { display: none; }
-.strip-branch { position: absolute; top: 1px; bottom: 1px; width: 2px; background: var(--branch); }
-.strip-handle { position: absolute; top: 1px; width: 8px; height: 12px; margin-left: -4px; background: var(--motion); border-radius: 3px; box-shadow: 0 0 0 2px var(--panel); }
-.viz[data-run='paused'] .strip-handle { background: var(--text); }
+/* the run-time bar: t at the left, a track with a knob, the state at the right. Click or drag the track to move through time. */
+.tbar { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+.tbar-label { font-size: 13px; line-height: 16px; }
+.tbar-row { display: flex; align-items: center; gap: var(--s-12); height: 38px; padding: 0 var(--s-12); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
+.tbar-t { flex: none; display: inline-flex; align-items: baseline; gap: var(--s-4); }
+.tbar-num { min-width: 4ch; font-size: 15px; font-weight: 600; }
+.tbar-track { position: relative; flex: 1; min-width: 48px; height: 22px; cursor: pointer; touch-action: none; user-select: none; }
+.tbar-track::before { content: ''; position: absolute; left: 0; right: 0; top: 9px; height: 4px; border-radius: 2px; background: var(--border); }
+.tbar-fill, .tbar-future, .tbar-lost { position: absolute; top: 9px; height: 4px; border-radius: 2px; }
+.tbar-fill { left: 0; background: color-mix(in srgb, var(--knob) 60%, var(--border)); }
+.tbar-future { background: color-mix(in srgb, var(--muted) 50%, var(--border)); }
+.tbar-lost { background: color-mix(in srgb, var(--branch) 60%, transparent); }
+.tbar-knob { position: absolute; top: 3px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--knob); box-shadow: 0 0 0 3px var(--bg); }
+.viz { --knob: var(--fwd); }
+.viz[data-run='back'] { --knob: var(--back); }
+.tbar-state { flex: none; display: inline-flex; align-items: center; gap: var(--s-4); max-width: 42%; overflow: hidden; white-space: nowrap; font-size: 13px; color: var(--muted); }
+.tbar-state[data-state='fwd'] { color: var(--fwd); }
+.tbar-state[data-state='back'] { color: var(--back); }
+.tbar-state[data-state='fault'] { color: var(--fault); }
+.viz[data-builtin-controls='off'] .tbar-track { cursor: default; }
+/* a narrow editor: the state shrinks to its icon so the track keeps room */
+@container (max-width: 320px) { .tbar-state span { display: none; } .tbar-row { gap: var(--s-8); padding: 0 var(--s-8); } }

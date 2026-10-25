@@ -1,25 +1,38 @@
-/* The Visualisation tab: the datapath with a travelling sphere, and the small memory window. */
-.vis { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: var(--s-8); padding: var(--s-12); }
-.vis-bar { flex: none; display: flex; align-items: center; gap: var(--s-12); min-height: 34px; }
-.vis-note { flex: 1; min-width: 0; padding: var(--s-4) var(--s-12); border-left: 3px solid var(--flash); background: var(--panel); border-radius: 0 var(--radius) var(--radius) 0; line-height: 1.35; }
-.vis-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: var(--s-12); }
+/* The Visualisation tab: the datapath with a travelling sphere, and one main memory beside it. */
+.vis { container-type: inline-size; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: var(--s-8); padding: var(--s-12) var(--s-24) var(--s-12) var(--s-16); }
+.vis-note { flex: none; min-height: 40px; padding: var(--s-8) var(--s-12); border-left: 3px solid var(--flash); background: var(--panel); border-radius: 0 var(--radius) var(--radius) 0; line-height: 1.35; }
+.vis > .numin { flex: none; }
+/* the memory column is sized for its rows (a row label, four numbers), and the diagram gets the rest */
+.vis-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(336px, 34%, 380px); gap: var(--s-16); }
 .vis-main > * { min-height: 0; min-width: 0; }
 .vis-dp { display: flex; flex-direction: column; gap: var(--s-4); }
 .vis-dp .dp { flex: 1; min-height: 0; width: 100%; display: block; }
 .vis-caption { margin: 0; }
-.vis-mem { overflow: auto; }
-.vis-h { margin: 0 0 var(--s-4); font-size: 14px; font-weight: 600; }
 .vis-off { margin: var(--s-12); }
 
-/* memory window */
+/* main memory: Program, Data and Stack under headers that stay in view while their rows scroll */
+.mm { --grid: #3b4653; position: relative; overflow: auto; background: var(--bg); border: 1px solid var(--grid); border-radius: var(--radius); font: 13px/22px var(--mono); }
+.mm-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-8); height: 28px; margin: 0; padding: 0 var(--s-12); background: var(--panel-2); border-bottom: 1px solid var(--grid); font: 600 14px/28px var(--sans); }
+.mm-sec + .mm-sec .mm-head { border-top: 1px solid var(--grid); }
+.mm-hint { font-weight: 400; font-size: 13px; }
+.mm-addr { padding: 0 var(--s-8) 0 var(--s-12); background: var(--panel-2); color: #b6c2cf; }
+.mm-prow { display: grid; grid-template-columns: calc(6ch + 20px) calc(10ch + 16px) minmax(0, 1fr); align-items: center; height: 22px; border-bottom: 1px solid var(--grid); }
+.mm-prow > .mm-addr { height: 22px; }
+.mm-hex { padding: 0 var(--s-8); color: #7d8a98; }
+.mm-op { padding: 0 var(--s-8); white-space: nowrap; }
+.mm-prow.cur { background: color-mix(in srgb, var(--flash) 20%, var(--bg)); box-shadow: inset 3px 0 0 var(--flash); }
+.mm-prow.cur .mm-hex { color: var(--text); }
+.mm-prow.read { background: var(--flash); color: #0d1117; }
+.mm-prow.read .mm-hex, .mm-prow.read .mm-addr { background: transparent; color: #0d1117; }
 /* a light grid: the container is the line colour and every cell leaves a 1px gap */
-.lw { display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)); gap: 1px; background: #3b4653; border: 1px solid #3b4653; border-radius: 4px; overflow: hidden; font: 13px/22px var(--mono); margin-bottom: var(--s-12); }
-.lw-addr { background: var(--panel-2); color: #b6c2cf; padding: 0 var(--s-8); text-align: right; }
-.lw-cell { background: var(--bg); text-align: right; padding: 0 var(--s-8); color: var(--text); }
-.lw-cell.zero { color: #7d8a98; }
-.lw-cell.changed { background: color-mix(in srgb, var(--flash) 30%, var(--bg)); color: var(--text); font-weight: 600; }
-.lw-cell.mark { box-shadow: inset 0 0 0 2px var(--branch); }
-.lw-cell.read, .lw-cell.write { color: #0d1117; background: var(--flash); font-weight: 700; }
+.mm-words { display: grid; gap: 1px; background: var(--grid); border-bottom: 1px solid var(--grid); }
+.mm-words { grid-template-columns: max-content repeat(4, minmax(7ch, 1fr)); }
+.mm-cell { background: var(--bg); text-align: right; padding: 0 var(--s-8); color: var(--text); }
+.mm-cell.zero { color: #7d8a98; }
+.mm-cell.changed { background: color-mix(in srgb, var(--flash) 30%, var(--bg)); font-weight: 600; }
+.mm-cell.mark { box-shadow: inset 0 0 0 2px var(--branch); }
+.mm-cell.read, .mm-cell.write { color: #0d1117; background: var(--flash); font-weight: 700; }
+.mm-note { margin: 0; padding: var(--s-8) var(--s-12); font: 13px/1.4 var(--sans); }
 
 /* the diagram */
 .dp { font-family: var(--sans); font-size: 16px; }
@@ -50,10 +63,10 @@
 .dp-tag rect { fill: var(--bg); stroke: var(--flash); stroke-width: 1.5; }
 .dp-tag text { fill: var(--text); font: 600 16px var(--mono); }
 
-/* a narrow work area (a wide editor): the memory windows go under the diagram instead of squeezing it */
-.vis { container-type: inline-size; }
-@container (max-width: 760px) {
-  .vis-main { grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; overflow: auto; align-content: start; gap: var(--s-16); }
+/* a narrow work area (a wide editor): the memory goes under the diagram, which keeps its own height, and the page scrolls */
+@container (max-width: 700px) {
+  .vis { overflow: auto; }
+  .vis-main { flex: none; grid-template-columns: minmax(0, 1fr); }
   .vis-dp .dp { flex: none; height: auto; aspect-ratio: 566 / 486; }
-  .vis-mem { overflow: visible; }
+  .mm { max-height: 420px; }
 }

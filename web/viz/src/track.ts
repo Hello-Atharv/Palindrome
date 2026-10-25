@@ -6,6 +6,12 @@
  * The pair is repeated until the total time is long enough to read a stable number from a browser clock.
  */
 import type { CreateVm, RVM, VmKind } from '../../../spec/vm_api';
+import { OUT_BASE, OUT_CAPACITY, OUT_LEN } from '../../../lang/src/console';
+
+/** A run is cut here however long the caller asks for: the diary holds 48 bytes per step, so 5M steps is 240 MB. */
+export const HARD_STEP_CAP = 5_000_000;
+/** Without a halt, the task is the first 100,000 steps. */
+export const DEFAULT_STEPS = 100_000;
 
 export interface TrackResult {
   kind: VmKind;
@@ -20,6 +26,15 @@ export interface TrackResult {
   backMs: number;
   /** Bytes the VM holds to be able to go back, measured at the end of the run. */
   historyBytes: number;
+  /** (t, history bytes) while the forward track ran, for the chart. */
+  samples: { t: number; bytes: number }[];
+  /** Bits the program keeps only because it cannot erase them: 32 per non-zero word of its garbage regions and of the console buffer. */
+  garbageBits: number;
+  /** Non-zero words of writable memory at the end of the run (what the program wrote). */
+  written: number;
+  /** Nanoseconds per instruction on the forward and the back track. */
+  forwardNs: number;
+  backNs: number;
   /** After the back track the machine is exactly where it started. */
   restored: boolean;
   /** A digest of registers, PC and memory at the end of the run (equal for correct engines). */
@@ -29,10 +44,22 @@ export interface TrackResult {
 export interface TrackOptions {
   /** Longest run to measure, in steps. */
   maxSteps?: number;
+  /** Data ranges [from, to) the program keeps as garbage (ProgramInfo.garbage). */
+  garbage?: readonly (readonly [number, number])[];
   /** Keep repeating until the forward and back tracks have each taken at least this long in total. */
   minTotalMs?: number;
 }
 
+
+/** 32 bits for every non-zero word in the garbage regions and in the console buffer (SPEC 12.1, 11.9). */
+export function garbageBitsOf(vm: RVM, ranges: readonly (readonly [number, number])[] = []): number {
+  let words = 0;
+  const count = (a: ArrayLike<number>): void => { for (let i = 0; i < a.length; i++) if (a[i] !== 0) words++; };
+  for (const [from, to] of ranges) count(vm.memory(from, to - from));
+  const used = Math.min(vm.memory(OUT_LEN, 1)[0] >>> 0, OUT_CAPACITY) & ~1;
+  if (used > 0) count(vm.memory(OUT_BASE, used));
+  return words * 32;
+}
 
 function digest(vm: RVM): string {
   const { regs, pc } = vm.registers();
@@ -50,18 +77,29 @@ const nextFrame = (): Promise<void> => new Promise((r) => requestAnimationFrame(
 
 /** Measure one engine. */
 export async function measureTrack(createVm: CreateVm, kind: VmKind, image: Uint8Array, opts: TrackOptions = {}): Promise<TrackResult> {
-  const maxSteps = opts.maxSteps ?? 100_000;
+  const maxSteps = Math.min(opts.maxSteps ?? DEFAULT_STEPS, HARD_STEP_CAP);
   const minTotal = opts.minTotalMs ?? 120;
   const vm = await createVm(kind);
   if (vm.loadProgram(image) !== 'ok') throw new Error(vm.lastError || 'the program was rejected');
 
-  // find the length of the run
+  // find the length of the run, sampling the history for the chart (thinned to at most 96 points)
   let steps = 0;
   let status = 'ok';
-  while (steps < maxSteps && (status = vm.stepForward()) === 'ok') steps++;
+  let stride = 1;
+  let samples: { t: number; bytes: number }[] = [{ t: 0, bytes: vm.historyBytes }];
+  while (steps < maxSteps && (status = vm.stepForward()) === 'ok') {
+    steps++;
+    if (steps % stride === 0) {
+      samples.push({ t: steps, bytes: vm.historyBytes });
+      if (samples.length > 96) { stride *= 2; samples = samples.filter((_, i) => i % 2 === 0); }
+    }
+  }
+  if (samples[samples.length - 1].t !== steps) samples.push({ t: steps, bytes: vm.historyBytes });
   const capped = status === 'ok';
   const historyBytes = vm.historyBytes;
   const endDigest = digest(vm);
+  const garbageBits = garbageBitsOf(vm, opts.garbage);
+  const written = vm.memory(0, 0x20800).reduce((n, w) => n + (w !== 0 ? 1 : 0), 0);
   vm.runTo(0);
   const startDigest = digest(vm);
 
@@ -82,13 +120,22 @@ export async function measureTrack(createVm: CreateVm, kind: VmKind, image: Uint
   const restored = digest(vm) === startDigest;
   (vm as { destroy?: () => void }).destroy?.();
   await nextFrame();
-  return { kind, steps, capped, passes, forwardMs: forwardTotal / passes, backMs: backTotal / passes, historyBytes, restored, endDigest };
+  const forwardMs = forwardTotal / passes, backMs = backTotal / passes;
+  const perStep = (ms: number): number => (steps > 0 ? (ms * 1e6) / steps : 0);
+  return { kind, steps, capped, passes, forwardMs, backMs, historyBytes, samples, garbageBits, written, forwardNs: perStep(forwardMs), backNs: perStep(backMs), restored, endDigest };
 }
 
 export async function measureTracks(createVm: CreateVm, kinds: readonly VmKind[], image: Uint8Array, opts?: TrackOptions): Promise<TrackResult[]> {
   const out: TrackResult[] = [];
   for (const k of kinds) out.push(await measureTrack(createVm, k, image, opts));
   return out;
+}
+
+/** "42 ns", "1.2 µs": nanoseconds per instruction in the unit that keeps the number short. */
+export function formatNs(ns: number): string {
+  if (ns < 1) return '< 1 ns';
+  if (ns < 1000) return `${ns < 10 ? ns.toFixed(1) : Math.round(ns)} ns`;
+  return `${(ns / 1000).toFixed(2)} µs`;
 }
 
 /** "38 µs", "1.4 ms", "2.1 s": the unit that keeps the number short. */

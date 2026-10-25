@@ -1,8 +1,10 @@
-import type { RVM } from '../../../../spec/vm_api';
+import { consoleText } from '../../../../lang/src/console';
+import type { RVM, VmKind } from '../../../../spec/vm_api';
 import { formatBytes, h } from '../dom';
 import { icon } from '../icons';
-import { formatMs } from '../track';
+import { formatMs, formatNs, garbageBitsOf } from '../track';
 import type { TrackResult } from '../track';
+import { framebufferView } from './framebuffer';
 import type { Ctx, Panel } from './panel';
 
 /** SPEC 11.1: warn when the diary's history passes this much. */
@@ -11,18 +13,19 @@ export const HISTORY_WARN_BYTES = 256 * 1024 * 1024;
 const WRITABLE_WORDS = 0x20800;
 /** Full memory scans cost about 1 ms per 100k words; do them a few times a second at most. */
 const SCAN_EVERY_MS = 250;
+const CONSOLE_LINES = 4;
 
-const LABELS = {
-  logging: { title: 'Diary', sub: 'Normal rewind, keeps a diary' },
-  reversible: { title: 'Reversible', sub: 'No history' },
+/** SPEC 12.4: the logging VM is a naive diary and is called that wherever it is shown. */
+const ENGINES = {
+  logging: { title: 'Naive diary', sub: 'the logging engine: 48 bytes for every step' },
+  reversible: { title: 'Reversible', sub: 'keeps no history of its steps' },
 } as const;
+const COLOUR: Record<VmKind, string> = { logging: '#8fa8ff', reversible: '#3fb950' };
 
 export interface CompareHooks {
-  /** The user turned the side-by-side run on or off. */
-  onToggle(on: boolean): void;
   /** The two machines disagreed at this t (the shell pauses the run). */
   onMismatch(t: number): void;
-  /** Run the program forward and back on both engines and report time and memory. */
+  /** Run the program forward and back on both engines and report memory and time. */
   onMeasure(): Promise<TrackResult[]>;
 }
 
@@ -36,7 +39,7 @@ export function firstDifference(a: RVM, b: RVM, ra: ArrayLike<number>, rb: Array
   return null;
 }
 
-/** Index of the first word that differs, or -1. Also counts non-zero words in each (program memory in use). */
+/** Index of the first word that differs, or -1. Also counts non-zero words in each (what the program wrote). */
 export function scanMemory(a: ArrayLike<number>, b: ArrayLike<number>): { diff: number; usedA: number; usedB: number } {
   let diff = -1, usedA = 0, usedB = 0;
   for (let i = 0; i < a.length; i++) {
@@ -47,87 +50,155 @@ export function scanMemory(a: ArrayLike<number>, b: ArrayLike<number>): { diff: 
   return { diff, usedA, usedB };
 }
 
-interface Row {
-  label: string;
-  tone: 'fwd' | 'back' | 'mem';
-  values: [string, string];
-  /** Bar lengths 0..1 for the diary and the reversible engine. */
-  bars: [number, number];
+/** History plus garbage, in bits (SPEC 12.1): the total cost of being able to undo. */
+export const totalBits = (historyBytes: number, garbageBits: number): number => historyBytes * 8 + garbageBits;
+const fmtBits = (n: number): string => `${n.toLocaleString('en-GB')} bit${n === 1 ? '' : 's'}`;
+
+/** 1-2-5 ceiling, for the top of an axis. */
+function niceMax(v: number): number {
+  if (v <= 0) return 1;
+  const pow = 10 ** Math.floor(Math.log10(v));
+  for (const m of [1, 2, 5, 10]) if (m * pow >= v) return m * pow;
+  return 10 * pow;
 }
 
-/** The rows of the track table, with bars scaled to the larger of the two in each row. */
-export function trackRows(a: TrackResult, b: TrackResult): Row[] {
-  const scale = (x: number, y: number): [number, number] => {
-    const m = Math.max(x, y);
-    return m === 0 ? [0, 0] : [x / m, y / m];
-  };
-  return [
-    { label: `Forward track, t = 0 to ${a.steps}`, tone: 'fwd', values: [formatMs(a.forwardMs), formatMs(b.forwardMs)], bars: scale(a.forwardMs, b.forwardMs) },
-    { label: `Back track, t = ${a.steps} to 0`, tone: 'back', values: [formatMs(a.backMs), formatMs(b.backMs)], bars: scale(a.backMs, b.backMs) },
-    { label: 'History memory after the forward track', tone: 'mem', values: [formatBytes(a.historyBytes), formatBytes(b.historyBytes)], bars: scale(a.historyBytes, b.historyBytes) },
-  ];
+const NS = 'http://www.w3.org/2000/svg';
+function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number> = {}, text?: string): SVGElementTagNameMap[K] {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  if (text !== undefined) e.textContent = text;
+  return e;
 }
+
+/** The "VM history against time" chart: bytes the machine keeps, over the steps of the run, one line per engine. */
+export function historyChart(results: readonly TrackResult[]): SVGSVGElement {
+  const W = 640, H = 262, L = 64, R = 150, T = 14, B = 48;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'cmp-chart-svg', role: 'img' });
+  const steps = Math.max(1, ...results.map((r) => r.steps));
+  const top = niceMax(Math.max(0, ...results.map((r) => Math.max(...r.samples.map((s) => s.bytes)))));
+  svg.setAttribute('aria-label', `VM history in bytes against steps, up to ${steps} steps. ${results.map((r) => `${ENGINES[r.kind].title}: ${formatBytes(r.historyBytes)}`).join('. ')}.`);
+  const x = (t: number): number => L + (t / steps) * (W - L - R);
+  const y = (b: number): number => H - B - (b / top) * (H - T - B);
+
+  for (let i = 0; i <= 4; i++) {
+    const v = (top * i) / 4;
+    svg.append(
+      svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'cmp-grid' }),
+      svgEl('text', { x: L - 8, y: y(v) + 4, class: 'cmp-tick', 'text-anchor': 'end' }, formatBytes(Math.round(v))),
+    );
+  }
+  for (let i = 0; i <= 4; i++) {
+    const t = Math.round((steps * i) / 4);
+    svg.append(svgEl('text', { x: x(t), y: H - 26, class: 'cmp-tick', 'text-anchor': i === 0 ? 'start' : i === 4 ? 'end' : 'middle' }, t.toLocaleString('en-GB')));
+  }
+  svg.append(svgEl('text', { x: (L + W - R) / 2, y: H - 6, class: 'cmp-axis', 'text-anchor': 'middle' }, 'steps run (t)'));
+
+  const endY: number[] = [];
+  results.forEach((r) => {
+    const pts = r.samples.map((s) => `${x(s.t).toFixed(1)},${y(s.bytes).toFixed(1)}`).join(' ');
+    svg.append(svgEl('polyline', { points: pts, class: 'cmp-line', stroke: COLOUR[r.kind] }));
+    const last = r.samples[r.samples.length - 1];
+    let ly = y(last.bytes);
+    while (endY.some((e) => Math.abs(e - ly) < 16)) ly -= 16; // two lines ending at the same height: their labels do not overlap
+    endY.push(ly);
+    svg.append(
+      svgEl('circle', { cx: x(last.t), cy: y(last.bytes), r: 4, fill: COLOUR[r.kind] }),
+      svgEl('text', { x: x(last.t) + 10, y: ly + 4, class: 'cmp-end', fill: COLOUR[r.kind] }, `${ENGINES[r.kind].title} ${formatBytes(r.historyBytes)}`),
+    );
+  });
+  return svg;
+}
+
+const REG_NAMES = Array.from({ length: 16 }, (_, i) => (i === 14 ? 'sp' : `r${i}`));
 
 /**
- * The Compare tab. Top: the two engines running in lockstep with a state-match check. Below: a forward-track and
- * back-track measurement of time and memory for each engine. Honest about what it shows: rewinding needs no history
- * memory. It does not show that reversible programs are cheaper overall: they carry garbage and extra instructions.
+ * The Compare tab. A controls row (given by the shell) on top, then both engines side by side in lockstep, then the
+ * measured memory-against-time chart and table. Honest about what it shows: rewinding needs no history memory; it does
+ * not show that reversible programs are cheaper overall (they carry garbage and extra instructions).
  */
-export function comparePanel(hooks: CompareHooks): Panel & { setAvailable(ok: boolean, why: string): void } {
+export function comparePanel(hooks: CompareHooks, controls: HTMLElement): Panel & { setAvailable(ok: boolean, why: string): void } {
   const el = h('div', 'compare');
+  const body = h('div', 'cmp-body');
 
-  // ---- measurement ----
-  const track = h('section', 'cmp-section');
-  const trackHead = h('div', 'cmp-head');
-  const measure = h('button', 'btn primary');
-  measure.type = 'button';
-  measure.append(icon('play'), h('span', '', 'Measure forward and back tracks'));
-  measure.title = 'Run this program forward to its end and back to the start on a fresh copy of each engine';
-  trackHead.append(h('h3', 'cmp-h', 'Forward track and back track'), measure);
-  const trackNote = h('p', 'dim cmp-sub', 'Runs this program from t = 0 to its end, then rewinds it to t = 0, on a fresh copy of each engine, and repeats until the time is steady.');
-  const table = h('div', 'cmp-table');
-  table.hidden = true;
-  const verdict = h('p', 'cmp-verdict');
-  verdict.hidden = true;
-  track.append(trackHead, trackNote, table, verdict);
-
-  // ---- live, side by side ----
-  const live = h('section', 'cmp-section');
-  const liveHead = h('div', 'cmp-head');
-  const toggle = h('button', 'btn');
-  toggle.type = 'button';
-  const badge = h('span', 'match');
-  liveHead.append(h('h3', 'cmp-h', 'Live, side by side'), toggle, badge);
+  // ---- the two engines ----
+  const mismatch = h('p', 'cmp-mismatch');
+  mismatch.hidden = true;
   const cards = h('div', 'cmp-cards');
-  const card = () => {
-    const c = h('div', 'cmp-card');
-    const title = h('div', 'cmp-title');
-    const sub = h('div', 'cmp-sub dim');
-    const hist = h('div', 'cmp-hist mono');
-    const used = h('div', 'cmp-used dim');
-    c.append(title, sub, h('div', 'dim', 'History memory'), hist, used);
-    return { c, title, sub, hist, used };
+  const makeCard = (kind: VmKind) => {
+    const c = h('article', 'cmp-card');
+    c.dataset.engine = kind;
+    c.style.setProperty('--engine', COLOUR[kind]);
+    const stats = h('dl', 'cmp-stats');
+    const stat = (label: string, hint: string) => {
+      const dt = h('dt', '', label);
+      dt.title = hint;
+      const dd = h('dd', 'mono');
+      stats.append(dt, dd);
+      return dd;
+    };
+    const hist = stat('History memory', 'history_bytes: what the machine keeps so that it can step back');
+    const garbage = stat('Garbage', 'garbage_bits: what the program keeps because it cannot erase it. The console buffer counts as garbage.');
+    const total = stat('Total', 'history_bytes × 8 + garbage_bits');
+    const written = stat('Program data written', 'non-zero words in writable memory');
+    const regs = h('div', 'cmp-regs mono');
+    const regCells = [...REG_NAMES, 'pc'].map((name) => {
+      const cell = h('div', 'cmp-reg');
+      const val = h('span', 'cmp-regval');
+      cell.append(h('span', 'cmp-regname dim', name), val);
+      regs.append(cell);
+      return { cell, val };
+    });
+    const fb = framebufferView(`${ENGINES[kind].title} screen`);
+    fb.setScale(3);
+    const lines = h('div', 'cmp-console mono');
+    lines.setAttribute('aria-label', `${ENGINES[kind].title} console, last lines`);
+    const screenRow = h('div', 'cmp-screen');
+    screenRow.append(fb.el, lines);
+    const time = h('p', 'cmp-time dim');
+    const head = h('header', 'cmp-card-head');
+    head.append(h('h3', 'cmp-title', ENGINES[kind].title), h('span', 'dim', ENGINES[kind].sub));
+    c.append(head, stats, regs, screenRow, time);
+    return { c, hist, garbage, total, written, regCells, fb, lines, time, prevRegs: [] as number[] };
   };
-  const left = card();
-  const right = card();
-  cards.append(left.c, right.c);
+  const diary = makeCard('logging');
+  const reversible = makeCard('reversible');
+  const byKind: Record<VmKind, ReturnType<typeof makeCard>> = { logging: diary, reversible };
+  cards.append(diary.c, reversible.c);
+
   const warn = h('div', 'banner fault cmp-warn');
   warn.append(icon('warn'), h('strong', '', 'The diary has passed 256 MiB of history.'));
   const dismiss = h('button', 'btn small', 'Continue');
   dismiss.type = 'button';
   warn.append(dismiss);
-  const hint = h('p', 'dim cmp-sub', 'Turn this on to run both engines on the same program and input at once, with every step, step back and key press applied to both.');
-  live.append(liveHead, hint, cards, warn);
-  const note = h('p', 'cmp-note dim', 'Both engines run the same program on the same instruction set. This shows that rewinding needs no history memory. It does not show that reversible programs are cheaper overall: they carry garbage and extra instructions.');
-  el.append(track, live, note);
+  warn.hidden = true;
 
-  let on = false;
+  // ---- memory against time, measured ----
+  const chartBox = h('section', 'cmp-section');
+  const chartHead = h('div', 'cmp-head');
+  const measure = h('button', 'btn primary');
+  measure.type = 'button';
+  measure.append(icon('play'), h('span', '', 'Measure both engines'));
+  chartHead.append(h('h3', 'cmp-h', 'VM history against time'), measure);
+  const task = h('p', 'dim cmp-sub', 'Runs the program on a fresh copy of each engine until it halts, or for its first 100,000 steps, then runs it back to t = 0, and repeats until the times are steady.');
+  const chartSlot = h('div', 'cmp-chart');
+  const table = h('div', 'cmp-table');
+  table.hidden = true;
+  const verdict = h('p', 'cmp-verdict');
+  verdict.hidden = true;
+  chartBox.append(chartHead, task, chartSlot, table, verdict);
+
+  const note = h('p', 'cmp-note dim', 'Both engines run the same program on the same instruction set. This shows that rewinding needs no history memory. It does not show that reversible programs are cheaper overall: they carry garbage and extra instructions.');
+  body.append(mismatch, cards, warn, chartBox, note);
+  el.append(controls, body);
+
   let warnDismissed = false;
   let lastScan = 0;
   let scan = { usedA: -1, usedB: -1, diff: -1 };
   let lastState = 'off';
   let measuring = false;
-  toggle.addEventListener('click', () => hooks.onToggle(!on));
+  let garbageRanges: readonly (readonly [number, number])[] = [];
+  let timing: Partial<Record<VmKind, TrackResult>> = {};
+  let program: object | null | undefined;
   dismiss.addEventListener('click', () => { warnDismissed = true; warn.hidden = true; });
 
   measure.addEventListener('click', async () => {
@@ -137,8 +208,7 @@ export function comparePanel(hooks: CompareHooks): Panel & { setAvailable(ok: bo
     verdict.hidden = false;
     verdict.textContent = 'Measuring…';
     try {
-      const [a, b] = await hooks.onMeasure();
-      showTable(a, b);
+      show(await hooks.onMeasure());
     } catch (e) {
       table.hidden = true;
       verdict.textContent = e instanceof Error ? e.message : String(e);
@@ -148,63 +218,87 @@ export function comparePanel(hooks: CompareHooks): Panel & { setAvailable(ok: bo
     }
   });
 
-  function showTable(a: TrackResult, b: TrackResult): void {
+  function show(results: TrackResult[]): void {
+    timing = {};
+    for (const r of results) timing[r.kind] = r;
+    chartSlot.replaceChildren(historyChart(results));
+    const diaryR = timing.logging, revR = timing.reversible;
+
     const head = h('div', 'trow thead');
-    head.append(h('span'), h('span', '', 'Diary'), h('span', '', 'Reversible'));
+    ['Strategy', 'History', 'Garbage', 'Total', 'Forward', 'Back'].forEach((t) => head.append(h('span', '', t)));
     table.replaceChildren(head);
-    for (const r of trackRows(a, b)) {
-      const row = h('div', 'trow');
-      row.append(h('span', 'tlabel', r.label));
-      r.values.forEach((v, i) => {
-        const cell = h('span', `tcell ${r.tone}`);
-        const bar = h('span', 'tbar');
-        bar.style.width = `${Math.max(r.bars[i] * 100, r.bars[i] > 0 ? 2 : 0)}%`;
-        cell.append(h('span', 'tval mono', v), bar);
-        row.append(cell);
-      });
-      table.append(row);
-    }
+    const row = (name: string, r: TrackResult | undefined, planned = false): void => {
+      const tr = h('div', `trow${planned ? ' planned' : ''}`);
+      tr.append(h('span', 'tlabel', name));
+      if (!r) {
+        tr.append(h('span', 'tplanned dim', planned ? 'planned: defined in SPEC 12.3, not built yet' : 'not measured'));
+      } else {
+        for (const v of [formatBytes(r.historyBytes), fmtBits(r.garbageBits), fmtBits(totalBits(r.historyBytes, r.garbageBits)), `${formatNs(r.forwardNs)} / step`, `${formatNs(r.backNs)} / step`]) tr.append(h('span', 'tcell mono', v));
+      }
+      table.append(tr);
+    };
+    row('Naive diary', diaryR);
+    row('Reversible', revR);
+    row('Tight diary', undefined, true);
+    row('Checkpoint and replay', undefined, true);
     table.hidden = false;
-    const slow = b.backMs / Math.max(a.backMs, 1e-9);
-    verdict.textContent =
-      `${a.steps.toLocaleString('en-GB')} steps${a.capped ? ' (the first part of a longer run)' : ''}, averaged over ${a.passes.toLocaleString('en-GB')} passes. ` +
-      `The diary keeps ${formatBytes(a.historyBytes)} to be able to go back; the reversible engine keeps ${formatBytes(b.historyBytes)}. ` +
-      `Its back track takes ${slow >= 1 ? `${slow.toFixed(1)} times as long` : `${(1 / slow).toFixed(1)} times less time`} as the diary's. ` +
-      `${a.restored && b.restored ? 'Both engines returned to exactly the starting state.' : 'An engine did not return to the starting state.'} ` +
-      `${a.endDigest === b.endDigest ? 'Both ended in the same state.' : 'They ended in different states.'}`;
+
+    const a = diaryR, b = revR;
+    if (a && b) {
+      const slow = b.backNs / Math.max(a.backNs, 1e-9);
+      verdict.textContent =
+        `${a.steps.toLocaleString('en-GB')} steps${a.capped ? ' (the first part of a longer run)' : ''}, averaged over ${a.passes.toLocaleString('en-GB')} passes. ` +
+        `The diary keeps ${formatBytes(a.historyBytes)} to be able to go back; the reversible engine keeps ${formatBytes(b.historyBytes)}. ` +
+        `Its back track takes ${slow >= 1 ? `${slow.toFixed(1)} times as long` : `${(1 / slow).toFixed(1)} times less time`} as the diary's (${formatMs(b.backMs)} against ${formatMs(a.backMs)}). ` +
+        `${a.restored && b.restored ? 'Both engines returned to exactly the starting state.' : 'An engine did not return to the starting state.'}`;
+    }
     verdict.hidden = false;
   }
 
-  const paintCard = (c: ReturnType<typeof card>, m: Ctx['machines'][number], used: number): void => {
-    const lab = LABELS[m.vm.kind];
-    c.title.textContent = lab.title;
-    c.sub.textContent = lab.sub;
-    c.hist.textContent = formatBytes(m.vm.historyBytes);
-    c.c.dataset.engine = m.vm.kind;
-    c.used.textContent = used >= 0 ? `${used.toLocaleString('en-GB')} non-zero words of writable memory` : 'Scanning memory…';
+  const paintCard = (c: ReturnType<typeof makeCard>, vm: RVM, written: number): void => {
+    const hist = vm.historyBytes;
+    const garbage = garbageBitsOf(vm, garbageRanges);
+    c.hist.textContent = formatBytes(hist);
+    c.garbage.textContent = fmtBits(garbage);
+    c.total.textContent = fmtBits(totalBits(hist, garbage));
+    c.written.textContent = written >= 0 ? `${written.toLocaleString('en-GB')} words` : 'scanning…';
+    const { regs, pc } = vm.registers();
+    const values = [...Array.from(regs), pc];
+    c.regCells.forEach(({ cell, val }, i) => {
+      val.textContent = i === 16 ? String(pc) : String(values[i] | 0); // signed decimal; the pc is an address
+      cell.classList.toggle('changed', c.prevRegs.length > 0 && c.prevRegs[i] !== values[i]);
+    });
+    c.prevRegs = values;
+    c.fb.draw(vm.framebuffer());
+    const lines = consoleText((a, n) => vm.memory(a, n)).split('\n').filter((l, i, all) => l !== '' || i < all.length - 1);
+    c.lines.replaceChildren(...lines.slice(-CONSOLE_LINES).map((l) => h('div', '', l === '' ? ' ' : l)));
+    c.lines.hidden = lines.length === 0;
+    const t = timing[vm.kind];
+    c.time.textContent = t ? `Forward ${formatNs(t.forwardNs)} per step, back ${formatNs(t.backNs)} per step` : 'Time per step: press Measure both engines.';
   };
 
   return {
     el,
     setAvailable(ok, why) {
-      toggle.disabled = !ok;
       measure.disabled = !ok || measuring;
-      toggle.title = ok ? 'Run both engines in lockstep' : why;
-      measure.title = ok ? measure.title : why;
+      measure.title = ok ? 'Run the program forward and back on both engines' : why;
     },
-    update({ machines, snap }: Ctx) {
-      on = machines.length > 1;
-      toggle.setAttribute('aria-pressed', String(on));
-      toggle.textContent = on ? 'Stop side by side' : 'Run side by side';
-      cards.hidden = !on;
-      hint.hidden = on;
-      warn.hidden = true;
-      if (!on) {
-        badge.textContent = '';
-        badge.dataset.state = 'off';
+    update({ machines, snap, program: p }: Ctx) {
+      if (p !== program) {
+        program = p;
+        garbageRanges = p?.garbage ?? [];
+        timing = {};
+        chartSlot.replaceChildren();
+        table.hidden = true;
+        verdict.hidden = true;
+        warnDismissed = false;
+      }
+      if (machines.length < 2) {
+        el.dataset.live = 'false';
         lastState = 'off';
         return;
       }
+      el.dataset.live = 'true';
       const [a, b] = machines;
       const ra = a.vm.registers();
       const rb = b.vm.registers();
@@ -215,15 +309,14 @@ export function comparePanel(hooks: CompareHooks): Panel & { setAvailable(ok: bo
         scan = scanMemory(a.vm.memory(0, WRITABLE_WORDS), b.vm.memory(0, WRITABLE_WORDS));
       }
       if (!diff && scan.diff >= 0) diff = `memory word 0x${scan.diff.toString(16)}`;
-
       const state = diff ? 'diff' : 'match';
-      badge.dataset.state = state;
-      badge.replaceChildren(icon(diff ? 'cross' : 'check', 14), h('span', '', diff ? `States differ at t = ${snap.t}: ${diff}` : 'States match'));
+      mismatch.hidden = state === 'match';
+      if (diff) mismatch.textContent = `The engines differ at t = ${snap.t}: ${diff}.`;
       if (state === 'diff' && lastState !== 'diff') hooks.onMismatch(snap.t);
       lastState = state;
 
-      paintCard(left, a, scan.usedA);
-      paintCard(right, b, scan.usedB);
+      paintCard(byKind[a.vm.kind], a.vm, scan.usedA);
+      paintCard(byKind[b.vm.kind], b.vm, scan.usedB);
       const logging = machines.find((m) => m.vm.kind === 'logging');
       warn.hidden = warnDismissed || !logging || logging.vm.historyBytes < HISTORY_WARN_BYTES;
     },

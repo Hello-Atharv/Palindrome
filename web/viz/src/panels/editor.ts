@@ -32,6 +32,8 @@ export interface ListingApi {
 export interface EditorHooks {
   /** Assemble the text and load it. */
   onAssemble(source: string, name: string): AsmOutcome;
+  /** The text changed (every keystroke). The shell keeps it as a draft. */
+  onEdit?(source: string, name: string): void;
   /** False when no assembler was given: the text is then read-only and there is no Build button. */
   canBuild: boolean;
 }
@@ -219,6 +221,7 @@ export function editorPanel(hooks: EditorHooks): EditorPanel {
     dirty.hidden = false;
     size();
     paintGutter();
+    hooks.onEdit?.(text.value, name);
   });
 
   gutter.addEventListener('click', (ev) => {

@@ -74,8 +74,8 @@ export function inGarbage(info: ProgramInfo | null, addr: number): boolean {
   return info !== null && info.garbage.some(([a, b]) => addr >= a && addr < b);
 }
 
-/** Programs up to this size get the animated datapath (the Learn view); bigger ones (sort, cipher, Pong) do not. */
-export const LEARN_MAX_CODE = 30;
+/** Programs up to this size get the animated datapath; bigger ones (sort, cipher, Pong) do not. 64 fits add-two-numbers with its printing. */
+export const LEARN_MAX_CODE = 64;
 export const LEARN_MAX_DATA = 32;
 
 /** Can the Learn view animate this program? `why` explains a refusal. */

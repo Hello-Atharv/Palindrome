@@ -153,7 +153,7 @@ describe('layout', () => {
     expect(tabs).toEqual(['Visualisation', 'Output', 'Compare']);
     expect(root.querySelector('.ide .editor')).not.toBeNull();
     expect(root.querySelector('.ide .debugbar .transport')).not.toBeNull();
-    expect(root.querySelector('.debugbar .strip')).not.toBeNull();
+    expect(root.querySelector('.debugbar .tbar-track')).not.toBeNull();
   });
 
   it('the editor and debug controls collapse completely, with the button and with Ctrl+B', () => {
@@ -164,12 +164,13 @@ describe('layout', () => {
     expect(root.dataset.ide).toBe('open');
   });
 
-  it('the registers and memory are not on the first screen: they live in the Output tab', () => {
-    const visible = root.querySelector('.tab-pane:not([hidden])')!;
-    expect(visible.querySelector('.reg-grid')).toBeNull();
-    expect(visible.querySelector('.hexgrid')).toBeNull();
-    expect(root.querySelector('.out .reg-grid')).not.toBeNull();
-    expect(root.querySelector('.out .values')).not.toBeNull();
+  it('the Output tab is the console, the screen and the input boxes: no registers, no memory', () => {
+    expect(root.querySelector('.out .screen')).not.toBeNull();
+    expect(root.querySelector('.out .numin')).not.toBeNull();
+    expect(root.querySelector('.out .capture')).not.toBeNull();
+    expect(root.querySelector('.out .reg-grid')).toBeNull();
+    expect(root.querySelector('.out .hexgrid')).toBeNull();
+    expect(root.querySelector('.out .values')).toBeNull();
   });
 });
 

@@ -20,7 +20,7 @@
   --s-16: 16px;
   --s-24: 24px;
   --radius: 6px;
-  --ide-w: clamp(380px, 38vw, 520px);
+  --ide-w: clamp(340px, 34vw, 480px);
 
   --mono: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
   --sans: system-ui, sans-serif;

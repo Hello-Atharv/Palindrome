@@ -147,3 +147,27 @@ Updated: 2026-10-24
   register and memory word; the reversible engine holds 0 bytes of history. Caveat (SPEC 7): under direction -1 an input-reading
   program is not exactly self-inverse, because the input window follows machine time; step back is always exact.
 - viz 70/70 tests (15 new), tsc clean, scanner 0, build ok.
+
+## Workbench round 2 (2026-10-25, web/viz only; scaffold 95b2fa1 merged first, no conflicts)
+- Run-time bar: the image's design (`t N`, track with an amber knob, state), no pre-run. Capacity is what the speed gets through in 5 s
+  (20 instructions when the animation paces the run, 5 x speed otherwise, 500,000 at top speed) and the label says so. It fills, then
+  slides: the right end is always the latest t. One speed control in the debug bar (Slow / Normal / Fast / Instant for animated
+  programs, steps per second otherwise); the Animation buttons and the number-format select are gone.
+- Resize bug: the right side keeps at least 560 px, the memory column is sized for its rows, the note no longer wraps one word per
+  line, and `npm run test:layout` (Playwright, real browser) drags the divider across widths at four window sizes on every tab: 60
+  layouts, no overlap or clipping. It caught a clipped row-label column while I was building.
+- Numbers are signed decimal everywhere (hex only for instruction words). One main memory (Program / Data / Stack, sticky headers,
+  `P00003` / `D00060` / `S65536`) scrolls to where the machine works; fetch is drawn PC, MAR, memory, MBR, CIR. The machine is
+  unchanged (Harvard, code read-only); the page says so.
+- Output tab: console (SPEC 11.9, read with `lang/src/console.ts`, rewinds with time, Lock scroll, no Copy) beside the screen, then
+  Send a number and Send keys (with the last key). No registers or memory there. "add two numbers" now prints both inputs and the
+  sum; that made it 46 instructions, so the animation limit went from 30 to 64 (LEARN_MAX_CODE). "my program" is a blank template
+  with edits kept per program in localStorage. Pong is in the picker.
+- Compare: "Compare engines" in the header (or the tab) hides the editor and runs both engines in lockstep; program, transport, speed and
+  run-time bar are at the top, and the program picker there is synced with the header. Cards show history_bytes, garbage_bits (console
+  counted), total, data written, registers, screen, last console lines and ns per step. A "VM history against time" chart and table;
+  tight diary and checkpoint-and-replay are labelled planned (SPEC 12.4). Runs are the first 100,000 steps unless the program halts,
+  hard cap 5,000,000. The old side-by-side toggle and the "states match" badge are gone (a mismatch still pauses and shows a line).
+- Stale test: engines.test expected sort.s to have a `garbage` data label; core moved sort's garbage onto the screen, so the test now
+  uses a small inline source.
+- Tests: viz 72/72, tsc clean, scanner 0, build ok.

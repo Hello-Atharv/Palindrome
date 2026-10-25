@@ -5,6 +5,7 @@
  */
 import { assemble } from '../../../asm/src/index';
 import cipher from '../../../programs/cipher.s?raw';
+import pong from '../../../programs/pong.s?raw';
 import sort from '../../../programs/sort.s?raw';
 import call from '../../../asm/examples/call.s?raw';
 import ifelse from '../../../asm/examples/ifelse_macro.s?raw';
@@ -16,7 +17,7 @@ import { createMockVm, gradient } from '../../mock_vm/src/index';
 import { createWasmVm } from '../../wasm/src/index';
 import type { AssembleFn } from './assembler';
 import { formatDiagnostics } from './assembler';
-import { ADD_TWO_NUMBERS } from './examples';
+import { ADD_TWO_NUMBERS, BLANK_PROGRAM } from './examples';
 import { mountViz } from './index';
 import type { ProgramEntry } from './program';
 
@@ -37,7 +38,7 @@ const fromSource = (name: string, blurb: string, source: string): ProgramEntry =
   },
 });
 
-/** Simple programs first: they open in the Visualisation tab. Sort, cipher and the gradient are too big to animate. */
+/** Simple programs first: they open in the Visualisation tab. Sort, cipher, Pong and the gradient are too big to animate. */
 const programs: ProgramEntry[] = [
   fromSource('if / else', '.if / .else / .fi macros: watch the data move through the datapath', ifelse),
   fromSource('add two numbers', 'send two numbers, the machine adds them and files the sum (reversible)', ADD_TWO_NUMBERS),
@@ -45,8 +46,10 @@ const programs: ProgramEntry[] = [
   fromSource('nested loop', 'a loop with an if inside', nested),
   fromSource('call / return', 'CALL, PROC and RET on the stack', call),
   fromSource('memory', 'data, framebuffer, neg', memory),
+  fromSource('my program', 'a blank template: write your own assembly, then Build and load (your edits are kept in this browser)', BLANK_PROGRAM),
   fromSource('sort', 'a reversible sort that exposes its garbage: 19 hatched words at data address 8', sort),
   fromSource('cipher', 'Speck64/128: encrypt, then flip Reverse (direction -1) and the same program decrypts', cipher),
+  fromSource('pong', 'a reversible Pong: the keys move the paddle (open the Output tab and press keys)', pong),
   { name: 'gradient', blurb: 'fills the framebuffer in a loop (hand-built image)', load: () => gradient().image },
 ];
 

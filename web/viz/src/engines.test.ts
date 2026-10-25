@@ -1,12 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { assemble } from '../../../asm/src/index';
-import sortSource from '../../../programs/sort.s?raw';
 import { SAMPLES } from '../../mock_vm/src/index';
 import { createWasmVm } from '../../wasm/src/index';
 import type { AssembleFn } from './assembler';
-import { asciiOf } from './panels/memory';
-import { scanMemory } from './panels/compare';
+import { scanMemory, totalBits } from './panels/compare';
 import { inGarbage, inspectImage } from './program';
 import { mountViz } from './shell';
 import type { VizHandle } from './shell';
@@ -78,11 +76,10 @@ describe('compare', () => {
     expect(viz.machines.map((m) => m.vm.instructionCount)).toEqual([20, 20]);
     viz.stepBack(); viz.stepBack();
     expect(viz.machines.map((m) => m.vm.instructionCount)).toEqual([18, 18]);
-    const badge = root.querySelector<HTMLElement>('.match')!;
-    expect(badge.dataset.state).toBe('match');
-    expect(badge.textContent).toBe('States match');
-    const hist = [...root.querySelectorAll('.cmp-hist')].map((e) => e.textContent);
+    expect(root.querySelector<HTMLElement>('.cmp-mismatch')!.hidden).toBe(true);
+    const hist = [...root.querySelectorAll('.cmp-card')].map((c) => c.querySelector('.cmp-stats dd')!.textContent);
     expect(hist).toEqual(['864 B', '0 B']); // 18 steps x 48 B, and nothing
+    expect([...root.querySelectorAll('.cmp-title')].map((e) => e.textContent)).toEqual(['Naive diary', 'Reversible']);
     await viz.setCompare(false);
     expect(viz.machines).toHaveLength(1);
   });
@@ -92,9 +89,9 @@ describe('compare', () => {
     viz.step();
     viz.machines[1].vm.stepForward(); // push one machine out of step behind the shell's back
     viz.refresh();
-    const badge = root.querySelector<HTMLElement>('.match')!;
-    expect(badge.dataset.state).toBe('diff');
-    expect(badge.textContent).toContain('States differ');
+    const line = root.querySelector<HTMLElement>('.cmp-mismatch')!;
+    expect(line.hidden).toBe(false);
+    expect(line.textContent).toContain('differ');
   });
 
   it('scanMemory finds the first differing word and counts used words', () => {
@@ -120,7 +117,7 @@ describe('assembler hook', () => {
 
 describe('garbage and ASCII', () => {
   it('finds the sort program\'s garbage array from its data label', () => {
-    const r = assemble(sortSource);
+    const r = assemble(['.data', 'arr: .word 1,2,3,4,5,6,7,8', 'garbage: .space 19', '.code', 'start: hlt', ''].join('\n'));
     const info = inspectImage('sort', r.image!);
     expect(info.garbage).toEqual([[8, 27]]);
     expect(inGarbage(info, 8)).toBe(true);
@@ -130,9 +127,14 @@ describe('garbage and ASCII', () => {
     expect(info.dataLabels.map((l) => l.name)).toEqual(['arr', 'garbage']);
   });
 
-  it('shows a word as four little-endian characters', () => {
-    expect(asciiOf(0x48544f4e)).toBe('NOTH');
-    expect(asciiOf(0x00410100)).toBe('··A·');
+  it('counts garbage as 32 bits per non-zero word, the console buffer included', async () => {
+    const { garbageBitsOf } = await import('./track');
+    const vm = await createWasmVm('reversible');
+    const r = assemble(['.data', 'garbage: .space 4', '.code', 'start: xori r1, 5', 'xst r1, [r0+1]', 'hlt', ''].join('\n'));
+    vm.loadProgram(r.image!);
+    vm.runTo(10);
+    expect(garbageBitsOf(vm, [[0, 4]])).toBe(32);
+    expect(garbageBitsOf(vm, [])).toBe(0);
   });
 });
 
@@ -151,15 +153,11 @@ describe('forward and back track measurement', () => {
     expect(diary.passes).toBeGreaterThanOrEqual(3);
   });
 
-  it('formats times in the unit that keeps them short, and builds the table rows', async () => {
+  it('formats times in the unit that keeps them short, and adds history and garbage into one total', async () => {
     const { formatMs } = await import('./track');
     expect([formatMs(0.0004), formatMs(0.038), formatMs(1.4), formatMs(12.34), formatMs(2100)]).toEqual(['< 1 µs', '38 µs', '1.40 ms', '12.3 ms', '2.10 s']);
-    const { trackRows } = await import('./panels/compare');
-    const r = (forwardMs: number, backMs: number, historyBytes: number) => ({ kind: 'logging' as const, steps: 100, capped: false, passes: 5, forwardMs, backMs, historyBytes, restored: true, endDigest: 'x' });
-    const rows = trackRows(r(2, 1, 4800), r(1, 4, 0));
-    expect(rows.map((x) => x.tone)).toEqual(['fwd', 'back', 'mem']);
-    expect(rows[0].bars).toEqual([1, 0.5]);
-    expect(rows[1].bars).toEqual([0.25, 1]);
-    expect(rows[2].bars).toEqual([1, 0]);
+    const { formatNs } = await import('./track');
+    expect([formatNs(0.4), formatNs(8.25), formatNs(42.4), formatNs(1250)]).toEqual(['< 1 ns', '8.3 ns', '42 ns', '1.25 µs']);
+    expect(totalBits(100, 64)).toBe(864); // history_bytes x 8 + garbage_bits (SPEC 12.1)
   });
 });

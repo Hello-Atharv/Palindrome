@@ -30,6 +30,10 @@ export interface Ctx {
   /** Nominal run speed in steps per second, and whether the page is in heat-map mode (too fast to animate). */
   stepHz: number;
   heat: boolean;
+  /** How the sphere moves (the one speed control in the debug bar): slow, normal, fast, or instant (no animation while running). */
+  pace: 'slow' | 'normal' | 'fast' | 'instant';
+  /** The run capacity of the time bar, in instructions (see timebar.ts). */
+  capacity: number;
   /** A message about the last load/assemble attempt that failed (null when fine). */
   notice: string | null;
 }

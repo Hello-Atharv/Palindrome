@@ -87,13 +87,16 @@ await shot('10-output-graphics');
 
 // 11 compare: measure the forward and back tracks, and run side by side
 await load('sort');
-await page.click(TAB(3));
-await page.click('.cmp-head .btn.primary');
-await page.waitForFunction(() => !document.querySelector('.cmp-table')?.hidden, null, { timeout: 30000 });
-await page.click('.cmp-section:nth-child(2) .btn');
-await page.waitForTimeout(500);
+await page.click('.compare-btn');
+await page.waitForTimeout(800);
 await dev(() => { const v = window.__dev.viz; for (let i = 0; i < 120; i++) v.step(); });
+await page.click('.cmp-section .btn.primary');
+await page.waitForFunction(() => !document.querySelector('.cmp-table')?.hidden, null, { timeout: 60000 });
 await shot('11-compare');
+await page.evaluate(() => document.querySelector('.cmp-body').scrollTo(0, 99999));
+await shot('11b-compare-chart');
+await page.click('.compare-btn'); // back out: the editor returns
+await shot('11c-compare-left');
 
 // 12 the editor: a breakpoint and the current line, on a program with source
 await load('nested loop');
@@ -129,9 +132,20 @@ await page.waitForTimeout(500);
 await dev(() => window.__dev.viz.step());
 await shot('18-add-two-reading-input', 1700);
 await page.waitForTimeout(8000);
-await dev(() => { const v = window.__dev.viz; v.vm.runTo(1000); v.refresh(); });
+await dev(() => { const v = window.__dev.viz; v.run('forward'); });
+await page.waitForTimeout(500);
+await dev(() => { const v = window.__dev.viz; v.pause(); v.vm.runTo(1000); v.refresh(); });
+await shot('19-add-two-done');
 await page.click(TAB(2));
-await shot('19-add-two-output');
+await shot('19b-add-two-console');
+
+// 21 the blank program, and a running program with the bar full
+await load('my program');
+await shot('21-my-program');
+await load('pong');
+await dev(() => { const v = window.__dev.viz; v.vm.runTo(7000); v.refresh(); });
+await page.click(TAB(2));
+await shot('22-time-bar-past-capacity');
 
 // 20 the editor resized by dragging the divider
 await load('if / else');

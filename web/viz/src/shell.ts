@@ -2,7 +2,8 @@ import type { CreateVm, Direction, RVM, Status, VmKind } from '../../../spec/vm_
 import { formatDiagnostics } from './assembler';
 import type { AssembleFn, AsmOutcome } from './assembler';
 import { FRAME_ADDR } from './constants';
-import { buildEngineSwitch, buildProgramBar, buildTransport } from './controls';
+import { buildEngineSwitch, buildProgramBar, buildProgramSelect, buildTransport } from './controls';
+import type { PaceChoice } from './controls';
 import { h } from './dom';
 import { attachKeys } from './keys';
 import type { Machine } from './machines';
@@ -10,18 +11,17 @@ import { bannersPanel } from './panels/banners';
 import { comparePanel } from './panels/compare';
 import { editorPanel } from './panels/editor';
 import type { ListingApi } from './panels/editor';
-import { memoryPanel } from './panels/memory';
+import { consolePanel } from './panels/console';
 import type { Ctx, Panel } from './panels/panel';
-import { registersPanel } from './panels/registers';
 import { screenPanel } from './panels/screen';
-import { timelinePanel } from './panels/timeline';
+import { timeBarPanel, timelinePanel } from './panels/timeline';
+import { capacityFor } from './panels/timebar';
 import { numberInputPanel } from './panels/numberinput';
-import { valuesPanel } from './panels/values';
 import { visualisePanel } from './panels/visualise';
 import { inspectImage, learnVerdict } from './program';
 import type { ProgramEntry, ProgramInfo } from './program';
 import { icon } from './icons';
-import { LEARN_SPEED, Runner, SPEEDS } from './runner';
+import { DEFAULT_SPEED, LEARN_SPEED, Runner, SPEEDS } from './runner';
 import type { RunMode } from './runner';
 import { attachShortcuts } from './shortcuts';
 import { takeSnapshot } from './snapshot';
@@ -33,6 +33,10 @@ export type { Machine } from './machines';
 
 /** Above this many steps per second the page switches from flashes to a heat map. */
 const FLASH_MAX_RATE = 20;
+/** The editor never goes narrower than this beside it: below it the visualisation breaks. */
+const MIN_WORK = 560;
+/** The speed the machine runs at when the animation is skipped (Instant). */
+const INSTANT_SPEED = SPEEDS.indexOf(10_000);
 /** A tape file with no events: how the shell clears the VM's input tape on every (re)load. */
 const EMPTY_TAPE = new Uint8Array([0x52, 0x56, 0x4d, 0x54, 0, 0, 0, 0]);
 
@@ -172,6 +176,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   let seekQueued: number | null = null;
   let lastCtx: Ctx | null = null;
   let movedOffVisualisation = false;
+  let pace: PaceChoice = 'slow';
+  let rateIndex = DEFAULT_SPEED;
+  let speedMode: 'pace' | 'rate' = 'rate';
+  let restoreEditor = false;
   const listeners: Listeners = { update: new Set(), load: new Set(), run: new Set(), engine: new Set() };
   const seekListeners = new Set<(t: number) => void>();
   const emit = <K extends keyof VizEvents>(k: K, e: VizEvents[K]): void => listeners[k].forEach((fn) => fn(e));
@@ -180,24 +188,26 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const all = (fn: (v: RVM) => Status): Status => machines.map((m) => fn(m.vm))[0];
 
   // ---- panels ----
-  const registers = registersPanel();
-  const editor = editorPanel({ onAssemble: (src, name) => api.assembleAndLoad(src, name), canBuild: !!opts.assemble });
-  const memory = memoryPanel();
+  const editor = editorPanel({ onAssemble: (src, name) => api.assembleAndLoad(src, name), canBuild: !!opts.assemble, onEdit: (src, name) => saveDraft(name, src) });
   const screen = screenPanel();
-  const values = valuesPanel();
+  const output = consolePanel();
   const banners = bannersPanel();
   // two places to type a number for the machine (the visualisation and the output), both feed the input tape
   const numberA = numberInputPanel((n) => void api.pushInput(n));
   const numberB = numberInputPanel((n) => void api.pushInput(n));
   const visualise = visualisePanel(numberA.el);
-  const compare = comparePanel({
-    onToggle: (on) => void api.setCompare(on),
-    onMismatch: () => api.pause(),
-    onMeasure: async () => {
-      if (!createVm || !program) throw new Error('Load a program first.');
-      return measureTracks(createVm, ['logging', 'reversible'], program.image);
+  // the controls at the top of the Compare tab: program, transport, run-time bar
+  const cmpControls = h('div', 'cmp-top');
+  const compare = comparePanel(
+    {
+      onMismatch: () => api.pause(),
+      onMeasure: async () => {
+        if (!createVm || !program) throw new Error('Load a program first.');
+        return measureTracks(createVm, ['logging', 'reversible'], program.image, { garbage: program.garbage });
+      },
     },
-  });
+    cmpControls,
+  );
   const canCompare = !!createVm && engines.includes('logging') && engines.includes('reversible');
   compare.setAvailable(canCompare, 'Needs both engines, which needs the WebAssembly build (web/wasm)');
 
@@ -223,26 +233,37 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       stopAt: () => breakpoints.size > 0 && breakpoints.has(primary().registers().pc),
     },
   );
-  const transport = buildTransport(
-    {
-      step: () => api.step(),
-      stepBack: () => api.stepBack(),
-      run: (m) => api.run(m),
-      pause: () => api.pause(),
-      stop: () => void api.reset(),
-      setSpeed: (i) => { runner.speedIndex = i; updateMode(); },
-      setDirection: (d) => void api.setDirection(d),
-    },
-    runner.speedIndex,
-  );
+  const actions = {
+    step: () => api.step(),
+    stepBack: () => api.stepBack(),
+    run: (m: RunMode) => api.run(m),
+    pause: () => api.pause(),
+    stop: () => void api.reset(),
+    setSpeed: (i: number) => { rateIndex = i; runner.speedIndex = i; syncSpeed(true); },
+    setPace: (p: PaceChoice) => { pace = p; runner.speedIndex = p === 'instant' ? INSTANT_SPEED : LEARN_SPEED; syncSpeed(true); },
+    setDirection: (d: Direction) => void api.setDirection(d),
+  };
+  // the debug bar and the top of the Compare tab each have the controls; they move together
+  const transport = buildTransport(actions, runner.speedIndex);
+  const cmpTransport = buildTransport(actions, runner.speedIndex);
+  const transports = [transport, cmpTransport];
   const timeline = timelinePanel(transport, (t) => seek(t));
-  const panels: Panel[] = [registers, editor, memory, screen, values, banners, timeline, compare, visualise, numberA, numberB];
+  const cmpTime = timeBarPanel((t) => seek(t));
+  const panels: Panel[] = [editor, screen, output, banners, timeline, cmpTime, compare, visualise, numberA, numberB];
 
   const programBar = buildProgramBar(
     programs,
     (i) => loadSample(i),
     (f) => void f.arrayBuffer().then((b) => api.loadImage(f.name, new Uint8Array(b))),
   );
+  // the program can be changed from the top of Compare too: one program, two pickers
+  const cmpSelect = buildProgramSelect(programs, (i) => loadSample(i));
+  const cmpRow = h('div', 'cmp-row');
+  cmpRow.append(cmpSelect.el, cmpTransport.el);
+  cmpControls.append(cmpRow, cmpTime.el);
+  const compareBtn = h('button', 'btn compare-btn', 'Compare engines');
+  compareBtn.type = 'button';
+  compareBtn.title = 'Run the program on both engines at once and compare what they keep';
 
   // ---- DOM ----
   const slots: VizSlots = {
@@ -259,7 +280,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const header = h('header', 'viz-header');
   const brand = h('h1', 'brand', 'Reversible machine');
   const engineSwitch = buildEngineSwitch(engines, vm.kind, (k) => void api.setEngine(k));
-  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el);
+  header.append(brand, h('span', 'grow'), engineSwitch.el, programBar.el, compareBtn);
 
   // left: the editor with the debug bar at its foot (collapsible)
   const ide = h('aside', 'ide');
@@ -267,15 +288,13 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   ide.append(slots.code, editor.el, slots.left, slots.timeline, timeline.el);
 
   // right: three tabs
+  // Output: the console and the screen side by side, then the ways to give the machine input
   const outputPane = h('div', 'out');
-  const outLeft = h('div', 'out-col');
-  outLeft.append(screen.el, numberB.el, registers.el);
-  const inspector = h('details', 'inspector');
-  const summary = h('summary', '', 'Memory inspector');
-  inspector.append(summary, memory.el);
-  const outRight = h('div', 'out-col');
-  outRight.append(values.el, inspector);
-  outputPane.append(outLeft, outRight);
+  const outMain = h('div', 'out-main');
+  outMain.append(output.el, screen.el);
+  const outInput = h('div', 'out-input');
+  outInput.append(numberB.el, screen.keys);
+  outputPane.append(outMain, outInput);
 
   const rightTabs = new Tabs(
     [
@@ -288,18 +307,44 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   const work = h('main', 'work');
   work.append(rightTabs.bar, rightTabs.body, slots.side);
   rightTabs.body.classList.add('grow');
-  /** Watching data move needs a slow run: bring a fast speed down when the visualisation shows a simple program. */
-  function calmForVisualisation(): void {
-    if (rightTabs.active === 'visualisation' && program && learnVerdict(program).ok && runner.speedIndex > LEARN_SPEED) {
-      runner.speedIndex = LEARN_SPEED;
-      transport.setSpeedIndex(LEARN_SPEED);
-      updateMode();
+  /**
+   * One speed control. While the visualisation shows a simple program it chooses how fast the animation plays (the
+   * animation sets the pace of a run); everywhere else it chooses steps per second. Leaving a mode restores the other
+   * one's last choice.
+   */
+  function syncSpeed(force = false): void {
+    const animated = rightTabs.active === 'visualisation' && !!program && learnVerdict(program).ok;
+    const next = animated ? 'pace' : 'rate';
+    if (next !== speedMode || force) {
+      speedMode = next;
+      if (animated) runner.speedIndex = pace === 'instant' ? INSTANT_SPEED : LEARN_SPEED;
+      else runner.speedIndex = rateIndex;
+      transports.forEach((t) => (animated ? t.setSpeed('pace', pace) : t.setSpeed('rate', rateIndex)));
     }
+    updateMode();
   }
-  rightTabs.onChange(() => {
-    calmForVisualisation();
+
+  // Compare takes over the window: the editor is hidden while it is open and comes back when it is left
+  let lastTab = 'visualisation';
+  rightTabs.onChange((id) => {
+    const comparing = id === 'compare';
+    compareBtn.setAttribute('aria-pressed', String(comparing));
+    if (comparing && machines.length < 2) {
+      restoreEditor = root.dataset.ide === 'open';
+      if (restoreEditor) setSidebar(false, false);
+      void api.setCompare(true);
+    } else if (!comparing && machines.length > 1) {
+      void api.setCompare(false);
+      if (restoreEditor) setSidebar(true, false);
+      restoreEditor = false;
+    }
+    if (!comparing) lastTab = id;
+    syncSpeed();
     refresh(status);
   });
+  compareBtn.addEventListener('click', () => rightTabs.select(rightTabs.active === 'compare' ? lastTab : 'compare'));
+  compareBtn.disabled = !canCompare;
+  compareBtn.title = canCompare ? compareBtn.title : 'Needs both engines, which needs the WebAssembly build (web/wasm)';
 
   // the divider: drag it to resize the editor, double-click to reset, and its button collapses or restores the editor
   const divider = h('div', 'divider');
@@ -325,14 +370,14 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     try { return localStorage.getItem(key); } catch { return null; }
   };
 
-  function setSidebar(open: boolean): void {
+  function setSidebar(open: boolean, remember = true): void {
     root.dataset.ide = open ? 'open' : 'closed';
     dividerBtn.setAttribute('aria-pressed', String(open));
     dividerBtn.setAttribute('aria-label', open ? 'Hide the editor' : 'Show the editor');
     dividerBtn.replaceChildren(icon(open ? 'chevronLeft' : 'chevronRight'));
-    store('viz.ide', open ? 'open' : 'closed');
+    if (remember) store('viz.ide', open ? 'open' : 'closed');
   }
-  dividerBtn.addEventListener('click', () => setSidebar(root.dataset.ide !== 'open'));
+  dividerBtn.addEventListener('click', () => { restoreEditor = false; setSidebar(root.dataset.ide !== 'open'); });
   dividerBtn.addEventListener('pointerdown', (ev) => ev.stopPropagation()); // a click on the button is not a drag
 
   function setEditorWidth(px: number | null): void {
@@ -341,7 +386,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
       store('viz.ideW', null);
       return;
     }
-    const max = Math.max(MIN_IDE, split.clientWidth * 0.7);
+    const max = Math.max(MIN_IDE, Math.min(split.clientWidth * 0.7, split.clientWidth - MIN_WORK - 8));
     const w = Math.round(Math.min(Math.max(px, MIN_IDE), max));
     root.style.setProperty('--ide-w', `${w}px`);
     store('viz.ideW', String(w));
@@ -378,7 +423,7 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   function setRun(next: 'fwd' | 'back' | 'paused'): void {
     runState = next;
     root.dataset.run = next;
-    transport.setRun(next === 'fwd' ? 'forward' : next === 'back' ? 'back' : null);
+    transports.forEach((t) => t.setRun(next === 'fwd' ? 'forward' : next === 'back' ? 'back' : null));
     rate = null;
     rateT = primary().instructionCount;
     rateMs = performance.now();
@@ -412,9 +457,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     root.dataset.status = s;
     root.dataset.engine = vmNow.kind;
     engineSwitch.setKind(vmNow.kind);
-    transport.setDirection(cur.direction);
+    engineSwitch.setLocked(rightTabs.active === 'compare');
+    transports.forEach((t) => t.setDirection(cur.direction));
     const frame = vmNow.memory(FRAME_ADDR, 1)[0];
-    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: rightTabs.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat' };
+    const ctx: Ctx = { vm: vmNow, snap: cur, prev, program, maxT, branch, branchAt, lostTo, run: runState, rate, frame, machines, notice, view: rightTabs.active, stepHz: SPEEDS[runner.speedIndex], heat: root.dataset.mode === 'heat', pace, capacity: speedMode === 'pace' ? capacityFor(true, 0) : capacityFor(false, SPEEDS[runner.speedIndex]) };
     lastCtx = ctx;
     for (const p of panels) p.update(ctx);
     emit('update', { t: cur.t, maxT, branch, direction: cur.direction, snap: cur, prev, status: s });
@@ -476,10 +522,20 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
     });
   }
 
+  const draftKey = (name: string): string => `viz.draft.${name}`;
+  function saveDraft(name: string, source: string): void {
+    const original = programs.find((p) => p.name === name)?.source;
+    store(draftKey(name), original === undefined || source === original ? null : source);
+  }
+
   function loadSample(i: number): void {
     const p = programs[i];
     if (!p) return;
     programBar.setIndex(i);
+    cmpSelect.setIndex(i);
+    // edits to a program are kept in the browser and come back the next time it is picked
+    const draft = p.source !== undefined && opts.assemble ? read(draftKey(p.name)) : null;
+    if (draft !== null && api.assembleAndLoad(draft, p.name).ok) return;
     try {
       api.loadImage(p.name, p.load(), p.source);
     } catch (e) {
@@ -566,8 +622,10 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
         // too big to animate: show the output instead, and come back to the visualisation when a simple program loads
         if (!verdict.ok && rightTabs.active === 'visualisation') { rightTabs.select('output'); movedOffVisualisation = true; }
         else if (verdict.ok && movedOffVisualisation) { rightTabs.select('visualisation'); movedOffVisualisation = false; }
-        calmForVisualisation();
-        programBar.setIndex(programs.findIndex((p) => p.name === name)); // -1 (blank) for a file or edited source
+        syncSpeed();
+        const picked = programs.findIndex((p) => p.name === name); // -1 for a file
+        programBar.setIndex(picked);
+        cmpSelect.setIndex(picked);
         notice = null;
         hostLog = [];
         prev = null;

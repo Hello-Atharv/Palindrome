@@ -9,7 +9,7 @@
 import { Op } from '../../../../spec/vm_api';
 
 export type NodeId =
-  | 'PC' | 'INC' | 'CODE' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'MAR' | 'MBR' | 'MEM' | 'IN' | 'OUT'
+  | 'PC' | 'INC' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'MAR' | 'MBR' | 'MEM' | 'IN' | 'OUT'
   | `R${number}`;
 
 export const regNode = (i: number): NodeId => `R${i}`;
@@ -24,7 +24,7 @@ export interface Move {
 
 /** What becomes visible when a phase ends. */
 export type Effect =
-  | { kind: 'text'; node: 'CODE' | 'MAR' | 'MBR' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'IN' | 'OUT'; text: string }
+  | { kind: 'text'; node: 'MAR' | 'MBR' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'IN' | 'OUT'; text: string }
   /** index 0..15 = r0..r15, 16 = PC. Forward playback shows `after`, reversed shows `before`. */
   | { kind: 'reg'; index: number; before: number; after: number }
   | { kind: 'code'; addr: number }
@@ -88,6 +88,17 @@ export function regionOf(addr: number): Region {
   return 'other';
 }
 
+/** An address with the letter of its region: D14 (data), S65536 (stack), F0 (frame), I2 (input window). */
+export function addrLabel(addr: number): string {
+  switch (regionOf(addr)) {
+    case 'data': return `D${addr}`;
+    case 'stack': return `S${addr}`;
+    case 'screen': return `F${addr - 0x20000}`;
+    case 'input': return `I${addr - 0x30000}`;
+    default: return `0x${addr.toString(16)}`;
+  }
+}
+
 function holds(cc: number, a: number, b: number): boolean {
   return cc === 0 ? true : cc === 1 ? a === b : cc === 2 ? a !== b : (a | 0) < (b | 0);
 }
@@ -101,15 +112,20 @@ export function buildScript(s: StepState): Phase[] {
   const B = s.before, A = s.after;
   const phases: Phase[] = [];
 
-  // ---- fetch, decode (the same for every instruction) ----
+  // ---- fetch, decode (the same for every instruction): PC -> MAR -> main memory -> MBR -> CIR ----
   phases.push({
-    note: `Fetch: the PC (${s.pc}) addresses the program memory. The incrementer prepares PC + 1.`,
-    moves: [{ from: 'PC', to: 'CODE', label: String(s.pc) }, { from: 'PC', to: 'INC', label: String(s.pc) }],
-    effects: [{ kind: 'code', addr: s.pc }, { kind: 'text', node: 'CODE', text: `${s.pc}: ${mnemonic(d)}` }],
+    note: `Fetch: the PC (${s.pc}) is copied to the MAR, the address register of main memory. The incrementer prepares PC + 1.`,
+    moves: [{ from: 'PC', to: 'MAR', label: String(s.pc) }, { from: 'PC', to: 'INC', label: String(s.pc) }],
+    effects: [{ kind: 'text', node: 'MAR', text: `P${s.pc}` }],
   });
   phases.push({
-    note: 'The instruction word comes back and is held in the CIR. The PC becomes PC + 1.',
-    moves: [{ from: 'CODE', to: 'CIR', label: hex8(s.word) }, { from: 'INC', to: 'PC', label: String(s.pc + 1) }],
+    note: `Main memory reads the program word at P${s.pc} (${mnemonic(d)}) and puts it in the MBR.`,
+    moves: [{ from: 'MAR', to: 'MEM', label: `P${s.pc}` }, { from: 'MEM', to: 'MBR', label: hex8(s.word) }],
+    effects: [{ kind: 'code', addr: s.pc }, { kind: 'text', node: 'MBR', text: hex8(s.word) }],
+  });
+  phases.push({
+    note: 'The instruction word moves from the MBR to the CIR. The PC becomes PC + 1.',
+    moves: [{ from: 'MBR', to: 'CIR', label: hex8(s.word) }, { from: 'INC', to: 'PC', label: String(s.pc + 1) }],
     effects: [
       { kind: 'text', node: 'CIR', text: hex8(s.word) },
       { kind: 'reg', index: PC_INDEX, before: s.pc, after: s.pc + 1 },
@@ -189,7 +205,7 @@ export function buildScript(s: StepState): Phase[] {
       const store = d.op === Op.XST;
       const value = store ? B[d.ra] : ((A[d.ra] ^ B[d.ra]) >>> 0);
       const region = regionOf(addr);
-      const addrText = `0x${addr.toString(16)}`;
+      const addrText = addrLabel(addr);
       phases.push({
         note: `Execute: the address is ${regName(d.rb)} + ${d.imm}: both go to the ALU.`,
         moves: [{ from: rb, to: 'ALU', label: short(B[d.rb]) }, { from: 'CIR', to: 'ALU', label: String(d.imm) }],
@@ -260,12 +276,12 @@ export function buildScript(s: StepState): Phase[] {
       const sp = B[14];
       phases.push({
         note: `Execute: the stack pointer (${short(sp)}) is the address where the return address (${s.pc + 1}) is saved.`,
-        moves: [{ from: regNode(14), to: 'MAR', label: short(sp) }, { from: 'INC', to: 'MBR', label: String(s.pc + 1) }],
-        effects: [{ kind: 'text', node: 'MAR', text: short(sp) }, { kind: 'text', node: 'MBR', text: String(s.pc + 1) }],
+        moves: [{ from: regNode(14), to: 'MAR', label: addrLabel(sp) }, { from: 'INC', to: 'MBR', label: String(s.pc + 1) }],
+        effects: [{ kind: 'text', node: 'MAR', text: addrLabel(sp) }, { kind: 'text', node: 'MBR', text: String(s.pc + 1) }],
       });
       phases.push({
         note: 'The return address is written onto the stack.',
-        moves: [{ from: 'MAR', to: 'MEM', label: short(sp) }, { from: 'MBR', to: 'MEM', label: String(s.pc + 1) }],
+        moves: [{ from: 'MAR', to: 'MEM', label: addrLabel(sp) }, { from: 'MBR', to: 'MEM', label: String(s.pc + 1) }],
         effects: [{ kind: 'mem', addr: sp, mode: 'write' }],
       });
       phases.push(alu('The stack pointer goes up by one.', [regNode(14)], 'sp + 1'));
@@ -283,8 +299,8 @@ export function buildScript(s: StepState): Phase[] {
       phases.push(writeBack(14, 'The new stack pointer is stored.'));
       phases.push({
         note: 'The stack pointer addresses the saved return address.',
-        moves: [{ from: regNode(14), to: 'MAR', label: short(slot) }, { from: 'MAR', to: 'MEM', label: short(slot) }],
-        effects: [{ kind: 'text', node: 'MAR', text: short(slot) }, { kind: 'mem', addr: slot, mode: 'read' }],
+        moves: [{ from: regNode(14), to: 'MAR', label: addrLabel(slot) }, { from: 'MAR', to: 'MEM', label: addrLabel(slot) }],
+        effects: [{ kind: 'text', node: 'MAR', text: addrLabel(slot) }, { kind: 'mem', addr: slot, mode: 'read' }],
       });
       phases.push({
         note: 'The return address is read (and the stack slot is cleared back to zero).',

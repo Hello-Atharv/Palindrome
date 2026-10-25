@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { integerScale } from './panels/screen';
-import { niceCeil, tickStep } from './panels/timeline';
+import { ANIMATED_CAPACITY, MAX_SPEED_CAPACITY, capacityFor, windowFor } from './panels/timebar';
 
-describe('timeline scale', () => {
-  it('rounds the domain up to 1, 2 or 5 times a power of ten', () => {
-    expect([niceCeil(1), niceCeil(64), niceCeil(70), niceCeil(101), niceCeil(480), niceCeil(5001)]).toEqual([1, 100, 100, 200, 500, 10000]);
+describe('run-time bar capacity', () => {
+  it('is 20 instructions when the animation sets the pace, 5 seconds of work at a steady speed, and fixed at top speed', () => {
+    expect(capacityFor(true, 2)).toBe(ANIMATED_CAPACITY);
+    expect(capacityFor(false, 1000)).toBe(5000);
+    expect(capacityFor(false, 2)).toBe(10);
+    expect(capacityFor(false, 100_000)).toBe(500_000);
+    expect(capacityFor(false, Infinity)).toBe(MAX_SPEED_CAPACITY);
   });
+});
 
-  it('picks the smallest 1-2-5 tick step that keeps ticks far enough apart', () => {
-    expect(tickStep(100, 1000, 48)).toBe(5); // 10 px per step: 5 steps = 50 px
-    expect(tickStep(10000, 1200, 48)).toBe(500); // 0.12 px per step
-    expect(tickStep(64, 64, 48)).toBe(50);
+describe('run-time bar window', () => {
+  it('fills from the left until it is full, then slides so its right end is the latest t', () => {
+    expect(windowFor(0, 5000)).toEqual({ start: 0, end: 5000 });
+    expect(windowFor(3000, 5000)).toEqual({ start: 0, end: 5000 });
+    expect(windowFor(5000, 5000)).toEqual({ start: 0, end: 5000 });
+    expect(windowFor(7000, 5000)).toEqual({ start: 2000, end: 7000 });
+    expect(windowFor(1_000_000, 5000)).toEqual({ start: 995_000, end: 1_000_000 });
   });
 });
 

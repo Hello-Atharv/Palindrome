@@ -1,5 +1,5 @@
 /**
- * The datapath diagram: program memory, registers, incrementer, MAR, MBR, CIR, control unit, ALU, condition box, input
+ * The datapath diagram: registers, incrementer, MAR, MBR, CIR, control unit, ALU, condition box, input
  * and output, joined by a bus. While an instruction executes, one sphere at a time travels along the wire it uses and
  * the wire fills in behind it, so it is clear which way the data goes. ILLUSTRATIVE (see script.ts).
  */
@@ -48,11 +48,11 @@ export interface PlayOptions {
   pcAfter: number;
 }
 
-type TextNode = 'CODE' | 'MAR' | 'MBR' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'IN' | 'OUT';
-const UNITS = ['CODE', 'INC', 'MAR', 'MBR', 'CIR', 'CU', 'STATUS', 'ALU', 'IN', 'OUT'] as const;
-const TEXT_NODES: readonly string[] = ['CODE', 'MAR', 'MBR', 'CIR', 'CU', 'ALU', 'STATUS', 'IN', 'OUT'];
+type TextNode = 'MAR' | 'MBR' | 'CIR' | 'CU' | 'ALU' | 'STATUS' | 'IN' | 'OUT';
+const UNITS = ['INC', 'MAR', 'MBR', 'CIR', 'CU', 'STATUS', 'ALU', 'IN', 'OUT'] as const;
+const TEXT_NODES: readonly string[] = ['MAR', 'MBR', 'CIR', 'CU', 'ALU', 'STATUS', 'IN', 'OUT'];
 const TITLES: Record<string, string> = {
-  CODE: 'Program memory', INC: 'Incrementer', MAR: 'MAR', MBR: 'MBR', CIR: 'CIR', CU: 'Control unit', STATUS: 'Condition',
+  INC: 'Incrementer', MAR: 'MAR', MBR: 'MBR', CIR: 'CIR', CU: 'Control unit', STATUS: 'Condition',
   ALU: 'Arithmetic and logic unit', IN: 'Input window', OUT: 'Output: screen',
 };
 
@@ -115,9 +115,8 @@ export class Diagram {
       svg.append(rect);
       this.rects.set(id, rect);
       const oneRow = id === 'CIR';
-      const left = id === 'CODE';
       const small = b.w < 100;
-      if (oneRow || left) {
+      if (oneRow) {
         svg.append(s('text', { x: b.x + 12, y: b.y + (oneRow ? 20 : 17), class: 'dp-title' }, TITLES[id]));
       } else {
         svg.append(s('text', { x: b.x + b.w / 2, y: b.y + (small ? 14 : 18), class: 'dp-title', 'text-anchor': 'middle' }, TITLES[id]));
@@ -125,15 +124,13 @@ export class Diagram {
       if (TEXT_NODES.includes(id)) {
         const attrs = oneRow
           ? { x: b.x + b.w - 12, y: b.y + 20, 'text-anchor': 'end' }
-          : left
-            ? { x: b.x + 12, y: b.y + 36, 'text-anchor': 'start' }
-            : { x: b.x + b.w / 2, y: b.y + b.h - (small ? 5 : 8), 'text-anchor': 'middle' };
+          : { x: b.x + b.w / 2, y: b.y + b.h - (small ? 5 : 8), 'text-anchor': 'middle' };
         const t = s('text', { ...attrs, class: 'dp-val dp-unit-val' }, '');
         svg.append(t);
         this.texts.set(id as TextNode, t);
       }
     }
-    svg.append(s('text', { x: VIEW.w - 2, y: 84, class: 'dp-ext', 'text-anchor': 'end' }, 'Data memory'));
+    svg.append(s('text', { x: VIEW.w - 2, y: 84, class: 'dp-ext', 'text-anchor': 'end' }, 'Main memory'));
 
     // what is moving: the wire in use, then the sphere with the value it carries
     this.trace = s('polyline', { class: 'dp-trace', points: '' });
@@ -171,7 +168,7 @@ export class Diagram {
     this.paintRegs();
   }
 
-  /** Clear the program memory / CIR / MAR / MBR / ALU texts (a new program). */
+  /** Clear the MAR / MBR / CIR / ALU texts (a new program). */
   clearUnits(): void {
     for (const t of this.texts.values()) t.textContent = '';
     this.texts.get('STATUS')!.textContent = '–';

@@ -5,6 +5,7 @@ import { createWasmVm } from '../../wasm/src/index';
 import type { AssembleFn } from './assembler';
 import { ADD_TWO_NUMBERS } from './examples';
 import { tokenize, tokenizeLine } from './highlight';
+import { consoleText } from '../../../lang/src/console';
 import { parseNumber } from './panels/numberinput';
 import { mountViz } from './shell';
 import type { VizHandle } from './shell';
@@ -66,24 +67,33 @@ async function mount(kind: 'logging' | 'reversible' = 'logging'): Promise<void> 
 describe('add two numbers (a program that reads the user\'s input)', () => {
   const regs = () => Array.from(viz.vm.registers().regs);
   const data = () => Array.from(viz.vm.memory(0, 3));
+  const text = () => consoleText((a, n) => viz.vm.memory(a, n));
+  /** Step until the program halts; returns how many instructions that took. */
+  const runToHalt = (): number => {
+    let n = 0;
+    while (viz.step() === 'ok') n++;
+    return n;
+  };
 
   for (const kind of ['logging', 'reversible'] as const) {
-    it(`adds two typed numbers on the ${kind} engine, and running back undoes all of it`, async () => {
+    it(`adds two typed numbers on the ${kind} engine, prints them, and running back undoes all of it`, async () => {
       await mount(kind);
       expect(viz.assembleAndLoad(ADD_TWO_NUMBERS, 'add two numbers').ok).toBe(true);
       const start = { regs: regs(), pc: viz.vm.registers().pc };
       viz.pushInput(7);
       viz.pushInput(5);
-      for (let i = 0; i < 7; i++) expect(viz.step()).toBe('ok');
+      const n = runToHalt();
+      expect(n).toBeGreaterThan(40);
       expect(data()).toEqual([7, 5, 12]); // first, second, sum
       expect(regs()[2]).toBe(12); // r2 holds the sum
-      expect(viz.step()).toBe('halted');
+      expect(text()).toBe('7\n5\n12\n'); // the inputs and the sum, one per line
 
-      for (let i = 0; i < 7; i++) expect(viz.stepBack()).toBe('ok');
+      for (let i = 0; i < n; i++) expect(viz.stepBack()).toBe('ok');
       expect(data()).toEqual([0, 0, 0]);
+      expect(text()).toBe(''); // un-printed
       expect(regs()).toEqual(start.regs);
       expect(viz.vm.registers().pc).toBe(start.pc);
-      expect(viz.vm.historyBytes).toBe(kind === 'logging' ? 0 : 0); // stepped back to t = 0: no history left either way
+      expect(viz.vm.historyBytes).toBe(0); // stepped back to t = 0: no history left either way
     });
   }
 
@@ -92,11 +102,12 @@ describe('add two numbers (a program that reads the user\'s input)', () => {
     viz.assembleAndLoad(ADD_TWO_NUMBERS, 'add two numbers');
     viz.pushInput(40);
     viz.pushInput(2);
-    for (let i = 0; i < 7; i++) viz.step();
+    const n = runToHalt();
     expect(Array.from(viz.vm.memory(0, 3))).toEqual([40, 2, 42]);
+    expect(text()).toBe('40\n2\n42\n');
     expect(viz.vm.historyBytes).toBe(0); // nothing per step (typed numbers are on the input tape, not in history)
-    for (let i = 0; i < 3; i++) viz.stepBack();
-    expect(Array.from(viz.vm.memory(0, 3))).toEqual([40, 0, 0]); // sum and second are un-stored, first is still there
+    for (let i = 0; i < n; i++) viz.stepBack();
+    expect(Array.from(viz.vm.memory(0, 3))).toEqual([0, 0, 0]);
   });
 
   it('a number sent after the step that reads it is invisible to that step (the input is time-gated)', async () => {
@@ -104,7 +115,7 @@ describe('add two numbers (a program that reads the user\'s input)', () => {
     viz.assembleAndLoad(ADD_TWO_NUMBERS, 'add two numbers');
     for (let i = 0; i < 3; i++) viz.step(); // xori, xld, xld have run
     viz.pushInput(9);
-    for (let i = 0; i < 4; i++) viz.step();
+    runToHalt();
     expect(Array.from(viz.vm.memory(0, 3))).toEqual([0, 0, 0]);
   });
 
@@ -121,6 +132,21 @@ describe('add two numbers (a program that reads the user\'s input)', () => {
     viz.refresh();
     expect(form.querySelector('.numin-seen')!.textContent).toContain('2 numbers: 7, 5');
     expect(Array.from(viz.vm.memory(0x30002, 2))).toEqual([7, 5]);
+  });
+
+  it('the Output tab shows the console only once the program has printed, with Lock scroll and no Copy', async () => {
+    await mount();
+    viz.assembleAndLoad(ADD_TWO_NUMBERS, 'add two numbers');
+    root.querySelectorAll<HTMLButtonElement>('.work > .tabs .tab')[1].click();
+    const consoleEl = root.querySelector<HTMLElement>('.out .console')!;
+    expect(consoleEl.hidden).toBe(true);
+    viz.pushInput(3);
+    viz.pushInput(4);
+    runToHalt();
+    expect(consoleEl.hidden).toBe(false);
+    expect([...consoleEl.querySelectorAll('.console-line')].map((l) => l.textContent)).toEqual(['3', '4', '7', ' ']);
+    expect(consoleEl.querySelector('.console-lock')).not.toBeNull();
+    expect(consoleEl.textContent).not.toMatch(/copy|clear/i);
   });
 });
 
@@ -171,7 +197,7 @@ describe('editor colours and the visualisation tables', () => {
     expect(syn.textContent).toBe(root.querySelector<HTMLTextAreaElement>('.ed-text')!.value);
     expect(syn.querySelectorAll('.tok-comment').length).toBeGreaterThan(3);
     expect(syn.querySelector('.tok-op')!.textContent).toBe('xori');
-    expect(syn.querySelector('.tok-flow')!.textContent).toBe('hlt');
+    expect(syn.querySelector('.tok-flow')!.textContent).toBe('call');
     expect(syn.querySelector('.tok-label')!.textContent).toBe('first');
   });
 
@@ -183,10 +209,20 @@ describe('editor colours and the visualisation tables', () => {
     expect(root.querySelector('.ed-syn .tok-op')!.textContent).toBe('nop');
   });
 
-  it('numbers the memory rows in decimal', () => {
-    const rows = [...root.querySelectorAll('.vis-mem .lw')].map((w) => [...w.querySelectorAll('.lw-addr')].map((e) => e.textContent));
-    expect(rows[0].slice(0, 3)).toEqual(['0', '4', '8']); // data memory
-    expect(rows[1].slice(0, 2)).toEqual(['65536', '65540']); // stack
-    expect(root.querySelector('.vis-mem')!.textContent).toContain('Stack from 65536');
+  it('one main memory: program, data and stack, with a lettered, zero-padded row number on every row', () => {
+    const labels = (sel: string) => [...root.querySelectorAll(sel)].map((e) => e.textContent);
+    expect(labels('.vis .mm-head span:first-child')).toEqual(['Program', 'Data', 'Stack']);
+    expect(labels('.vis .mm-prow .mm-addr').slice(0, 3)).toEqual(['P00000', 'P00001', 'P00002']);
+    const words = [...root.querySelectorAll('.vis .mm-words')].map((w) => [...w.querySelectorAll('.mm-addr')].map((e) => e.textContent));
+    expect(words[0].slice(0, 3)).toEqual(['D00000', 'D00004', 'D00008']);
+    expect(words[1].slice(0, 2)).toEqual(['S65536', 'S65540']);
+    expect(new Set(words.flat().map((l) => l!.length)).size).toBe(1); // every label the same width
+    expect(root.querySelector('.vis .mm-prow .mm-hex')!.textContent).toMatch(/^0x[0-9a-f]{8}$/);
+    expect(root.querySelector('.vis .mm')!.textContent).toContain('Harvard architecture, by design');
+  });
+
+  it('has no hex or unsigned choices: numbers are signed decimal', () => {
+    expect(root.querySelector('.vis select[aria-label="number format"]')).toBeNull();
+    expect(root.querySelector('.vis')!.textContent).not.toMatch(/unsigned/i);
   });
 });

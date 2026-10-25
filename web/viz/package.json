@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:layout": "node scripts/layout-check.mjs",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
