@@ -1,0 +1,38 @@
+/* The Docs tab: a list of documents and the one being read. Uses the same tokens as the rest of the app. */
+.docs { display: grid; grid-template-columns: 230px minmax(0, 1fr); height: 100%; min-height: 0; }
+.docs-nav { overflow: auto; border-right: 1px solid var(--border); background: var(--panel); padding: var(--s-8) 0; }
+.docs-item { display: block; width: 100%; padding: var(--s-8) var(--s-16); border: 0; background: none; color: var(--muted); font: inherit; text-align: left; cursor: pointer; }
+.docs-item:hover { color: var(--text); background: var(--panel-2); }
+.docs-item:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.docs-item[aria-current='page'] { color: var(--text); background: var(--panel-2); box-shadow: inset 2px 0 0 var(--text); }
+.docs-item-title { display: block; font-weight: 600; }
+.docs-item-blurb { display: block; margin-top: 2px; font-size: 12px; line-height: 1.35; }
+
+.docs-body { overflow: auto; padding: var(--s-24) clamp(var(--s-16), 4vw, 48px) 64px; }
+.docs-body:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.docs-md { max-width: 78ch; margin: 0 auto; font-family: var(--sans); font-size: 15px; line-height: 1.65; color: var(--text); overflow-wrap: break-word; }
+.docs-md h1, .docs-md h2, .docs-md h3, .docs-md h4 { line-height: 1.25; margin: 1.6em 0 0.5em; scroll-margin-top: var(--s-16); }
+.docs-md h1 { margin-top: 0; font-size: 26px; }
+.docs-md h2 { font-size: 20px; padding-bottom: var(--s-4); border-bottom: 1px solid var(--border); }
+.docs-md h3 { font-size: 16px; }
+.docs-md h4 { font-size: 15px; color: var(--muted); }
+.docs-md p, .docs-md ul, .docs-md ol, .docs-md blockquote, .docs-md pre, .docs-md table { margin: 0 0 var(--s-12); }
+.docs-md a { color: var(--back); }
+.docs-md a:hover { text-decoration: underline; }
+.docs-md ul, .docs-md ol { padding-left: 1.4em; }
+.docs-md li + li { margin-top: var(--s-4); }
+.docs-md code { font-family: var(--mono); font-size: 0.9em; padding: 1px 5px; background: var(--panel-2); border-radius: 4px; }
+.docs-md pre { overflow: auto; padding: var(--s-12) var(--s-16); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); line-height: 1.45; }
+.docs-md pre code { padding: 0; background: none; font-size: 13px; }
+.docs-md blockquote { padding: 0 var(--s-16); border-left: 3px solid var(--border); color: var(--muted); }
+.docs-md table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 14px; }
+.docs-md th, .docs-md td { padding: var(--s-4) var(--s-12); border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.docs-md th { background: var(--panel); }
+.docs-md hr { border: 0; border-top: 1px solid var(--border); margin: var(--s-24) 0; }
+
+@media (max-width: 720px) {
+  .docs { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .docs-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 0; }
+  .docs-item { width: auto; white-space: nowrap; }
+  .docs-item-blurb { display: none; }
+}

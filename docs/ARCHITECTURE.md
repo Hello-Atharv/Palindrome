@@ -5,13 +5,13 @@ front end over them.** Nothing is implemented twice.
 
 ## 1. What happens to a program
 ```
-  you write        a program in rev                       examples/rev/*.rev, examples/demos/pong.rev
+  you write        a program in rev
       |
       |   lang/    the rev compiler (TypeScript)
       |            checks the reversibility rules, builds each expression and
       |            un-builds it, and writes the per-line cost report
       v
-  assembly         text, one instruction per line         examples/asm/*.s, examples/demos/*.s
+  assembly         text, one instruction per line
       |            (or you write this directly)
       |   asm/     the assembler (TypeScript)
       |            expands macros (.if, .loop, .print), packs 32-bit words

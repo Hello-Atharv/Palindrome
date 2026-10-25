@@ -11,6 +11,7 @@ import { attachKeys } from './keys';
 import type { Machine } from './machines';
 import { bannersPanel } from './panels/banners';
 import { comparePanel } from './panels/compare';
+import { docsPanel } from './panels/docs';
 import { editorPanel } from './panels/editor';
 import { gamePanel } from './panels/game';
 import type { ListingApi } from './panels/editor';
@@ -324,12 +325,14 @@ export function mountViz(root: HTMLElement, vm: RVM, opts: VizOptions = {}): Viz
   outInput.append(numberB.el, screen.keys);
   outputPane.append(game.el, outMain, outInput);
 
+  const docs = docsPanel();
   const rightTabs = new Tabs(
     [
       { id: 'visualisation', label: 'Visualisation', el: visualise.el },
       { id: 'output', label: 'Output', el: outputPane },
       // Compare is a mode, not a tab: the header button switches between it and the normal IDE
       { id: 'compare', label: 'Compare', el: compare.el, disabled: !canCompare, hidden: true },
+      { id: 'docs', label: 'Docs', el: docs.el, title: 'The guide, the writeup, the demo script and the spec' },
     ],
     'visualisation',
   );
