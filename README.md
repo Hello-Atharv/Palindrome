@@ -1,5 +1,7 @@
 # Palindrome: a computer that can't forget
 
+**OxHack 2026 runner-up.**
+
 OxHack 2026, theme **time**. A small computer in which every instruction can be undone, so any program runs backwards with
 no history log, plus the whole toolchain around it: an assembler, a language and compiler, a debugger that steps *back*, a
 verifier, a browser UI, a VS Code extension, and a benchmark that compares the price of undoing against the usual ways.
